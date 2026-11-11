@@ -26,19 +26,15 @@ const EQUIPMENT_REGISTRY = {
   }
 };
 
-/**
- * 繪製四大法器專屬動態法術粒子特效
- */
 function drawArtifactSkillEffects(ctx, fxList, time) {
   for (let i = fxList.length - 1; i >= 0; i--) {
     const fx = fxList[i];
     fx.timer--;
-    const progress = 1 - (fx.timer / fx.maxDuration); // 0 -> 1
+    const progress = 1 - (fx.timer / fx.maxDuration);
 
     ctx.save();
 
     if (fx.type === 'freeze') {
-      // 1. 極寒霜環：全螢幕向外擴散六角冰霜星、碎冰與冰霧環
       const ringRadius = progress * (ctx.canvas.width * 0.7);
       ctx.strokeStyle = `rgba(186, 230, 253, ${1 - progress})`;
       ctx.shadowColor = "#38bdf8";
@@ -48,13 +44,11 @@ function drawArtifactSkillEffects(ctx, fxList, time) {
       ctx.arc(fx.x, fx.y, ringRadius, 0, Math.PI * 2);
       ctx.stroke();
 
-      // 飛散冰晶粒子
       for (const p of fx.particles) {
         p.x += Math.cos(p.angle) * p.speed;
         p.y += Math.sin(p.angle) * p.speed;
         ctx.fillStyle = `rgba(224, 242, 254, ${1 - progress})`;
         ctx.beginPath();
-        // 繪製微型菱形六角碎冰
         ctx.moveTo(p.x, p.y - 4);
         ctx.lineTo(p.x + 4, p.y);
         ctx.lineTo(p.x, p.y + 4);
@@ -64,7 +58,6 @@ function drawArtifactSkillEffects(ctx, fxList, time) {
       }
 
     } else if (fx.type === 'thunder') {
-      // 2. 天罰雷霆：頂部直劈地面的白紫電弧與裂地光斑
       for (const strike of fx.strikes) {
         ctx.strokeStyle = "#ffffff";
         ctx.shadowColor = "#c084fc";
@@ -73,15 +66,12 @@ function drawArtifactSkillEffects(ctx, fxList, time) {
 
         ctx.beginPath();
         ctx.moveTo(strike.x, 0);
-        let curX = strike.x;
-        let curY = 0;
         for (const pt of strike.points) {
           ctx.lineTo(pt.x, pt.y);
         }
         ctx.lineTo(strike.targetX, strike.targetY);
         ctx.stroke();
 
-        // 地面雷擊爆裂環
         ctx.fillStyle = `rgba(192, 132, 252, ${0.8 * (1 - progress)})`;
         ctx.beginPath();
         ctx.arc(strike.targetX, strike.targetY, (progress * 25), 0, Math.PI * 2);
@@ -89,7 +79,6 @@ function drawArtifactSkillEffects(ctx, fxList, time) {
       }
 
     } else if (fx.type === 'nova') {
-      // 3. 等離子爆裂：周圍 360 度烈焰衝擊波
       const r = progress * 190;
       ctx.strokeStyle = `rgba(244, 63, 94, ${1 - progress})`;
       ctx.shadowColor = "#ef4444";
@@ -109,7 +98,6 @@ function drawArtifactSkillEffects(ctx, fxList, time) {
       }
 
     } else if (fx.type === 'blackhole') {
-      // 4. 深淵黑洞：向心引力漩渦與紫色重力光圈
       const cx = fx.x;
       const cy = fx.y;
 
@@ -124,16 +112,13 @@ function drawArtifactSkillEffects(ctx, fxList, time) {
       ctx.arc(0, 0, 32 + Math.sin(time * 10) * 4, 0, Math.PI * 2);
       ctx.stroke();
 
-      // 黑洞核心
       ctx.fillStyle = "#090514";
       ctx.beginPath();
       ctx.arc(0, 0, 24, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
 
-      // 向心吸附暗紫引力流
       for (const p of fx.particles) {
-        const d = Math.hypot(cx - p.x, cy - p.y);
         const ang = Math.atan2(cy - p.y, cx - p.x);
         p.x += Math.cos(ang) * 5;
         p.y += Math.sin(ang) * 5;
