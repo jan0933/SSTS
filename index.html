@@ -8,8 +8,10 @@
 </head>
 <body>
 
+<!-- 右上角手動全螢幕按鈕 -->
 <button id="btn-global-fullscreen" onclick="toggleGlobalFullscreen()">⛶ 全螢幕</button>
 
+<!-- 直向持握提示遮罩 -->
 <div id="rotate-device-overlay">
   <div style="font-size: 32px; margin-bottom: 12px;">📱 ↻</div>
   <div>請將裝置轉為橫向以獲得完整作戰視野</div>
@@ -41,7 +43,7 @@
   <button class="story-skip-btn" onclick="skipStory(event)">略過劇情 (SKIP)</button>
 </div>
 
-<!-- 3. 大地圖選關畫面 (3D 旋轉地球 + 背包按鈕) -->
+<!-- 3. 大地圖選關畫面 -->
 <div id="world-map-screen" class="screen">
   <div class="map-header">
     <div class="map-title">全球防衛陣線 · 100國領土收復</div>
@@ -100,7 +102,7 @@
     </div>
   </div>
 
-  <!-- 人體工學紙娃娃裝備面板 (5★滿星覺醒專屬詞條) -->
+  <!-- 人體工學紙娃娃裝備面板 -->
   <div id="inventory-modal" class="modal-backdrop">
     <div class="paperdoll-inv-container">
       <div class="inv-header">
@@ -113,7 +115,6 @@
       
       <div class="paperdoll-layout">
         <div class="gear-doll-wrapper">
-          <!-- 上方：頭盔 -->
           <div class="doll-row top-row">
             <div class="gear-slot" id="slot-helmet" onclick="selectSlotForEquip('helmet')">
               <span class="slot-label">頭盔</span>
@@ -123,7 +124,6 @@
             </div>
           </div>
 
-          <!-- 中央：單一遠程武器 + 盔甲 + 紙娃娃預覽 -->
           <div class="doll-row mid-row">
             <div class="gear-slot weapon-slot" id="slot-weapon" onclick="selectSlotForEquip('weapon')">
               <span class="slot-label">遠程武器</span>
@@ -150,7 +150,6 @@
             </div>
           </div>
 
-          <!-- 下方：手套、鞋子、護符 -->
           <div class="doll-row bottom-row">
             <div class="gear-slot" id="slot-gloves" onclick="selectSlotForEquip('gloves')">
               <span class="slot-label">手套</span>
@@ -173,7 +172,6 @@
           </div>
         </div>
 
-        <!-- 右側：裝備庫存清單與強化/拆解面板 -->
         <div class="gear-inventory-panel">
           <div class="inv-panel-title" id="inv-panel-title">點選左側槽位進行替換</div>
           <div class="inv-items-scroll" id="inv-items-scroll">
@@ -189,7 +187,7 @@
   </div>
 </div>
 
-<!-- 4. 戰鬥主畫面 -->
+<!-- 4. 戰鬥主畫面 (等比 Viewport 封裝容器) -->
 <div id="game-container" class="screen">
   <div class="canvas-aspect-wrapper">
     <canvas id="game-canvas" width="780" height="540"></canvas>
@@ -233,10 +231,10 @@
       </div>
     </div>
 
-    <!-- 動態搖桿 -->
+    <!-- 搖桿 -->
     <div id="joystick-base"><div id="joystick-thumb"></div></div>
 
-    <!-- 戰鬥右側動作群 (射擊、法器、衝刺) -->
+    <!-- 右側動作群 (射擊、法器、衝刺) -->
     <div id="battle-action-cluster">
       <button id="btn-act-shoot" class="cluster-btn btn-shoot" onclick="triggerManualShoot()">
         <span class="act-icon">🏹</span>
@@ -273,7 +271,7 @@
     </div>
   </div>
 
-  <!-- Boss 戰利品自選寶箱視窗 -->
+  <!-- 戰利品自選寶箱視窗 -->
   <div id="chest-modal" class="modal-backdrop">
     <div class="chest-box-container">
       <div class="chest-title" id="chest-title">👑 擊破區域 Boss · 頂級裝備自選</div>
