@@ -2,19 +2,25 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>地表倖存者：深海逆鱗 (SSTS)</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<!-- 首頁 -->
+<!-- 直向持握提示遮罩 (僅在手機拿直時自動出現) -->
+<div id="rotate-device-overlay">
+  <div style="font-size: 32px; margin-bottom: 12px;">📱 ↻</div>
+  <div>請將裝置轉為橫向以獲得最佳作戰視野</div>
+</div>
+
+<!-- 1. 首頁畫面 -->
 <div id="title-screen" class="screen">
   <canvas id="logo-canvas" width="700" height="260"></canvas>
   <button class="btn" onclick="startStory()">開始作戰 (START)</button>
 </div>
 
-<!-- 故事模式 -->
+<!-- 2. 故事模式與動態過場插圖 -->
 <div id="story-screen" class="screen">
   <div class="story-header">
     <div class="progress-dots" id="dots-container"></div>
@@ -29,28 +35,60 @@
   </div>
 </div>
 
-<!-- 戰鬥主畫面 -->
+<!-- 3. 戰鬥主畫面 -->
 <div id="game-container" class="screen">
   <canvas id="game-canvas" width="780" height="540"></canvas>
+  
+  <!-- HUD 介面 -->
   <div id="hud">
     <div class="bar-bg"><div class="bar-fill" id="exp-bar"></div></div>
     <div class="hud-stats">
       <span id="txt-level">防衛階級: 1</span>
       <span id="txt-kills">擊退海嗣: 0</span>
       <span id="txt-hp">核心護甲: 100/100</span>
-      <span id="txt-weapon" style="color: #38bdf8;">武器: 離子軍刀 [按 1/2/3 換裝]</span>
+      <button id="btn-open-bag" onclick="toggleInventory()">🎒 背包 [B]</button>
     </div>
   </div>
 
+  <!-- 動態浮動觸控搖桿 -->
+  <div id="joystick-base">
+    <div id="joystick-thumb"></div>
+  </div>
+
+  <!-- 升級彈窗 -->
   <div id="upgrade-modal">
     <h3 style="color: #38bdf8; letter-spacing: 2px;">防衛系統進化升級</h3>
     <div class="upgrade-card" onclick="chooseUpgrade('firerate')">⚡ 聚焦脈衝冷卻加速 (-20%)</div>
     <div class="upgrade-card" onclick="chooseUpgrade('damage')">💥 電磁等離子增幅 (+40% 傷害)</div>
     <div class="upgrade-card" onclick="chooseUpgrade('speed')">👟 地表突擊推進器 (+15% 移速)</div>
   </div>
+
+  <!-- 九宮格裝備背包與角色紙娃娃特寫視窗 -->
+  <div id="inventory-modal">
+    <div class="inv-container">
+      <div class="inv-header">
+        <span>機甲整備系統 (INVENTORY)</span>
+        <button class="close-btn" onclick="toggleInventory()">✕</button>
+      </div>
+      <div class="inv-body">
+        <div class="preview-box">
+          <canvas id="preview-canvas" width="200" height="230"></canvas>
+          <div class="preview-info" id="preview-info">目前武器：離子軍刀</div>
+        </div>
+        <div class="grid-section">
+          <div class="slot-filter">
+            <span class="tag">點擊九宮格裝備立即替換部件</span>
+          </div>
+          <div class="inv-grid" id="inv-grid"></div>
+        </div>
+      </div>
+      <div class="inv-footer">
+        <span>快捷操作：電腦端可按 [B] 鍵關閉 | 支援即時換裝</span>
+      </div>
+    </div>
+  </div>
 </div>
 
-<!-- 先載入繪圖美術模組，再載入遊戲核心邏輯 -->
 <script src="render_art.js"></script>
 <script src="game.js"></script>
 </body>
