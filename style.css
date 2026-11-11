@@ -66,7 +66,7 @@ html, body {
   #rotate-device-overlay { display: flex; }
 }
 
-/* 外層畫面容器：全滿版貼齊螢幕 */
+/* 視窗容器 */
 .screen {
   width: 100vw !important;
   height: 100vh !important;
@@ -350,7 +350,7 @@ html, body {
 }
 .btn-clear-save:hover { color: #f43f5e; }
 
-/* 10 小關戰術彈窗 (適配手機高度，支援縱向滾動) */
+/* 10 小關戰術彈窗 */
 .substage-container {
   width: 580px;
   max-width: 95vw;
@@ -404,7 +404,7 @@ html, body {
 .substage-btn.locked { background: #090d16; border-color: #1e293b; color: #475569; cursor: not-allowed; }
 .substage-badge { font-size: 8.5px; padding: 1px 4px; border-radius: 4px; }
 
-/* ==================== 紙娃娃面板 (全面適配手機橫向最大高度) ==================== */
+/* ==================== 紙娃娃面板 (已穿戴卡片高亮樣式) ==================== */
 .paperdoll-inv-container {
   width: 740px;
   max-width: 95vw;
@@ -499,6 +499,30 @@ html, body {
   flex-direction: column;
   gap: 3px;
 }
+/* 右側已穿戴裝備卡片高亮外觀 */
+.inv-equip-card.is-currently-equipped {
+  background: #0f2744;
+  border-color: #38bdf8;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.25);
+}
+.equipped-tag {
+  font-size: 9px;
+  font-weight: 800;
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.2);
+  border: 1px solid #10b981;
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+.btn-unequip {
+  background: #334155;
+  color: #f1f5f9;
+  border-color: #64748b;
+}
+.btn-unequip:hover {
+  background: #475569;
+}
+
 .card-header-row { display: flex; justify-content: space-between; align-items: center; }
 .card-tier-tag { font-size: 9.5px; font-weight: 900; padding: 1px 4px; border-radius: 4px; }
 .card-actions-row { display: flex; justify-content: flex-end; gap: 5px; margin-top: 3px; }
@@ -568,7 +592,6 @@ html, body {
   overflow: hidden;
 }
 
-/* 核心：絕對維持 780:540 比例，在螢幕內最大化，絕不切邊 */
 .canvas-aspect-wrapper {
   position: relative;
   width: min(100vw, calc(100dvh * (780 / 540))) !important;
