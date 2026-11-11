@@ -1,5 +1,5 @@
 /**
- * SSTS - 遊戲核心引擎、初始裸裝、寶箱掉落、階梯式關卡與護符寵物邏輯
+ * SSTS - 遊戲核心戰鬥循環、國家關卡對接、通關結算與存檔同步 (game.js)
  */
 
 /* ==================== 音效引擎 ==================== */
@@ -102,7 +102,7 @@ function drawLogo() {
 }
 drawLogo();
 
-/* ==================== 故事頁面與點擊全螢幕任意處翻頁 ==================== */
+/* ==================== 故事頁面與點擊任意處翻頁 ==================== */
 const storyCanvas = document.getElementById('story-canvas');
 const sctx = storyCanvas.getContext('2d');
 let storyTime = 0;
@@ -111,8 +111,8 @@ let storyAnimId = null;
 const storyData = [
   { chapter: "SSTS // ARCHIVE 01", title: "海淵巨響 · 沉眠者復甦", desc: "萬米海溝深處的海洋霸主睜開眼瞳。遠古逆鱗共振引發深海熱泉狂潮，海洋不再溫馴，化為狂暴的變異進化母體。" },
   { chapter: "SSTS // ARCHIVE 02", title: "逆鱗狂潮 · 異種登陸", desc: "深海巨獸散發出超導進化信號。魚群長出覆甲足肢，水母演化出懸浮腺體，數以萬計的變異海嗣撕裂海岸防線！" },
-  { chapter: "SSTS // ARCHIVE 03", title: "地表同盟 · 孤注一擲", desc: "地表防禦部隊已無退路。你赤身進入前線防衛基地，需在戰鬥中擊潰霸主先鋒掠奪模組裝備，守護最後要塞！" },
-  { chapter: "SSTS // MISSION START", title: "陸防前線 · 裸裝突圍", desc: "突變潮汐已抵達據點！你目前身上無任何護甲。利用左半邊搖桿走位擊退海嗣，擊敗 Boss 獲取自選神裝！" }
+  { chapter: "SSTS // ARCHIVE 03", title: "地表同盟 · 孤注一擲", desc: "地表防禦部隊已無退路。你將從世界最小微型國家梵蒂岡出發，一步步奪回100塊領土，升級戰甲迎戰深淵霸主！" },
+  { chapter: "SSTS // MISSION START", title: "陸防前線 · 征途展開", desc: "收復領土將獲得戰利品裝備，所有能力與裝備均可跨關卡繼承並即時自動存檔。出擊吧，守衛地表生靈！" }
 ];
 
 let storyIndex = 0;
@@ -173,6 +173,7 @@ function drawStoryScene() {
 function startStory() {
   initAudio();
   requestLandscapeFullscreen();
+  loadGameSave(); // 載入或建立存檔
   playTone(440, 'triangle', 0.2);
   if (logoAnimId) cancelAnimationFrame(logoAnimId);
   document.getElementById('title-screen').style.display = 'none';
@@ -204,25 +205,22 @@ function handleStoryScreenClick(e) {
 function nextStory() {
   playTone(550, 'sine', 0.15);
   storyIndex++;
-  if (storyIndex >= storyData.length) enterGame();
-  else renderStory();
+  // 故事結束後進入 3D 大地圖選關！
+  if (storyIndex >= storyData.length) {
+    if (storyAnimId) { cancelAnimationFrame(storyAnimId); storyAnimId = null; }
+    openWorldMapScreen();
+  } else {
+    renderStory();
+  }
 }
 
 function skipStory(e) {
   e.stopPropagation();
-  enterGame();
-}
-
-function enterGame() {
-  initAudio();
-  playTone(330, 'square', 0.4);
   if (storyAnimId) { cancelAnimationFrame(storyAnimId); storyAnimId = null; }
-  document.getElementById('story-screen').style.display = 'none';
-  document.getElementById('game-container').style.display = 'flex';
-  initGame();
+  openWorldMapScreen();
 }
 
-/* ==================== 遊戲狀態與核心數據 ==================== */
+/* ==================== 戰鬥狀態與關卡進度同步 ==================== */
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
 const expBar = document.getElementById('exp-bar');
@@ -230,13 +228,15 @@ const hpBar = document.getElementById('hp-bar');
 const txtExpVal = document.getElementById('txt-exp-val');
 const txtHpVal = document.getElementById('txt-hp-val');
 const txtLevel = document.getElementById('txt-level');
-const txtStage = document.getElementById('txt-stage');
+const txtCurrentCountry = document.getElementById('txt-current-country');
 const txtKills = document.getElementById('txt-kills');
 
 const upgradeModal = document.getElementById('upgrade-modal');
 const chestModal = document.getElementById('chest-modal');
 const chestOptionsContainer = document.getElementById('chest-options-container');
 const chestStageInfo = document.getElementById('chest-stage-info');
+const victoryModal = document.getElementById('victory-modal');
+const victoryCountryName = document.getElementById('victory-country-name');
 const dashCooldownOverlay = document.getElementById('dash-cooldown-overlay');
 
 const bossAlarmOverlay = document.getElementById('boss-alarm-overlay');
@@ -247,11 +247,11 @@ const bossHpText = document.getElementById('boss-hp-text');
 let isPaused = false;
 let kills = 0;
 let lastBossKills = 0;
-let currentStage = 1;
+let activeCountryStageId = 1;
 let gameRunning = false;
 let globalTime = 0;
 
-// 玩家實體：一開始完全裸裝（空手脈衝拳，無防具無飾品）
+// 玩家狀態物件 (從存檔初始化繼承)
 const player = {
   x: canvas.width / 2,
   y: canvas.height / 2,
@@ -269,7 +269,7 @@ const player = {
   animTimer: 0,
   attackTimer: 0,
   attackDuration: 14,
-  fireInterval: 38, // 空手基礎射速
+  fireInterval: 38,
   fireTimer: 0,
 
   isDashing: false,
@@ -288,55 +288,31 @@ const player = {
     boots: null,
     accessory: null,
     talisman: null,
-    weapon: {
-      type: 'bare',
-      name: '空手電磁衝擊',
-      damage: 22,
-      speed: 7,
-      color: '#38bdf8'
-    }
+    weapon: { type: 'bare', name: '空手電磁衝擊', damage: 22, speed: 7, color: '#38bdf8' }
   }
 };
 
 let dashGhosts = [];
-
-// 護符召喚的寵物實體狀態
-const pet = {
-  active: false,
-  type: null, // 'atk' | 'heal' | 'pull'
-  x: 0,
-  y: 0,
-  targetX: 0,
-  targetY: 0,
-  timer: 0
-};
-
-// 戰利品寶箱實體
-const chest = {
-  active: false,
-  x: 0,
-  y: 0,
-  radius: 16
-};
+const pet = { active: false, type: null, x: 0, y: 0, targetX: 0, targetY: 0, timer: 0 };
+const chest = { active: false, x: 0, y: 0, radius: 16 };
 
 /* ==================== 階梯式裝備資料庫 ==================== */
-// Stage 1: 普通 | Stage 2: 稀有 | Stage 3+: 史詩/神話
 const EQUIPMENT_DATABASE = {
-  1: [ // Stage 1 (普通裝備)
+  1: [
     { id: "w_sword_1", slot: "weapon", name: "偵察合金刃", type: "近戰武器", tier: "普通", desc: "基礎軍刀 (傷害 40)", data: { type: 'melee', name: '偵察合金刃', damage: 40, speed: 9, color: '#38bdf8' } },
     { id: "w_bow_1", slot: "weapon", name: "輕型短弓", type: "遠程弓弩", tier: "普通", desc: "快速穿刺 (傷害 28)", data: { type: 'bow', name: '輕型短弓', damage: 28, speed: 11, color: '#0284c7' } },
     { id: "h_scout", slot: "helmet", name: "斥候護目鏡", type: "頭盔", tier: "普通", desc: "提升 10% 視野與暴擊", val: "scout" },
     { id: "a_scout", slot: "armor", name: "輕甲胸衣", type: "盔甲", tier: "普通", desc: "提升 20 點生命上限", val: "scout" },
     { id: "t_atk", slot: "talisman", name: "雷光護符", type: "護符 (寵物)", tier: "普通", desc: "召喚【電漿浮游蟲】協助攻擊", val: "atk_pet" }
   ],
-  2: [ // Stage 2 (稀有裝備)
+  2: [
     { id: "w_staff_2", slot: "weapon", name: "等離子星杖", type: "法術法杖", tier: "稀有", desc: "貫穿光球 (傷害 65)", data: { type: 'staff', name: '等離子星杖', damage: 65, speed: 6, color: '#c084fc' } },
     { id: "h_heavy_2", slot: "helmet", name: "重型合金角盔", type: "頭盔", tier: "稀有", desc: "減免 15% 所受傷害", val: "heavy" },
     { id: "a_heavy_2", slot: "armor", name: "板塊覆甲重鎧", type: "盔甲", tier: "稀有", desc: "大幅提升防禦與抗擊退", val: "heavy" },
     { id: "t_heal", slot: "talisman", name: "生命潮汐符", type: "護符 (寵物)", tier: "稀有", desc: "召喚【醫療水母】每 4 秒回血", val: "heal_pet" },
     { id: "acc_mantle", slot: "accessory", name: "極光披風", type: "配件", tier: "稀有", desc: "提升 15% 移動速度", val: "mantle" }
   ],
-  3: [ // Stage 3+ (史詩/神話裝備)
+  3: [
     { id: "w_sword_3", slot: "weapon", name: "逆鱗弒神光刃", type: "近戰神話", tier: "史詩", desc: "大範圍真傷橫掃 (傷害 110)", data: { type: 'melee', name: '逆鱗弒神光刃', damage: 110, speed: 12, color: '#f43f5e' } },
     { id: "w_bow_3", slot: "weapon", name: "虛空貫滅巨弩", type: "遠程神話", tier: "史詩", desc: "三重散射電磁箭 (傷害 85)", data: { type: 'bow', name: '虛空貫滅巨弩', damage: 85, speed: 14, color: '#38bdf8' } },
     { id: "a_archmage_3", slot: "armor", name: "星宿天災戰袍", type: "盔甲神話", tier: "史詩", desc: "護甲超載，全傷害提升 30%", val: "archmage" },
@@ -345,22 +321,46 @@ const EQUIPMENT_DATABASE = {
   ]
 };
 
-// 玩家目前獲得的背包裝備清單
-let myInventory = [];
+// 從存檔載入玩家狀態進入指定國家戰場
+function startCountryBattle(stageId) {
+  activeCountryStageId = stageId;
+  const stage = COUNTRIES_STAGE_DATA.find(s => s.id === stageId) || COUNTRIES_STAGE_DATA[0];
 
-/* ==================== 寵物邏輯處理 ==================== */
+  // 繼承玩家歷史屬性與裝備
+  player.level = userSave.playerLevel;
+  player.exp = userSave.playerExp;
+  player.nextExp = userSave.playerNextExp;
+  player.maxHp = userSave.playerMaxHp;
+  player.hp = player.maxHp;
+  player.equipment = { ...userSave.equipped };
+
+  // 重置場景實體
+  enemies = [];
+  bullets = [];
+  bossBullets = [];
+  gems = [];
+  dashGhosts = [];
+  kills = 0;
+  lastBossKills = 0;
+  boss.active = false;
+  chest.active = false;
+  isPaused = false;
+
+  txtCurrentCountry.innerText = `${stage.name.split(' ')[0]} (${stage.area})`;
+  txtLevel.innerText = `階級: Lv.${player.level}`;
+  updateHUD();
+
+  initGame();
+}
+
 function updatePet() {
-  if (!player.equipment.talisman) {
-    pet.active = false;
-    return;
-  }
+  if (!player.equipment.talisman) { pet.active = false; return; }
 
   pet.active = true;
   if (player.equipment.talisman === 'atk_pet') pet.type = 'atk';
   else if (player.equipment.talisman === 'heal_pet') pet.type = 'heal';
   else if (player.equipment.talisman === 'pull_pet') pet.type = 'pull';
 
-  // 寵物跟隨在玩家身後斜上方
   pet.targetX = player.x - (player.facing * 24);
   pet.targetY = player.y - 20 + Math.sin(globalTime * 3) * 6;
   pet.x += (pet.targetX - pet.x) * 0.1;
@@ -368,7 +368,6 @@ function updatePet() {
 
   pet.timer++;
 
-  // 1. 攻擊寵物：每 1 秒向最近敵人發射一束雷射
   if (pet.type === 'atk' && pet.timer >= 50) {
     pet.timer = 0;
     if (enemies.length > 0) {
@@ -385,7 +384,6 @@ function updatePet() {
     }
   }
 
-  // 2. 治療水母：每 4 秒為玩家恢復 15 點 HP
   if (pet.type === 'heal' && pet.timer >= 200) {
     pet.timer = 0;
     if (player.hp < player.maxHp) {
@@ -395,7 +393,6 @@ function updatePet() {
     }
   }
 
-  // 3. 磁暴黑洞核：每 5 秒將周遭敵人吸附拉向黑洞
   if (pet.type === 'pull' && pet.timer >= 240) {
     pet.timer = 0;
     for (const e of enemies) {
@@ -527,7 +524,7 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
 
-/* ==================== Boss 戰與戰利品寶箱機制 ==================== */
+/* ==================== Boss 戰與戰利品機制 ==================== */
 const boss = {
   active: false,
   x: 0,
@@ -546,7 +543,7 @@ function spawnBoss() {
   boss.active = true;
   boss.x = canvas.width / 2;
   boss.y = -60;
-  boss.hp = 1000 + (currentStage - 1) * 400;
+  boss.hp = 1000 + (activeCountryStageId - 1) * 200;
   boss.maxHp = boss.hp;
   boss.ringAttackTimer = 0;
 
@@ -574,19 +571,18 @@ function fireBossRingBarrage() {
   playTone(220, 'square', 0.2, 0.1);
 }
 
-// 觸發 Boss 寶箱三選一自選介面
 function openChestSelection() {
   isPaused = true;
   chestModal.style.display = 'flex';
   chestOptionsContainer.innerHTML = '';
 
-  const stageTierKey = Math.min(currentStage, 3);
-  const pool = EQUIPMENT_DATABASE[stageTierKey];
+  const tierKey = activeCountryStageId <= 20 ? 1 : (activeCountryStageId <= 60 ? 2 : 3);
+  const pool = EQUIPMENT_DATABASE[tierKey];
   const shuffled = [...pool].sort(() => 0.5 - Math.random());
   const options = shuffled.slice(0, 3);
 
-  const tierNames = { 1: "普通 (STAGE 1)", 2: "稀有 (STAGE 2)", 3: "史詩/神話 (STAGE 3+)" };
-  chestStageInfo.innerText = `目前戰利品品質階級：${tierNames[stageTierKey]}`;
+  const tierNames = { 1: "普通 (初期微型國)", 2: "稀有 (中型板塊國)", 3: "史詩/神話 (世界巨國)" };
+  chestStageInfo.innerText = `目前戰利品品質階級：${tierNames[tierKey]}`;
 
   options.forEach(item => {
     const card = document.createElement('div');
@@ -597,11 +593,9 @@ function openChestSelection() {
       </div>
       <div class="chest-card-name">${item.name}</div>
       <div class="chest-card-desc">${item.desc}</div>
-      <div style="font-size: 10px; color: #eab308; margin-top: 8px;">★ 點擊獲取並自動裝備 ★</div>
+      <div style="font-size: 10px; color: #eab308; margin-top: 8px;">★ 點擊獲取並裝備 ★</div>
     `;
-    card.onclick = () => {
-      claimChestItem(item);
-    };
+    card.onclick = () => { claimChestItem(item); };
     chestOptionsContainer.appendChild(card);
   });
 
@@ -609,24 +603,54 @@ function openChestSelection() {
 }
 
 function claimChestItem(item) {
-  // 自動換裝入庫
   if (item.slot === 'weapon') player.equipment.weapon = { ...item.data };
   else if (item.slot === 'helmet') player.equipment.helmet = item.val;
   else if (item.slot === 'armor') player.equipment.armor = item.val;
   else if (item.slot === 'accessory') player.equipment.accessory = item.val;
   else if (item.slot === 'talisman') player.equipment.talisman = item.val;
 
-  // 加入背包庫存
-  if (!myInventory.some(i => i.id === item.id)) myInventory.push(item);
+  if (!userSave.myInventory.some(i => i.id === item.id)) {
+    userSave.myInventory.push(item);
+  }
 
-  // 關卡進階
-  currentStage++;
-  txtStage.innerText = `關卡: ${currentStage}-1`;
+  // 解鎖下一關
+  if (activeCountryStageId >= userSave.unlockedStage && userSave.unlockedStage < 100) {
+    userSave.unlockedStage = activeCountryStageId + 1;
+    userSave.currentSelectedStage = userSave.unlockedStage;
+  }
+
+  // 同步玩家即時屬性至存檔
+  syncPlayerSaveState();
 
   chest.active = false;
   chestModal.style.display = 'none';
-  isPaused = false;
   playTone(850, 'sine', 0.3, 0.1);
+
+  // 彈出收復成功結算視窗
+  showVictoryModal();
+}
+
+function syncPlayerSaveState() {
+  userSave.playerLevel = player.level;
+  userSave.playerExp = player.exp;
+  userSave.playerNextExp = player.nextExp;
+  userSave.playerMaxHp = player.maxHp;
+  userSave.equipped = { ...player.equipment };
+  saveGameProgress();
+}
+
+function showVictoryModal() {
+  isPaused = true;
+  const stage = COUNTRIES_STAGE_DATA.find(s => s.id === activeCountryStageId) || COUNTRIES_STAGE_DATA[0];
+  victoryCountryName.innerText = `${stage.name} 已全面收復！`;
+  victoryModal.style.display = 'flex';
+  playTone(880, 'triangle', 0.5, 0.2);
+}
+
+function returnToWorldMap() {
+  victoryModal.style.display = 'none';
+  document.getElementById('game-container').style.display = 'none';
+  openWorldMapScreen();
 }
 
 /* ==================== 背包面板 ==================== */
@@ -663,12 +687,12 @@ function renderInventorySlots() {
   previewInfo.innerText = `武器：${player.equipment.weapon ? player.equipment.weapon.name : '赤手空拳'}`;
   previewPetInfo.innerText = player.equipment.talisman ? `護符寵物：${EQUIPMENT_REGISTRY.talismans[player.equipment.talisman].name}` : `護符寵物：未裝備`;
 
-  if (myInventory.length === 0) {
-    invGrid.innerHTML = `<div style="grid-column: span 3; color: #64748b; font-size: 11px; padding: 20px 0;">目前身上無備用裝備<br>擊敗 Boss 獲取戰利品寶箱！</div>`;
+  if (userSave.myInventory.length === 0) {
+    invGrid.innerHTML = `<div style="grid-column: span 3; color: #64748b; font-size: 11px; padding: 20px 0;">目前身上無備用裝備<br>擊敗國家 Boss 獲取戰利品寶箱！</div>`;
     return;
   }
 
-  myInventory.forEach(item => {
+  userSave.myInventory.forEach(item => {
     const slot = document.createElement('div');
     slot.className = 'item-slot';
 
@@ -688,13 +712,13 @@ function renderInventorySlots() {
     `;
 
     slot.onclick = () => {
-      // 點擊切換/卸除
       if (item.slot === 'weapon') player.equipment.weapon = { ...item.data };
       else if (item.slot === 'helmet') player.equipment.helmet = (player.equipment.helmet === item.val ? null : item.val);
       else if (item.slot === 'armor') player.equipment.armor = (player.equipment.armor === item.val ? null : item.val);
       else if (item.slot === 'talisman') player.equipment.talisman = (player.equipment.talisman === item.val ? null : item.val);
       else if (item.slot === 'accessory') player.equipment.accessory = (player.equipment.accessory === item.val ? null : item.val);
 
+      syncPlayerSaveState();
       playTone(750, 'triangle', 0.08);
       renderInventorySlots();
     };
@@ -712,7 +736,7 @@ function startPreviewLoop() {
   loop();
 }
 
-/* ==================== 割草主戰鬥循環 ==================== */
+/* ==================== 戰鬥更新與主循環 ==================== */
 let enemies = [];
 let bullets = [];
 let gems = [];
@@ -743,12 +767,14 @@ function spawnSeaEnemy() {
   else { x = -20; y = Math.random() * canvas.height; }
 
   const isJelly = Math.random() > 0.45;
+  const stageScaling = Math.floor(activeCountryStageId * 0.4);
+
   enemies.push({
     x, y,
     type: isJelly ? 'jelly' : 'fish',
     radius: isJelly ? 12 : 9,
     speed: isJelly ? (1.0 + Math.random() * 0.3) : (1.6 + Math.random() * 0.4),
-    hp: isJelly ? (35 + player.level * 6) : (20 + player.level * 4),
+    hp: isJelly ? (35 + player.level * 5 + stageScaling * 4) : (20 + player.level * 3 + stageScaling * 3),
     pulse: Math.random() * 10
   });
 }
@@ -791,7 +817,6 @@ function updateGame() {
   if (isPaused) return;
   globalTime += 0.04;
 
-  // 1. 移動輸入
   let dx = 0, dy = 0;
   if (keys['w'] || keys['arrowup']) dy -= 1;
   if (keys['s'] || keys['arrowdown']) dy += 1;
@@ -805,7 +830,6 @@ function updateGame() {
     dy = joystick.vectorY;
   }
 
-  // 2. 衝刺冷卻與狀態
   if (player.dashCooldownTimer > 0) {
     player.dashCooldownTimer--;
     const pct = (player.dashCooldownTimer / player.dashCooldown) * 100;
@@ -834,13 +858,11 @@ function updateGame() {
   player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x + player.vx));
   player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y + player.vy));
 
-  // 3. 殘影更新
   for (let i = dashGhosts.length - 1; i >= 0; i--) {
     dashGhosts[i].alpha -= 0.12;
     if (dashGhosts[i].alpha <= 0) dashGhosts.splice(i, 1);
   }
 
-  // 4. 自動開火
   if (player.attackTimer > 0) player.attackTimer--;
   player.fireTimer++;
   if (player.fireTimer >= player.fireInterval) {
@@ -848,17 +870,14 @@ function updateGame() {
     player.fireTimer = 0;
   }
 
-  // 5. 護符寵物邏輯
   updatePet();
 
-  // 6. 碰觸戰利品寶箱
   if (chest.active) {
     if (Math.hypot(player.x - chest.x, player.y - chest.y) < player.radius + chest.radius) {
       openChestSelection();
     }
   }
 
-  // 7. 子彈命中與傷害
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i];
     b.x += b.vx;
@@ -868,7 +887,6 @@ function updateGame() {
       continue;
     }
 
-    // 擊中 Boss
     if (boss.active && Math.hypot(b.x - boss.x, b.y - boss.y) < b.radius + boss.radius) {
       boss.hp -= b.damage;
       bullets.splice(i, 1);
@@ -884,7 +902,6 @@ function updateGame() {
         kills += 10;
         txtKills.innerText = `擊退海嗣: ${kills}`;
 
-        // Boss 死亡生成自選寶箱
         chest.active = true;
         chest.x = boss.x;
         chest.y = boss.y;
@@ -894,7 +911,6 @@ function updateGame() {
       continue;
     }
 
-    // 擊中小怪
     for (let j = enemies.length - 1; j >= 0; j--) {
       const e = enemies[j];
       if (Math.hypot(b.x - e.x, b.y - e.y) < b.radius + e.radius) {
@@ -917,7 +933,6 @@ function updateGame() {
     }
   }
 
-  // 8. Boss 環狀彈幕與行動
   if (boss.active) {
     boss.pulse += 0.05;
     const angle = Math.atan2(player.y - boss.y, player.x - boss.x);
@@ -940,7 +955,6 @@ function updateGame() {
     }
   }
 
-  // 9. Boss 彈幕傷害
   for (let i = bossBullets.length - 1; i >= 0; i--) {
     const bb = bossBullets[i];
     bb.x += bb.vx;
@@ -963,7 +977,6 @@ function updateGame() {
     }
   }
 
-  // 10. 小怪追逐與傷害
   spawnTimer++;
   if (spawnTimer >= spawnInterval) {
     spawnSeaEnemy();
@@ -986,7 +999,6 @@ function updateGame() {
     }
   }
 
-  // 11. 經驗晶體吸附
   for (let i = gems.length - 1; i >= 0; i--) {
     const g = gems[i];
     const dist = Math.hypot(player.x - g.x, player.y - g.y);
@@ -1013,6 +1025,7 @@ function triggerLevelUp() {
   txtLevel.innerText = `階級: Lv.${player.level}`;
   upgradeModal.style.display = 'flex';
   playTone(700, 'sine', 0.25);
+  syncPlayerSaveState();
 }
 
 function chooseUpgrade(type) {
@@ -1024,6 +1037,7 @@ function chooseUpgrade(type) {
   upgradeModal.style.display = 'none';
   isPaused = false;
   updateHUD();
+  syncPlayerSaveState();
 }
 
 function renderGame() {
@@ -1052,14 +1066,9 @@ function renderGame() {
     ctx.fill();
   }
 
-  // 繪製敵群、Boss 與彈幕
   drawEnemies(ctx, enemies, boss);
   drawBossBullets(ctx, bossBullets);
-
-  // 繪製 Boss 掉落的自選戰利品寶箱
   drawChestItem(ctx, chest, globalTime);
-
-  // 繪製衝刺殘影、紙娃娃玩家本體與護符寵物
   drawDashGhosts(ctx, dashGhosts);
   drawPlayerPaperdoll(ctx, player);
   drawPet(ctx, pet, player, globalTime);
