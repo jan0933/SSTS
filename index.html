@@ -41,7 +41,7 @@
   <button class="story-skip-btn" onclick="skipStory(event)">略過劇情 (SKIP)</button>
 </div>
 
-<!-- 3. 大地圖選關畫面 (含頂部金幣顯示與整備背包) -->
+<!-- 3. 大地圖選關畫面 (3D 旋轉地球 + 背包按鈕) -->
 <div id="world-map-screen" class="screen">
   <div class="map-header">
     <div class="map-title">全球防衛陣線 · 100國領土收復</div>
@@ -100,7 +100,7 @@
     </div>
   </div>
 
-  <!-- 人體工學紙娃娃裝備面板 (單一遠程武器 + 強化升星 + 裝備拆解) -->
+  <!-- 人體工學紙娃娃裝備面板 (5★滿星覺醒專屬詞條) -->
   <div id="inventory-modal" class="modal-backdrop">
     <div class="paperdoll-inv-container">
       <div class="inv-header">
@@ -119,33 +119,34 @@
               <span class="slot-label">頭盔</span>
               <span class="slot-val" id="val-helmet">未裝備</span>
               <span class="slot-stars" id="star-helmet"></span>
+              <span class="slot-affix" id="affix-helmet"></span>
             </div>
           </div>
 
           <!-- 中央：單一遠程武器 + 盔甲 + 紙娃娃預覽 -->
           <div class="doll-row mid-row">
-            <!-- 單一遠距武器 -->
             <div class="gear-slot weapon-slot" id="slot-weapon" onclick="selectSlotForEquip('weapon')">
               <span class="slot-label">遠程武器</span>
-              <span class="slot-val" id="val-weapon">赤手脈衝</span>
+              <span class="slot-val" id="val-weapon">斥候脈衝弓</span>
               <span class="slot-stars" id="star-weapon"></span>
+              <span class="slot-affix" id="affix-weapon"></span>
             </div>
 
-            <!-- 中央核心預覽與盔甲 -->
             <div class="doll-center-core">
               <canvas id="preview-canvas" width="160" height="170"></canvas>
               <div class="gear-slot armor-slot" id="slot-armor" onclick="selectSlotForEquip('armor')">
                 <span class="slot-label">胸部盔甲</span>
                 <span class="slot-val" id="val-armor">未裝備</span>
                 <span class="slot-stars" id="star-armor"></span>
+                <span class="slot-affix" id="affix-armor"></span>
               </div>
             </div>
 
-            <!-- 右側戰術法器 -->
             <div class="gear-slot weapon-slot" id="slot-artifact" onclick="selectSlotForEquip('artifact')">
               <span class="slot-label">戰術法器</span>
               <span class="slot-val" id="val-artifact">等離子爆裂核</span>
               <span class="slot-stars" id="star-artifact"></span>
+              <span class="slot-affix" id="affix-artifact"></span>
             </div>
           </div>
 
@@ -155,16 +156,19 @@
               <span class="slot-label">手套</span>
               <span class="slot-val" id="val-gloves">未裝備</span>
               <span class="slot-stars" id="star-gloves"></span>
+              <span class="slot-affix" id="affix-gloves"></span>
             </div>
             <div class="gear-slot" id="slot-boots" onclick="selectSlotForEquip('boots')">
               <span class="slot-label">鞋子</span>
               <span class="slot-val" id="val-boots">未裝備</span>
               <span class="slot-stars" id="star-boots"></span>
+              <span class="slot-affix" id="affix-boots"></span>
             </div>
             <div class="gear-slot" id="slot-talisman" onclick="selectSlotForEquip('talisman')">
               <span class="slot-label">護符 (寵物)</span>
               <span class="slot-val" id="val-talisman">未裝備</span>
               <span class="slot-stars" id="star-talisman"></span>
+              <span class="slot-affix" id="affix-talisman"></span>
             </div>
           </div>
         </div>
@@ -179,7 +183,7 @@
       </div>
 
       <div class="inv-footer">
-        <span>在大地圖使用金幣可進行【升星強化 (1~5★)】；閒置裝備可【拆解】回收金幣</span>
+        <span>升至【5★ 滿星】將自動覺醒隨機專屬附魔詞條（暴擊、緩速、吸血、連鎖電弧等）</span>
       </div>
     </div>
   </div>
@@ -232,7 +236,7 @@
     <!-- 動態搖桿 -->
     <div id="joystick-base"><div id="joystick-thumb"></div></div>
 
-    <!-- 戰鬥右側精簡動作群 (遠程射擊、法器、衝刺) -->
+    <!-- 戰鬥右側動作群 (射擊、法器、衝刺) -->
     <div id="battle-action-cluster">
       <button id="btn-act-shoot" class="cluster-btn btn-shoot" onclick="triggerManualShoot()">
         <span class="act-icon">🏹</span>
@@ -278,7 +282,7 @@
     </div>
   </div>
 
-  <!-- 勝利結算彈窗 (顯示獲得金幣) -->
+  <!-- 勝利結算彈窗 -->
   <div id="victory-modal" class="modal-backdrop">
     <div class="victory-container">
       <div class="victory-title">★ 哨站肅清完畢 ★</div>
