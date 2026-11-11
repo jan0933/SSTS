@@ -1,5 +1,5 @@
 /**
- * SSTS - 美術渲染、紙娃娃、護符寵物、寶箱、殘影與 Boss 繪製模組
+ * SSTS - 美術渲染、紙娃娃、護符寵物、寶箱、殘影與 Boss 繪製模組 (render_art.js)
  */
 
 const EQUIPMENT_REGISTRY = {
@@ -34,9 +34,6 @@ const EQUIPMENT_REGISTRY = {
   }
 };
 
-/**
- * 繪製掉落在戰場上的古代戰利品寶箱
- */
 function drawChestItem(ctx, chest, time) {
   if (!chest.active) return;
   ctx.save();
@@ -45,7 +42,6 @@ function drawChestItem(ctx, chest, time) {
   const hoverY = Math.sin(time * 3) * 3;
   ctx.translate(0, hoverY);
 
-  // 金色光柱光芒
   ctx.fillStyle = "rgba(234, 179, 8, 0.15)";
   ctx.beginPath();
   ctx.moveTo(-16, 12);
@@ -55,13 +51,11 @@ function drawChestItem(ctx, chest, time) {
   ctx.closePath();
   ctx.fill();
 
-  // 寶箱主體
   ctx.shadowColor = "#eab308";
   ctx.shadowBlur = 14;
   ctx.fillStyle = "#854d0e";
   ctx.fillRect(-12, -8, 24, 16);
 
-  // 鑲金邊框與鎖孔
   ctx.strokeStyle = "#fde047";
   ctx.lineWidth = 1.5;
   ctx.strokeRect(-12, -8, 24, 16);
@@ -71,7 +65,6 @@ function drawChestItem(ctx, chest, time) {
   ctx.arc(0, 0, 3, 0, Math.PI * 2);
   ctx.fill();
 
-  // 提示文字
   ctx.font = "800 10px monospace";
   ctx.fillStyle = "#fde047";
   ctx.textAlign = "center";
@@ -80,16 +73,12 @@ function drawChestItem(ctx, chest, time) {
   ctx.restore();
 }
 
-/**
- * 繪製護符產生的三種跟隨寵物 (攻擊、回血、吸怪)
- */
 function drawPet(ctx, pet, p, time) {
   if (!pet || !pet.active) return;
   ctx.save();
   ctx.translate(pet.x, pet.y);
 
   if (pet.type === 'atk') {
-    // 1. 電漿浮游蟲 (青藍發光，射擊雷射)
     ctx.fillStyle = "#38bdf8";
     ctx.shadowColor = "#0284c7";
     ctx.shadowBlur = 10;
@@ -97,7 +86,6 @@ function drawPet(ctx, pet, p, time) {
     ctx.arc(0, 0, 6, 0, Math.PI * 2);
     ctx.fill();
 
-    // 旋轉微型觸鬚
     ctx.strokeStyle = "#7dd3fc";
     ctx.lineWidth = 1.5;
     for (let i = 0; i < 3; i++) {
@@ -108,7 +96,6 @@ function drawPet(ctx, pet, p, time) {
       ctx.stroke();
     }
   } else if (pet.type === 'heal') {
-    // 2. 水母醫療精靈 (柔綠半透明，持續脈動治療)
     ctx.fillStyle = "rgba(52, 211, 153, 0.85)";
     ctx.shadowColor = "#10b981";
     ctx.shadowBlur = 12;
@@ -116,7 +103,6 @@ function drawPet(ctx, pet, p, time) {
     ctx.arc(0, -2, 7, Math.PI, 0);
     ctx.fill();
 
-    // 飄動治癒觸角
     ctx.strokeStyle = "#a7f3d0";
     ctx.lineWidth = 1;
     for (let t = -2; t <= 2; t += 2) {
@@ -126,7 +112,6 @@ function drawPet(ctx, pet, p, time) {
       ctx.stroke();
     }
   } else if (pet.type === 'pull') {
-    // 3. 磁暴黑洞核 (紫光旋轉重力場)
     ctx.fillStyle = "#1e1b4b";
     ctx.beginPath();
     ctx.arc(0, 0, 6, 0, Math.PI * 2);
@@ -144,9 +129,6 @@ function drawPet(ctx, pet, p, time) {
   ctx.restore();
 }
 
-/**
- * 繪製紙娃娃玩家本體 (支援全裸裝備狀態)
- */
 function drawPlayerPaperdoll(ctx, p) {
   ctx.save();
   ctx.translate(p.x, p.y);
@@ -178,7 +160,6 @@ function drawPlayerPaperdoll(ctx, p) {
   const gloveColor = eq.gloves ? EQUIPMENT_REGISTRY.gloves[eq.gloves] : "#475569";
   const bootColor = eq.boots ? EQUIPMENT_REGISTRY.boots[eq.boots] : "#334155";
 
-  // 1. 披風 (若有裝備)
   if (eq.accessory && EQUIPMENT_REGISTRY.accessories[eq.accessory]) {
     const capeSway = (walkCycle * 6) + (p.vx * -2);
     ctx.fillStyle = EQUIPMENT_REGISTRY.accessories[eq.accessory].color;
@@ -191,7 +172,6 @@ function drawPlayerPaperdoll(ctx, p) {
     ctx.fill();
   }
 
-  // 2. 雙腿與鞋子 (裸裝顯示預設內襯灰褲)
   const leftLegAngle = walkCycle * 0.45;
   const rightLegAngle = -walkCycle * 0.45;
 
@@ -209,7 +189,6 @@ function drawPlayerPaperdoll(ctx, p) {
   ctx.fillRect(-2, 0, 4, 8);
   ctx.restore();
 
-  // 3. 軀幹與盔甲 (無盔甲時顯示深色作戰緊身衣)
   ctx.save();
   ctx.translate(0, -bobbing);
   ctx.fillStyle = armorConfig ? armorConfig.base : "#1e293b";
@@ -227,7 +206,6 @@ function drawPlayerPaperdoll(ctx, p) {
   }
   ctx.restore();
 
-  // 4. 頭部 (無頭盔時顯示基本防護面罩與原生頭型)
   ctx.save();
   ctx.translate(0, -12 - bobbing);
   ctx.fillStyle = helmConfig ? helmConfig.color : "#334155";
@@ -246,7 +224,6 @@ function drawPlayerPaperdoll(ctx, p) {
   }
   ctx.restore();
 
-  // 5. 手臂與武器攻擊姿態
   drawWeaponSystem(ctx, p, gloveColor, bobbing);
 
   ctx.restore();
@@ -261,7 +238,6 @@ function drawWeaponSystem(ctx, p, gloveColor, bobbing) {
   ctx.translate(2, -2 - bobbing);
 
   if (!w || w.type === 'bare') {
-    // 【空手電磁衝擊】：赤手出拳動作
     let punchX = 0;
     if (isAttacking) punchX = Math.sin(attackProgress * Math.PI) * 10;
     ctx.fillStyle = gloveColor;
@@ -344,7 +320,7 @@ function drawWeaponSystem(ctx, p, gloveColor, bobbing) {
     ctx.fillStyle = "#64748b";
     ctx.fillRect(4, -1.5, 20, 3);
     ctx.fillStyle = w.color || "#c084fc";
-    ctx.shadowColor = w.color || "#a855f7";
+    ctx.shadowColor = "#a855f7";
     ctx.shadowBlur = 12;
     ctx.beginPath();
     ctx.arc(24, 0, 4.5, 0, Math.PI * 2);
