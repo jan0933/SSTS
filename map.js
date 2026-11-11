@@ -1,5 +1,5 @@
 /**
- * SSTS - 全球選關、金幣升星強化與拆解系統 (map.js)
+ * SSTS - 全球選關、金幣升星、5★覺醒專屬詞條與拆解系統 (map.js)
  */
 
 const COUNTRIES_STAGE_DATA = [
@@ -105,14 +105,29 @@ const COUNTRIES_STAGE_DATA = [
   { id: 100, flag: "🌐", name: "加拿大與全球終局 (Global Core)", area: "10,000,000+ km²", continent: "GL", lat: 56.1, lon: -106.3, diff: 10, desc: "【世界終局決戰】北極冰蓋與全球海溝同步崩裂，深海王者本體降臨！" }
 ];
 
-/* ==================== 存檔系統 (金幣 + 5品階 + 1~5星) ==================== */
-const SAVE_KEY = "SSTS_SURFACE_SURVIVORS_SAVE_V5";
+/* ==================== 5★ 滿星專屬隨機附魔詞條庫 ==================== */
+const AFFIX_POOL = [
+  { id: "crit", name: "🎯 精準獵殺", desc: "+15% 暴擊率 (造成 200% 暴擊傷害)", tag: "暴擊+15%" },
+  { id: "slow", name: "❄️ 極寒凝霜", desc: "遠程命中附加 45% 冰凍減速持續 2 秒", tag: "命中緩速" },
+  { id: "vamp", name: "🩸 逆鱗嗜血", desc: "消滅敵人時 12% 機率吸收生命 +8", tag: "殺敵回血" },
+  { id: "chain", name: "⚡ 超導連鎖", desc: "彈道命中時有機率召喚電弧彈跳周邊敵群", tag: "連鎖電弧" },
+  { id: "armor", name: "🛡️ 深淵磐石", desc: "受到海嗣攻擊時所受傷害減免 25%", tag: "減傷25%" },
+  { id: "rush", name: "💨 急行幽影", desc: "電磁衝刺閃避冷卻時間縮減 30%", tag: "衝刺冷卻-30%" }
+];
+
+function getRandomAffix() {
+  const idx = Math.floor(Math.random() * AFFIX_POOL.length);
+  return { ...AFFIX_POOL[idx] };
+}
+
+/* ==================== 存檔系統 (金幣 + 5品階 + 1~5星 + 5★詞條) ==================== */
+const SAVE_KEY = "SSTS_SURFACE_SURVIVORS_SAVE_V6";
 
 const defaultSaveState = {
   unlockedCountryStage: 1,
   currentSelectedStage: 1,
   stageProgress: { 1: 0 },
-  playerGold: 120, // 初始整備金幣
+  playerGold: 150,
   playerLevel: 1,
   playerExp: 0,
   playerNextExp: 5,
@@ -138,7 +153,7 @@ function loadGameSave() {
     if (raw) {
       const parsed = JSON.parse(raw);
       userSave = { ...defaultSaveState, ...parsed };
-      if (typeof userSave.playerGold !== 'number') userSave.playerGold = 120;
+      if (typeof userSave.playerGold !== 'number') userSave.playerGold = 150;
       return true;
     }
   } catch(e) {
@@ -301,7 +316,8 @@ function drawGlobeScene() {
         gctx.beginPath(); gctx.arc(0, 0, 3.5, 0, Math.PI * 2); gctx.fill();
       } else if (isUnlocked) {
         gctx.fillStyle = "#facc15";
-        gctx.shadowColor = "#eab308"; gctx.shadowBlur = 8;
+        gctx.shadowColor = "#eab308";
+        gctx.shadowBlur = 8;
         gctx.beginPath(); gctx.arc(0, 0, 4, 0, Math.PI * 2); gctx.fill();
       } else {
         gctx.fillStyle = "rgba(239, 68, 68, 0.4)";
@@ -442,11 +458,10 @@ function continueGameFromSave() {
   openWorldMapScreen();
 }
 
-/* ==================== 人體工學紙娃娃裝備面板 (單武器 + 升星 + 拆解) ==================== */
+/* ==================== 人體工學紙娃娃裝備面板 (含 5★詞條覺醒與升星特效) ==================== */
 let isInventoryOpen = false;
 let currentSelectingSlot = null;
 
-// 品階中文名稱與色票類別
 const TIER_META = {
   common: { name: "普通", color: "#f1f5f9", class: "tier-common", mult: 1.0, salvageBase: 25 },
   rare: { name: "稀有", color: "#38bdf8", class: "tier-rare", mult: 1.3, salvageBase: 60 },
@@ -482,12 +497,13 @@ function renderStarsStr(num) {
 function updatePaperdollSlotsDisplay() {
   const eq = userSave.equipped;
   const formatSlot = (item, defaultName) => {
-    if (!item) return { name: defaultName, stars: "" };
+    if (!item) return { name: defaultName, stars: "", affixText: "" };
     const tierMeta = TIER_META[item.tier || 'common'] || TIER_META.common;
     return {
       name: item.name || defaultName,
       stars: renderStarsStr(item.stars),
-      color: tierMeta.color
+      color: tierMeta.color,
+      affixText: (item.stars === 5 && item.affix) ? item.affix.tag : ""
     };
   };
 
@@ -496,42 +512,49 @@ function updatePaperdollSlotsDisplay() {
   elH.innerText = helm.name;
   if (helm.color) elH.style.color = helm.color;
   document.getElementById('star-helmet').innerText = helm.stars;
+  document.getElementById('affix-helmet').innerText = helm.affixText;
 
   const wep = formatSlot(eq.weapon, "赤手脈衝");
   const elW = document.getElementById('val-weapon');
   elW.innerText = wep.name;
   if (wep.color) elW.style.color = wep.color;
   document.getElementById('star-weapon').innerText = wep.stars;
+  document.getElementById('affix-weapon').innerText = wep.affixText;
 
   const arm = formatSlot(eq.armor, "未裝備");
   const elA = document.getElementById('val-armor');
   elA.innerText = arm.name;
   if (arm.color) elA.style.color = arm.color;
   document.getElementById('star-armor').innerText = arm.stars;
+  document.getElementById('affix-armor').innerText = arm.affixText;
 
   const glo = formatSlot(eq.gloves, "未裝備");
   const elG = document.getElementById('val-gloves');
   elG.innerText = glo.name;
   if (glo.color) elG.style.color = glo.color;
   document.getElementById('star-gloves').innerText = glo.stars;
+  document.getElementById('affix-gloves').innerText = glo.affixText;
 
   const boo = formatSlot(eq.boots, "未裝備");
   const elB = document.getElementById('val-boots');
   elB.innerText = boo.name;
   if (boo.color) elB.style.color = boo.color;
   document.getElementById('star-boots').innerText = boo.stars;
+  document.getElementById('affix-boots').innerText = boo.affixText;
 
   const tal = formatSlot(eq.talisman, "未裝備");
   const elT = document.getElementById('val-talisman');
   elT.innerText = tal.name;
   if (tal.color) elT.style.color = tal.color;
   document.getElementById('star-talisman').innerText = tal.stars;
+  document.getElementById('affix-talisman').innerText = tal.affixText;
 
   const art = formatSlot(eq.artifact, "等離子爆裂核");
   const elArt = document.getElementById('val-artifact');
   elArt.innerText = art.name;
   if (art.color) elArt.style.color = art.color;
   document.getElementById('star-artifact').innerText = art.stars;
+  document.getElementById('affix-artifact').innerText = art.affixText;
 }
 
 function selectSlotForEquip(slotKey) {
@@ -562,7 +585,7 @@ function selectSlotForEquip(slotKey) {
     return;
   }
 
-  matchingItems.forEach((item, idx) => {
+  matchingItems.forEach((item) => {
     const card = document.createElement('div');
     card.className = 'inv-equip-card';
 
@@ -570,6 +593,12 @@ function selectSlotForEquip(slotKey) {
     const curStars = item.stars || 1;
     const upgradeCost = curStars * 80 + (curStars >= 4 ? 120 : 0);
     const salvageGold = Math.floor(tierMeta.salvageBase * (1 + (curStars - 1) * 0.4));
+
+    // 若 5★ 則顯示已覺醒的專屬詞條徽章
+    let affixHtml = "";
+    if (curStars === 5 && item.affix) {
+      affixHtml = `<div class="card-affix-badge">${item.affix.name} · ${item.affix.desc}</div>`;
+    }
 
     card.innerHTML = `
       <div class="card-header-row">
@@ -579,8 +608,9 @@ function selectSlotForEquip(slotKey) {
         <span class="card-tier-tag ${tierMeta.class}">${tierMeta.name}</span>
       </div>
       <div style="font-size: 10.5px; color: #94a3b8;">${item.desc || ''}</div>
+      ${affixHtml}
       <div class="card-actions-row">
-        ${curStars < 5 ? `<button class="btn-card-action btn-upgrade" onclick="upgradeItemStar('${item.id}')">升星 (${upgradeCost}金)</button>` : `<span style="font-size: 10px; color: #facc15; font-weight: bold;">已滿星</span>`}
+        ${curStars < 5 ? `<button class="btn-card-action btn-upgrade" onclick="upgradeItemStar('${item.id}', this)">升星 (${upgradeCost}金)</button>` : `<span style="font-size: 10px; color: #facc15; font-weight: bold;">5★ 滿星已覺醒</span>`}
         <button class="btn-card-action btn-equip" onclick="equipItemToSlot('${slotKey}', '${item.id}')">穿戴</button>
         <button class="btn-card-action btn-salvage" onclick="salvageItem('${item.id}')">拆解 (+${salvageGold}金)</button>
       </div>
@@ -589,19 +619,16 @@ function selectSlotForEquip(slotKey) {
   });
 }
 
-// 裝備穿戴
 function equipItemToSlot(slotKey, itemId) {
   const itemIndex = userSave.myInventory.findIndex(i => i.id === itemId);
   if (itemIndex === -1) return;
   const item = userSave.myInventory[itemIndex];
 
-  // 卸下目前身上穿戴的裝備放回背包
   const currentEquipped = userSave.equipped[slotKey];
   if (currentEquipped && currentEquipped.id && currentEquipped.id !== "w_start") {
     userSave.myInventory.push(currentEquipped);
   }
 
-  // 穿戴新裝備並從背包庫存移除
   userSave.equipped[slotKey] = { ...item };
   userSave.myInventory.splice(itemIndex, 1);
 
@@ -611,16 +638,77 @@ function equipItemToSlot(slotKey, itemId) {
   playTone(700, 'triangle', 0.1);
 }
 
-// 升星強化 (1~5★)
-function upgradeItemStar(itemId) {
-  // 先找背包，再找身上
+// 播放升星專用音效 (三段至五段連續高音水晶琶音)
+function playStarUpgradeSound(isMaxStar) {
+  if (!audioCtx) return;
+  try {
+    const now = audioCtx.currentTime;
+    const baseFreqs = isMaxStar ? [523.25, 659.25, 783.99, 1046.50, 1318.51] : [587.33, 739.99, 880.00, 1174.66];
+    
+    baseFreqs.forEach((freq, idx) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      
+      osc.type = isMaxStar ? 'triangle' : 'sine';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.06);
+      
+      gain.gain.setValueAtTime(0.08, now + idx * 0.06);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.06 + 0.35);
+      
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      
+      osc.start(now + idx * 0.06);
+      osc.stop(now + idx * 0.06 + 0.36);
+    });
+  } catch(e) {}
+}
+
+// 在卡片上爆發 12~18 顆星芒粒子
+function spawnStarBurstParticles(targetElement, isMaxStar) {
+  if (!targetElement) return;
+
+  targetElement.classList.add('star-particles-anchor');
+  targetElement.classList.remove('upgrade-success-flash');
+  void targetElement.offsetWidth;
+  targetElement.classList.add('upgrade-success-flash');
+
+  const particleCount = isMaxStar ? 18 : 12;
+
+  for (let i = 0; i < particleCount; i++) {
+    const p = document.createElement('div');
+    p.className = 'star-fx-particle';
+    p.innerText = isMaxStar ? (i % 2 === 0 ? '✦' : '★') : '★';
+
+    if (isMaxStar) {
+      p.style.color = i % 2 === 0 ? '#fb923c' : '#fde047';
+    }
+
+    const angle = (Math.PI * 2 / particleCount) * i + (Math.random() - 0.5) * 0.4;
+    const distance = 35 + Math.random() * 45;
+    const dx = `${Math.cos(angle) * distance}px`;
+    const dy = `${Math.sin(angle) * distance}px`;
+    const rot = `${(Math.random() - 0.5) * 360}deg`;
+
+    p.style.setProperty('--dx', dx);
+    p.style.setProperty('--dy', dy);
+    p.style.setProperty('--rot', rot);
+
+    p.style.left = `50%`;
+    p.style.top = `50%`;
+
+    targetElement.appendChild(p);
+    setTimeout(() => { p.remove(); }, 750);
+  }
+}
+
+// 升星強化 (升至 5★ 時解鎖隨機附魔詞條)
+function upgradeItemStar(itemId, clickedButtonElem) {
   let item = userSave.myInventory.find(i => i.id === itemId);
-  let isEquipped = false;
   if (!item) {
     for (const key in userSave.equipped) {
       if (userSave.equipped[key] && userSave.equipped[key].id === itemId) {
         item = userSave.equipped[key];
-        isEquipped = true;
         break;
       }
     }
@@ -642,16 +730,31 @@ function upgradeItemStar(itemId) {
   userSave.playerGold -= cost;
   item.stars = curStars + 1;
 
-  // 數值提升：武器傷害提升 30%，防具數值提升
   if (item.damage) item.damage = Math.floor(item.damage * 1.3);
+
+  const isMaxStar = (item.stars === 5);
+
+  // 升至 5★ 時自動覺醒專屬詞條
+  if (isMaxStar && !item.affix) {
+    item.affix = getRandomAffix();
+  }
+
+  playStarUpgradeSound(isMaxStar);
+
+  const cardElem = clickedButtonElem ? clickedButtonElem.closest('.inv-equip-card') : null;
+  if (cardElem) {
+    spawnStarBurstParticles(cardElem, isMaxStar);
+  }
 
   saveGameProgress();
   updatePaperdollSlotsDisplay();
-  if (currentSelectingSlot) selectSlotForEquip(currentSelectingSlot);
-  playTone(850, 'square', 0.2);
+
+  setTimeout(() => {
+    if (currentSelectingSlot) selectSlotForEquip(currentSelectingSlot);
+  }, 160);
 }
 
-// 拆解裝備換金幣
+// 拆解裝備
 function salvageItem(itemId) {
   const index = userSave.myInventory.findIndex(i => i.id === itemId);
   if (index === -1) return;
