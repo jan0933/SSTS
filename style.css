@@ -70,7 +70,7 @@ html, body {
   background: linear-gradient(135deg, #0284c7, #0369a1);
   color: white;
   border: 1px solid #38bdf8;
-  padding: 12px 36px;
+  padding: 12px 34px;
   font-size: 15px;
   font-weight: bold;
   border-radius: 30px;
@@ -94,7 +94,7 @@ html, body {
   box-shadow: 0 4px 20px rgba(52, 211, 153, 0.3);
 }
 
-/* 故事頁面 */
+/* 故事 */
 #story-screen {
   background: #030712;
   display: none;
@@ -153,10 +153,7 @@ html, body {
   animation: pulseHint 1.4s infinite alternate;
   pointer-events: none;
 }
-@keyframes pulseHint {
-  from { opacity: 0.4; }
-  to { opacity: 1; transform: scale(1.02); }
-}
+@keyframes pulseHint { from { opacity: 0.4; } to { opacity: 1; transform: scale(1.02); } }
 .story-skip-btn {
   position: absolute;
   top: 14px;
@@ -171,7 +168,7 @@ html, body {
   z-index: 10;
 }
 
-/* ==================== 3D 地球大地圖選關介面 ==================== */
+/* ==================== 3D 地球選關與國旗資訊卡 ==================== */
 #world-map-screen {
   background: radial-gradient(circle at 50% 50%, #0c1a30 0%, #020617 90%);
   display: none;
@@ -194,11 +191,7 @@ html, body {
   letter-spacing: 2px;
   text-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
 }
-.map-save-info {
-  font-size: 11px;
-  color: #34d399;
-  font-weight: bold;
-}
+.map-save-info { font-size: 11px; color: #34d399; font-weight: bold; }
 .map-body {
   width: 100%;
   flex: 1;
@@ -216,20 +209,13 @@ html, body {
   justify-content: center;
   position: relative;
 }
-#globe-canvas {
-  cursor: grab;
-  max-width: 100%;
-  height: auto;
-}
+#globe-canvas { cursor: grab; max-width: 100%; height: auto; }
 #globe-canvas:active { cursor: grabbing; }
-.globe-hint {
-  font-size: 11px;
-  color: #64748b;
-  margin-top: 4px;
-}
+.globe-hint { font-size: 11px; color: #64748b; margin-top: 4px; }
+
 .stage-info-card {
-  width: 320px;
-  background: rgba(11, 23, 49, 0.85);
+  width: 330px;
+  background: rgba(11, 23, 49, 0.88);
   border: 1.5px solid #0284c7;
   border-radius: 12px;
   padding: 16px;
@@ -238,45 +224,30 @@ html, body {
   flex-direction: column;
   gap: 8px;
 }
-.stage-rank-tag {
-  font-size: 11px;
-  font-weight: 800;
-  color: #38bdf8;
-  letter-spacing: 1.5px;
+.stage-card-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
-.stage-country-name {
-  font-size: 20px;
-  font-weight: 900;
-  color: #ffffff;
+.stage-flag {
+  font-size: 34px;
+  filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.5));
 }
-.stage-area-data {
-  font-size: 12px;
-  color: #f59e0b;
-  font-weight: bold;
-}
+.stage-rank-tag { font-size: 11px; font-weight: 800; color: #38bdf8; letter-spacing: 1.5px; }
+.stage-country-name { font-size: 18px; font-weight: 900; color: #ffffff; }
+.stage-area-data { font-size: 11.5px; color: #f59e0b; font-weight: bold; }
 .stage-brief-box {
   background: #060d1f;
   border: 1px solid #1e293b;
   border-radius: 6px;
   padding: 8px 10px;
-  font-size: 11.5px;
+  font-size: 11px;
   line-height: 1.5;
   color: #cbd5e1;
-  min-height: 52px;
+  min-height: 48px;
 }
-.stage-meta-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 11.5px;
-  color: #94a3b8;
-  margin-top: 2px;
-}
-.stage-action-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-top: 6px;
-}
+.stage-meta-row { display: flex; justify-content: space-between; font-size: 11px; color: #94a3b8; margin-top: 2px; }
+.stage-action-row { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
 .map-nav-btn {
   background: #1e293b;
   border: 1px solid #475569;
@@ -288,11 +259,7 @@ html, body {
   transition: all 0.15s;
 }
 .map-nav-btn:hover { background: #0284c7; color: white; border-color: #38bdf8; }
-.btn-enter-stage {
-  flex: 1;
-  padding: 10px 0;
-  font-size: 14px;
-}
+.btn-enter-stage { flex: 1; padding: 10px 0; font-size: 13.5px; }
 .btn-enter-stage.locked {
   background: #334155 !important;
   border-color: #64748b !important;
@@ -312,7 +279,77 @@ html, body {
 }
 .btn-clear-save:hover { color: #f43f5e; }
 
-/* 戰鬥畫面 HUD */
+/* 10 小關戰術彈窗 */
+.substage-container {
+  width: 580px;
+  max-width: 92%;
+  background: #0b1329;
+  border: 1.5px solid #0284c7;
+  box-shadow: 0 0 35px rgba(14, 165, 233, 0.35);
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.substage-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 17px;
+  color: #38bdf8;
+  border-bottom: 1px solid #1e293b;
+  padding-bottom: 8px;
+}
+.substage-desc { font-size: 11.5px; color: #94a3b8; }
+.substage-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-gap: 10px;
+}
+.substage-btn {
+  background: #111e38;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 12px 6px;
+  color: #f8fafc;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  text-align: center;
+  position: relative;
+  transition: all 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.substage-btn:hover:not(.locked) {
+  border-color: #38bdf8;
+  background: #0284c7;
+  transform: translateY(-2px);
+}
+.substage-btn.cleared {
+  border-color: #34d399;
+  background: rgba(16, 185, 129, 0.15);
+}
+.substage-btn.boss-stage {
+  border-color: #f43f5e;
+  background: rgba(244, 63, 94, 0.15);
+}
+.substage-btn.locked {
+  background: #090d16;
+  border-color: #1e293b;
+  color: #475569;
+  cursor: not-allowed;
+}
+.substage-badge {
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+
+/* 戰鬥 HUD */
 #game-container { display: none; background: #090d16; }
 canvas#game-canvas {
   background: #060913;
@@ -407,10 +444,7 @@ canvas#game-canvas {
   align-items: center;
   animation: alarmFlash 0.35s infinite alternate;
 }
-@keyframes alarmFlash {
-  from { opacity: 0.1; }
-  to { opacity: 1; }
-}
+@keyframes alarmFlash { from { opacity: 0.1; } to { opacity: 1; } }
 .alarm-text {
   font-size: 24px;
   font-weight: 900;
@@ -598,7 +632,6 @@ canvas#game-canvas {
 .chest-card-name { font-size: 14px; font-weight: 900; color: #ffffff; margin: 6px 0; }
 .chest-card-desc { font-size: 11px; color: #cbd5e1; line-height: 1.4; }
 
-/* 勝利彈窗 */
 .victory-container {
   width: 440px;
   max-width: 90%;
