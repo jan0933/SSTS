@@ -1,5 +1,5 @@
 /**
- * SSTS - 美術渲染、紙娃娃、護符寵物、大洲專屬怪物與背景網格 (render_art.js)
+ * SSTS - 美術渲染、紙娃娃、大洲特色實體建物與戰地道具 (render_art.js)
  */
 
 const EQUIPMENT_REGISTRY = {
@@ -27,16 +27,142 @@ const EQUIPMENT_REGISTRY = {
 };
 
 /**
- * 依大洲板塊繪製特色科技戰鬥網格背景
+ * 繪製各大洲特色實體掩體建物 (具備硬碰撞阻隔能力)
  */
+function drawObstacles(ctx, obstacles, continent, time) {
+  for (const obs of obstacles) {
+    ctx.save();
+    ctx.translate(obs.x, obs.y);
+
+    if (continent === 'EU') {
+      // 歐洲：古代羅馬神廟石柱基石 (冷灰藍金屬石柱)
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height);
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height);
+
+      // 石柱紋路
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+      ctx.beginPath();
+      ctx.moveTo(-obs.width / 4, -obs.height / 2);
+      ctx.lineTo(-obs.width / 4, obs.height / 2);
+      ctx.moveTo(obs.width / 4, -obs.height / 2);
+      ctx.lineTo(obs.width / 4, obs.height / 2);
+      ctx.stroke();
+
+    } else if (continent === 'AM') {
+      // 美洲：黑曜石金字塔祭壇 (暗紅線條冷卻石)
+      ctx.fillStyle = '#261118';
+      ctx.fillRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height);
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height);
+
+      ctx.fillStyle = '#b91c1c';
+      ctx.beginPath();
+      ctx.arc(0, 0, 6, 0, Math.PI * 2);
+      ctx.fill();
+
+    } else if (continent === 'AS') {
+      // 亞洲：高科技石燈籠要塞塔 (翡翠發光核心)
+      ctx.fillStyle = '#06261c';
+      ctx.fillRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height);
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height);
+
+      ctx.fillStyle = '#34d399';
+      ctx.shadowColor = '#10b981'; ctx.shadowBlur = 8;
+      ctx.fillRect(-6, -6, 12, 12);
+
+    } else if (continent === 'OC') {
+      // 大洋洲：堅硬巨型珊瑚礁岩 (青藍外凸岩體)
+      ctx.fillStyle = '#083344';
+      ctx.beginPath();
+      ctx.roundRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height, 8);
+      ctx.fill();
+      ctx.strokeStyle = '#06b6d4';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+    } else if (continent === 'AF') {
+      // 非洲：古巨石陣日晷碑 (金黃色防禦方尖碑)
+      ctx.fillStyle = '#27170a';
+      ctx.fillRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height);
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height);
+
+    } else {
+      // 全球極地：遠古冰晶方柱
+      ctx.fillStyle = '#1e1b4b';
+      ctx.fillRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height);
+      ctx.strokeStyle = '#c084fc';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height);
+    }
+
+    ctx.restore();
+  }
+}
+
+/**
+ * 繪製掉落在戰場上的磁鐵與炸彈道具
+ */
+function drawBattlePickups(ctx, pickups, time) {
+  for (const p of pickups) {
+    ctx.save();
+    ctx.translate(p.x, p.y + Math.sin(time * 5) * 3);
+
+    if (p.type === 'magnet') {
+      // 超導磁鐵 (青藍發光 U 型)
+      ctx.shadowColor = "#38bdf8"; ctx.shadowBlur = 12;
+      ctx.strokeStyle = "#38bdf8"; ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.arc(0, -2, 7, Math.PI, 0, true);
+      ctx.lineTo(7, 6);
+      ctx.moveTo(-7, -2);
+      ctx.lineTo(-7, 6);
+      ctx.stroke();
+
+      // 磁極紅銀標記
+      ctx.fillStyle = "#ef4444";
+      ctx.fillRect(-9, 4, 4, 4);
+      ctx.fillRect(5, 4, 4, 4);
+
+    } else if (p.type === 'bomb') {
+      // 等離子核能脈衝彈 (赤紅定時雷)
+      ctx.shadowColor = "#ef4444"; ctx.shadowBlur = 14;
+      ctx.fillStyle = "#b91c1c";
+      ctx.beginPath();
+      ctx.arc(0, 2, 8, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 引線微光
+      ctx.strokeStyle = "#fde047"; ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, -6); ctx.lineTo(3, -11);
+      ctx.stroke();
+
+      ctx.fillStyle = "#fde047";
+      ctx.beginPath();
+      ctx.arc(3, -11, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
+  }
+}
+
 function drawContinentBackground(ctx, continent, width, height) {
   const continentColors = {
-    EU: "rgba(2, 132, 199, 0.08)",   // 歐陸寒霜藍
-    OC: "rgba(6, 182, 212, 0.09)",   // 大洋洲深洋青
-    AM: "rgba(220, 38, 38, 0.07)",   // 美洲赤岩紅
-    AS: "rgba(16, 185, 129, 0.08)",  // 亞洲翡翠毒沼綠
-    AF: "rgba(217, 119, 6, 0.08)",   // 非洲琥珀金
-    GL: "rgba(124, 58, 237, 0.08)"   // 終極深淵紫
+    EU: "rgba(2, 132, 199, 0.08)",
+    OC: "rgba(6, 182, 212, 0.09)",
+    AM: "rgba(220, 38, 38, 0.07)",
+    AS: "rgba(16, 185, 129, 0.08)",
+    AF: "rgba(217, 119, 6, 0.08)",
+    GL: "rgba(124, 58, 237, 0.08)"
   };
 
   ctx.strokeStyle = continentColors[continent] || "rgba(14, 165, 233, 0.06)";
@@ -87,11 +213,9 @@ function drawPet(ctx, pet, p, time) {
 
   if (pet.type === 'atk') {
     ctx.fillStyle = "#38bdf8";
-    ctx.shadowColor = "#0284c7";
-    ctx.shadowBlur = 10;
+    ctx.shadowColor = "#0284c7"; ctx.shadowBlur = 10;
     ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = "#7dd3fc";
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = "#7dd3fc"; ctx.lineWidth = 1.5;
     for (let i = 0; i < 3; i++) {
       const a = time * 4 + i * (Math.PI * 2 / 3);
       ctx.beginPath();
@@ -101,11 +225,9 @@ function drawPet(ctx, pet, p, time) {
     }
   } else if (pet.type === 'heal') {
     ctx.fillStyle = "rgba(52, 211, 153, 0.85)";
-    ctx.shadowColor = "#10b981";
-    ctx.shadowBlur = 12;
+    ctx.shadowColor = "#10b981"; ctx.shadowBlur = 12;
     ctx.beginPath(); ctx.arc(0, -2, 7, Math.PI, 0); ctx.fill();
-    ctx.strokeStyle = "#a7f3d0";
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = "#a7f3d0"; ctx.lineWidth = 1;
     for (let t = -2; t <= 2; t += 2) {
       ctx.beginPath();
       ctx.moveTo(t * 2, -2);
@@ -115,10 +237,7 @@ function drawPet(ctx, pet, p, time) {
   } else if (pet.type === 'pull') {
     ctx.fillStyle = "#1e1b4b";
     ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = "#c084fc";
-    ctx.shadowColor = "#a855f7";
-    ctx.shadowBlur = 10;
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#c084fc"; ctx.shadowColor = "#a855f7"; ctx.shadowBlur = 10; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(0, 0, 9 + Math.sin(time * 6) * 2, 0, Math.PI * 2); ctx.stroke();
   }
   ctx.restore();
@@ -140,8 +259,7 @@ function drawPlayerPaperdoll(ctx, p) {
     ctx.save();
     ctx.strokeStyle = "rgba(103, 232, 249, 0.8)";
     ctx.lineWidth = 2;
-    ctx.shadowColor = "#38bdf8";
-    ctx.shadowBlur = 14;
+    ctx.shadowColor = "#38bdf8"; ctx.shadowBlur = 14;
     ctx.beginPath(); ctx.ellipse(0, 0, 18, 22, 0, 0, Math.PI * 2); ctx.stroke();
     ctx.restore();
   }
@@ -234,8 +352,7 @@ function drawWeaponSystem(ctx, p, gloveColor, bobbing) {
     ctx.fillStyle = gloveColor; ctx.fillRect(0, -2, 5, 4);
     ctx.fillStyle = "#334155"; ctx.fillRect(4, -1.5, 4, 3);
     ctx.fillStyle = w.color || "#38bdf8";
-    ctx.shadowColor = w.color || "#38bdf8";
-    ctx.shadowBlur = 10;
+    ctx.shadowColor = w.color || "#38bdf8"; ctx.shadowBlur = 10;
     ctx.fillRect(8, -1, 16, 2);
   } else if (w.type === 'bow') {
     let drawPull = 0;
@@ -268,29 +385,22 @@ function drawWeaponSystem(ctx, p, gloveColor, bobbing) {
     ctx.fillStyle = gloveColor; ctx.fillRect(0, -2, 5, 4);
     ctx.fillStyle = "#64748b"; ctx.fillRect(4, -1.5, 20, 3);
     ctx.fillStyle = w.color || "#c084fc";
-    ctx.shadowColor = w.color || "#a855f7";
-    ctx.shadowBlur = 12;
+    ctx.shadowColor = w.color || "#a855f7"; ctx.shadowBlur = 12;
     ctx.beginPath(); ctx.arc(24, 0, 4.5, 0, Math.PI * 2); ctx.fill();
   }
   ctx.restore();
 }
 
-/**
- * 繪製不同大洲的特異小怪、Mini-Boss 與終極霸主 Boss
- */
 function drawEnemies(ctx, enemies, boss) {
-  // 1. 各洲特化小怪
   for (const e of enemies) {
     ctx.save();
     ctx.translate(e.x, e.y);
 
     if (e.kind === 'shark') {
-      // 狂暴利齒鯊 (大洋/美洲特有：青黑流線，高速)
       ctx.fillStyle = '#0f766e';
       ctx.beginPath();
       ctx.ellipse(0, 0, e.radius * 1.3, e.radius * 0.6, 0, 0, Math.PI * 2);
       ctx.fill();
-      // 背鰭
       ctx.fillStyle = '#14b8a6';
       ctx.beginPath();
       ctx.moveTo(-2, -e.radius * 0.6);
@@ -298,17 +408,14 @@ function drawEnemies(ctx, enemies, boss) {
       ctx.lineTo(6, -e.radius * 0.4);
       ctx.fill();
     } else if (e.kind === 'crab') {
-      // 岩甲寄居蟹 (亞洲/非洲特有：高防厚甲)
       ctx.fillStyle = '#b45309';
       ctx.beginPath(); ctx.arc(0, 0, e.radius, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2; ctx.stroke();
     } else if (e.kind === 'ice_jelly') {
-      // 冰晶水母 (歐洲/極地特有：冰霜青白，自帶微弱光暈)
       ctx.fillStyle = 'rgba(56, 189, 248, 0.85)';
       ctx.shadowColor = '#38bdf8'; ctx.shadowBlur = 8;
       ctx.beginPath(); ctx.arc(0, -2, e.radius, Math.PI, 0); ctx.closePath(); ctx.fill();
     } else {
-      // 預設突變寄生魚
       ctx.fillStyle = '#ef4444';
       ctx.beginPath(); ctx.ellipse(0, 0, e.radius * 1.2, e.radius * 0.7, 0, 0, Math.PI * 2); ctx.fill();
       const tailWiggle = Math.sin(e.pulse * 2) * 5;
@@ -317,19 +424,16 @@ function drawEnemies(ctx, enemies, boss) {
     ctx.restore();
   }
 
-  // 2. Boss (分為第 5 關先鋒 Mini-Boss 與第 10 關 Apex 終極霸主)
   if (boss && boss.active) {
     ctx.save();
     ctx.translate(boss.x, boss.y);
 
     const isApex = boss.isApex;
-
     ctx.shadowColor = isApex ? '#ef4444' : '#f59e0b';
     ctx.shadowBlur = isApex ? 28 : 16;
     ctx.fillStyle = isApex ? '#7f1d1d' : '#854d0e';
     ctx.beginPath(); ctx.arc(0, 0, boss.radius, 0, Math.PI * 2); ctx.fill();
 
-    // 內層旋轉重型甲殼
     ctx.save();
     ctx.rotate(boss.pulse * 0.5);
     ctx.strokeStyle = isApex ? '#f87171' : '#fde047';
@@ -340,10 +444,8 @@ function drawEnemies(ctx, enemies, boss) {
     }
     ctx.restore();
 
-    // 核心光核
     ctx.fillStyle = isApex ? '#ef4444' : '#eab308';
     ctx.beginPath(); ctx.arc(0, 0, 14 + Math.sin(boss.pulse * 3) * 3, 0, Math.PI * 2); ctx.fill();
-
     ctx.restore();
   }
 }
