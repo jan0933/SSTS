@@ -1,5 +1,5 @@
 /**
- * SSTS - 遊戲核心戰鬥循環、10 小關進度推進、特異敵怪與 Boss 自選掉落 (game.js)
+ * SSTS - 遊戲核心戰鬥循環、怪物直線反彈物理、升級被動加成與死亡防卡死 (game.js)
  */
 
 let audioCtx = null;
@@ -193,7 +193,7 @@ function skipStory(e) {
   openWorldMapScreen();
 }
 
-/* ==================== 戰鬥引擎與狀態 ==================== */
+/* ==================== 戰鬥狀態 ==================== */
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
 const expBar = document.getElementById('exp-bar');
@@ -212,6 +212,8 @@ const chestTitle = document.getElementById('chest-title');
 const victoryModal = document.getElementById('victory-modal');
 const victoryCountryName = document.getElementById('victory-country-name');
 const victoryDescText = document.getElementById('victory-desc-text');
+const defeatModal = document.getElementById('defeat-modal');
+const defeatCountryInfo = document.getElementById('defeat-country-info');
 const dashCooldownOverlay = document.getElementById('dash-cooldown-overlay');
 
 const bossAlarmOverlay = document.getElementById('boss-alarm-overlay');
@@ -223,29 +225,31 @@ const bossHpText = document.getElementById('boss-hp-text');
 let isPaused = false;
 let kills = 0;
 let activeCountryStageId = 1;
-let activeSubstage = 1; // 1~10
+let activeSubstage = 1;
 let activeCountryData = null;
 let gameRunning = false;
 let globalTime = 0;
 
+// 玩家屬性：新增 baseBonusDamage 與 baseMaxHpBonus
 const player = {
   x: canvas.width / 2,
   y: canvas.height / 2,
   vx: 0,
   vy: 0,
   radius: 14,
-  speed: 2.7,
+  speed: 2.8,
   hp: 100,
   maxHp: 100,
+  baseBonusDamage: 0, // 每升一級 +5
   exp: 0,
   level: 1,
-  nextExp: 6,
+  nextExp: 5,
   facing: 1,
   isMoving: false,
   animTimer: 0,
   attackTimer: 0,
   attackDuration: 14,
-  fireInterval: 38,
+  fireInterval: 32, // 提升初始攻擊頻率
   fireTimer: 0,
 
   isDashing: false,
@@ -264,7 +268,7 @@ const player = {
     boots: null,
     accessory: null,
     talisman: null,
-    weapon: { type: 'bare', name: '空手電磁衝擊', damage: 22, speed: 7, color: '#38bdf8' }
+    weapon: { type: 'bare', name: '空手電磁衝擊', damage: 30, speed: 8, color: '#38bdf8' }
   }
 };
 
@@ -274,30 +278,30 @@ const chest = { active: false, x: 0, y: 0, radius: 16, isApex: false };
 
 /* ==================== 階梯式裝備庫 ==================== */
 const EQUIPMENT_DATABASE = {
-  1: [ // 普通
-    { id: "w_sword_1", slot: "weapon", name: "斥候合金刃", type: "近戰武器", tier: "普通", desc: "基礎軍刀 (傷害 40)", data: { type: 'melee', name: '斥候合金刃', damage: 40, speed: 9, color: '#38bdf8' } },
-    { id: "w_bow_1", slot: "weapon", name: "輕型短弓", type: "遠程弓弩", tier: "普通", desc: "快速穿刺 (傷害 28)", data: { type: 'bow', name: '輕型短弓', damage: 28, speed: 11, color: '#0284c7' } },
+  1: [
+    { id: "w_sword_1", slot: "weapon", name: "斥候合金刃", type: "近戰武器", tier: "普通", desc: "基礎軍刀 (傷害 45)", data: { type: 'melee', name: '斥候合金刃', damage: 45, speed: 9, color: '#38bdf8' } },
+    { id: "w_bow_1", slot: "weapon", name: "輕型短弓", type: "遠程弓弩", tier: "普通", desc: "快速穿刺 (傷害 32)", data: { type: 'bow', name: '輕型短弓', damage: 32, speed: 11, color: '#0284c7' } },
     { id: "h_scout", slot: "helmet", name: "斥候護目鏡", type: "頭盔", tier: "普通", desc: "提升 10% 視野與暴擊", val: "scout" },
-    { id: "a_scout", slot: "armor", name: "輕甲胸衣", type: "盔甲", tier: "普通", desc: "提升 20 點生命上限", val: "scout" },
+    { id: "a_scout", slot: "armor", name: "輕甲胸衣", type: "盔甲", tier: "普通", desc: "提升 30 點生命上限", val: "scout" },
     { id: "t_atk", slot: "talisman", name: "雷光護符", type: "護符 (寵物)", tier: "普通", desc: "召喚【電漿浮游蟲】協助攻擊", val: "atk_pet" }
   ],
-  2: [ // 稀有 (第 5 關 Mini-Boss 掉落)
-    { id: "w_staff_2", slot: "weapon", name: "等離子星杖", type: "法術法杖", tier: "稀有", desc: "貫穿光球 (傷害 68)", data: { type: 'staff', name: '等離子星杖', damage: 68, speed: 6.5, color: '#c084fc' } },
+  2: [
+    { id: "w_staff_2", slot: "weapon", name: "等離子星杖", type: "法術法杖", tier: "稀有", desc: "貫穿光球 (傷害 75)", data: { type: 'staff', name: '等離子星杖', damage: 75, speed: 7, color: '#c084fc' } },
     { id: "h_heavy_2", slot: "helmet", name: "重型合金角盔", type: "頭盔", tier: "稀有", desc: "減免 15% 所受傷害", val: "heavy" },
     { id: "a_heavy_2", slot: "armor", name: "板塊覆甲重鎧", type: "盔甲", tier: "稀有", desc: "大幅提升防禦與抗擊退", val: "heavy" },
     { id: "t_heal", slot: "talisman", name: "生命潮汐符", type: "護符 (寵物)", tier: "稀有", desc: "召喚【醫療水母】每 4 秒回血", val: "heal_pet" },
     { id: "acc_mantle", slot: "accessory", name: "極光披風", type: "配件", tier: "稀有", desc: "提升 15% 移動速度", val: "mantle" }
   ],
-  3: [ // 史詩 / 神話 (第 10 關 Apex Boss 掉落)
-    { id: "w_sword_3", slot: "weapon", name: "逆鱗弒神光刃", type: "近戰神話", tier: "史詩", desc: "大範圍真傷橫掃 (傷害 115)", data: { type: 'melee', name: '逆鱗弒神光刃', damage: 115, speed: 12, color: '#f43f5e' } },
-    { id: "w_bow_3", slot: "weapon", name: "虛空貫滅巨弩", type: "遠程神話", tier: "史詩", desc: "三重散射電磁箭 (傷害 88)", data: { type: 'bow', name: '虛空貫滅巨弩', damage: 88, speed: 14, color: '#38bdf8' } },
+  3: [
+    { id: "w_sword_3", slot: "weapon", name: "逆鱗弒神光刃", type: "近戰神話", tier: "史詩", desc: "大範圍真傷橫掃 (傷害 135)", data: { type: 'melee', name: '逆鱗弒神光刃', damage: 135, speed: 12, color: '#f43f5e' } },
+    { id: "w_bow_3", slot: "weapon", name: "虛空貫滅巨弩", type: "遠程神話", tier: "史詩", desc: "三重散射電磁箭 (傷害 98)", data: { type: 'bow', name: '虛空貫滅巨弩', damage: 98, speed: 14, color: '#38bdf8' } },
     { id: "a_archmage_3", slot: "armor", name: "星宿天災戰袍", type: "盔甲神話", tier: "史詩", desc: "護甲超載，全傷害提升 30%", val: "archmage" },
     { id: "t_pull", slot: "talisman", name: "深淵重力核", type: "護符 (寵物)", tier: "史詩", desc: "召喚【磁暴黑洞核】定期強吸怪", val: "pull_pet" },
     { id: "acc_relic_3", slot: "accessory", name: "恆星核心遺物", type: "配件神話", tier: "史詩", desc: "周身環繞神聖烈焰光環", val: "relic" }
   ]
 };
 
-// 進入指定國家的特定小關 (1~10)
+// 進入指定關卡
 function startCountryBattle(countryId, substageIndex) {
   activeCountryStageId = countryId;
   activeSubstage = substageIndex;
@@ -308,6 +312,7 @@ function startCountryBattle(countryId, substageIndex) {
   player.nextExp = userSave.playerNextExp;
   player.maxHp = userSave.playerMaxHp;
   player.hp = player.maxHp;
+  player.baseBonusDamage = (player.level - 1) * 5;
   player.equipment = { ...userSave.equipped };
 
   enemies = [];
@@ -319,6 +324,9 @@ function startCountryBattle(countryId, substageIndex) {
   boss.active = false;
   chest.active = false;
   isPaused = false;
+
+  defeatModal.style.display = 'none';
+  victoryModal.style.display = 'none';
 
   txtCurrentCountry.innerText = `${activeCountryData.flag} ${activeCountryData.name.split(' ')[0]} - 哨站 ${substageIndex}/10`;
   txtLevel.innerText = `階級: Lv.${player.level}`;
@@ -342,23 +350,23 @@ function updatePet() {
 
   pet.timer++;
 
-  if (pet.type === 'atk' && pet.timer >= 50) {
+  if (pet.type === 'atk' && pet.timer >= 45) {
     pet.timer = 0;
     if (enemies.length > 0) {
       const e = enemies[0];
       bullets.push({
         x: pet.x, y: pet.y,
         vx: (e.x - pet.x) * 0.08, vy: (e.y - pet.y) * 0.08,
-        radius: 3.5, damage: 25, type: 'bow'
+        radius: 3.5, damage: 30 + player.baseBonusDamage, type: 'bow'
       });
       playTone(1100, 'sine', 0.06, 0.04);
     }
   }
 
-  if (pet.type === 'heal' && pet.timer >= 200) {
+  if (pet.type === 'heal' && pet.timer >= 180) {
     pet.timer = 0;
     if (player.hp < player.maxHp) {
-      player.hp = Math.min(player.maxHp, player.hp + 15);
+      player.hp = Math.min(player.maxHp, player.hp + 20);
       updateHUD();
       playTone(600, 'sine', 0.25, 0.08);
     }
@@ -368,9 +376,9 @@ function updatePet() {
     pet.timer = 0;
     for (const e of enemies) {
       const dist = Math.hypot(e.x - pet.x, e.y - pet.y);
-      if (dist < 140) {
+      if (dist < 150) {
         const angle = Math.atan2(pet.y - e.y, pet.x - e.x);
-        e.x += Math.cos(angle) * 35; e.y += Math.sin(angle) * 35;
+        e.x += Math.cos(angle) * 40; e.y += Math.sin(angle) * 40;
       }
     }
     playTone(200, 'sawtooth', 0.2, 0.1);
@@ -476,16 +484,16 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
 
-/* ==================== Boss 系統 (第 5 關先鋒 / 第 10 關霸主) ==================== */
+/* ==================== Boss 系統 ==================== */
 const boss = {
   active: false,
-  isApex: false, // true: 第 10 關領土霸主 | false: 第 5 關區域先鋒
+  isApex: false,
   x: 0,
   y: 0,
   radius: 36,
-  hp: 1000,
-  maxHp: 1000,
-  speed: 1.0,
+  hp: 500,
+  maxHp: 500,
+  speed: 0.9,
   pulse: 0,
   ringAttackTimer: 0,
   ringAttackInterval: 120
@@ -495,7 +503,6 @@ let bossBullets = [];
 function checkAndSpawnStageBoss() {
   if (boss.active) return;
 
-  // 擊殺 50 隻且處於第 5 或第 10 關時觸發
   const isMini = (activeSubstage === 5);
   const isApex = (activeSubstage === 10);
 
@@ -506,12 +513,14 @@ function checkAndSpawnStageBoss() {
   boss.x = canvas.width / 2;
   boss.y = -60;
 
-  const baseHp = isApex ? 2000 : 1000;
-  boss.hp = baseHp + (activeCountryStageId * 150);
+  // 大幅下調初期 Boss 數值，讓新手通關更加順暢
+  const stageScaling = Math.max(0, activeCountryStageId - 1) * 80;
+  const baseHp = isApex ? 650 : 350;
+  boss.hp = baseHp + stageScaling;
   boss.maxHp = boss.hp;
-  boss.radius = isApex ? 42 : 32;
-  boss.speed = isApex ? 1.2 : 0.9;
-  boss.ringAttackInterval = isApex ? 90 : 130;
+  boss.radius = isApex ? 38 : 28;
+  boss.speed = isApex ? 1.0 : 0.75;
+  boss.ringAttackInterval = isApex ? 100 : 140;
 
   alarmText.innerText = isApex ? "⚠️ 警告：領土終極霸主現身 ⚠️" : "⚠️ 警告：區域精英先鋒現身 ⚠️";
   document.getElementById('boss-name').innerText = isApex ? `【${activeCountryData.name.split(' ')[0]}·領土霸主】` : `【${activeCountryData.name.split(' ')[0]}·突變先鋒】`;
@@ -524,8 +533,8 @@ function checkAndSpawnStageBoss() {
 }
 
 function fireBossRingBarrage() {
-  const bulletCount = boss.isApex ? 16 : 10;
-  const speed = boss.isApex ? 3.2 : 2.5;
+  const bulletCount = boss.isApex ? 12 : 8;
+  const speed = boss.isApex ? 2.6 : 2.0;
   for (let i = 0; i < bulletCount; i++) {
     const angle = (Math.PI * 2 / bulletCount) * i + (boss.pulse * 0.5);
     bossBullets.push({
@@ -533,8 +542,8 @@ function fireBossRingBarrage() {
       y: boss.y,
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
-      radius: boss.isApex ? 6.5 : 5,
-      damage: boss.isApex ? 20 : 12,
+      radius: boss.isApex ? 6 : 4.5,
+      damage: boss.isApex ? 14 : 8,
       isApex: boss.isApex
     });
   }
@@ -546,7 +555,6 @@ function openChestSelection(isApex) {
   chestModal.style.display = 'flex';
   chestOptionsContainer.innerHTML = '';
 
-  // 裝備階級：第 10 關必出史詩/神話 (Tier 3)；第 5 關必出稀有 (Tier 2)；一般關卡掉普通 (Tier 1)
   const tierKey = isApex ? 3 : 2;
   const pool = EQUIPMENT_DATABASE[tierKey];
   const shuffled = [...pool].sort(() => 0.5 - Math.random());
@@ -591,17 +599,14 @@ function claimChestItem(item) {
   completeSubstage();
 }
 
-// 結算通關並記錄存檔
 function completeSubstage() {
   const cId = activeCountryStageId;
   const currentProgress = userSave.stageProgress[cId] || 0;
 
-  // 更新此國已通關子哨站
   if (activeSubstage > currentProgress) {
     userSave.stageProgress[cId] = activeSubstage;
   }
 
-  // 若第 10 關通關，解鎖下一個國家
   if (activeSubstage === 10) {
     if (cId >= (userSave.unlockedCountryStage || 1) && userSave.unlockedCountryStage < 100) {
       userSave.unlockedCountryStage = cId + 1;
@@ -632,6 +637,23 @@ function showVictoryModal() {
   }
   victoryModal.style.display = 'flex';
   playTone(880, 'triangle', 0.5, 0.2);
+}
+
+// 死亡結算觸發 (專用乾淨彈窗，徹底防範 alert 重複跳死)
+function triggerPlayerDefeat() {
+  if (isPaused) return;
+  isPaused = true;
+  gameRunning = false;
+
+  defeatCountryInfo.innerText = `${activeCountryData.flag} ${activeCountryData.name} - 哨站 ${activeSubstage}`;
+  defeatModal.style.display = 'flex';
+  playTone(160, 'sawtooth', 0.5, 0.2);
+}
+
+function returnToWorldMapFromDefeat() {
+  defeatModal.style.display = 'none';
+  document.getElementById('game-container').style.display = 'none';
+  openWorldMapScreen();
 }
 
 function returnToWorldMap() {
@@ -723,11 +745,11 @@ function startPreviewLoop() {
   loop();
 }
 
-/* ==================== 戰鬥更新與大洲怪物生成 ==================== */
+/* ==================== 物理直線反彈小怪生成 ==================== */
 let enemies = [];
 let bullets = [];
 let gems = [];
-let spawnInterval = 30;
+let spawnInterval = 60;
 let spawnTimer = 0;
 
 function initGame() {
@@ -744,36 +766,59 @@ function updateHUD() {
   hpBar.style.width = `${Math.max(0, (player.hp / player.maxHp) * 100)}%`;
 }
 
-// 根據國家所屬大洲生成特種小怪
+// 根據國家與小關生成「直線前進、牆壁彈跳」的怪物
 function spawnContinentEnemy() {
+  // 初期關卡大幅放寬怪物生成頻率 (第一國每 2.5 秒才出一隻)
+  const isEarlyStage = (activeCountryStageId === 1);
+  const maxCap = isEarlyStage ? 6 : (12 + activeSubstage * 2);
+  if (enemies.length >= maxCap) return;
+
   const edge = Math.floor(Math.random() * 4);
   let x, y;
-  if (edge === 0) { x = Math.random() * canvas.width; y = -20; }
-  else if (edge === 1) { x = canvas.width + 20; y = Math.random() * canvas.height; }
-  else if (edge === 2) { x = Math.random() * canvas.width; y = canvas.height + 20; }
-  else { x = -20; y = Math.random() * canvas.height; }
+  let angle = 0;
+
+  // 從邊緣生成並朝螢幕內部隨機夾角直線射出
+  if (edge === 0) { // 上邊
+    x = Math.random() * canvas.width; y = 15;
+    angle = (Math.PI * 0.2) + Math.random() * (Math.PI * 0.6); // 朝下
+  } else if (edge === 1) { // 右邊
+    x = canvas.width - 15; y = Math.random() * canvas.height;
+    angle = (Math.PI * 0.7) + Math.random() * (Math.PI * 0.6); // 朝左
+  } else if (edge === 2) { // 下邊
+    x = Math.random() * canvas.width; y = canvas.height - 15;
+    angle = -(Math.PI * 0.2) - Math.random() * (Math.PI * 0.6); // 朝上
+  } else { // 左邊
+    x = 15; y = Math.random() * canvas.height;
+    angle = -(Math.PI * 0.3) + Math.random() * (Math.PI * 0.6); // 朝右
+  }
 
   const cont = activeCountryData ? activeCountryData.continent : 'EU';
   let kind = 'default';
-  let speed = 1.3;
+  let baseSpeed = isEarlyStage ? 1.0 : 1.4;
   let radius = 10;
-  let hp = 22 + player.level * 3 + activeSubstage * 2;
+  // 初期小怪極其脆弱 (12 HP，玩家普攻一下 30+ 即可秒殺)
+  let hp = isEarlyStage ? (12 + activeSubstage) : (25 + activeCountryStageId * 3);
 
   if (cont === 'OC' || cont === 'AM') {
-    kind = 'shark'; // 狂暴利齒鯊 (高速)
-    speed = 1.8 + Math.random() * 0.4;
-    radius = 11;
+    kind = 'shark';
+    baseSpeed = isEarlyStage ? 1.2 : 1.8;
   } else if (cont === 'AS' || cont === 'AF') {
-    kind = 'crab'; // 岩甲寄居蟹 (厚血抗打)
-    speed = 0.9 + Math.random() * 0.2;
-    hp *= 1.5;
-    radius = 12;
+    kind = 'crab';
+    baseSpeed = isEarlyStage ? 0.7 : 1.0;
+    hp = Math.floor(hp * 1.3);
   } else if (cont === 'EU' || cont === 'GL') {
-    kind = 'ice_jelly'; // 冰晶水母
-    speed = 1.1 + Math.random() * 0.3;
+    kind = 'ice_jelly';
   }
 
-  enemies.push({ x, y, kind, radius, speed, hp, pulse: Math.random() * 10 });
+  enemies.push({
+    x, y,
+    vx: Math.cos(angle) * baseSpeed,
+    vy: Math.sin(angle) * baseSpeed,
+    kind,
+    radius,
+    hp,
+    pulse: Math.random() * 10
+  });
 }
 
 function executeAttack() {
@@ -795,11 +840,14 @@ function executeAttack() {
   const angle = Math.atan2(target.y - player.y, target.x - player.x);
   const w = player.equipment.weapon;
 
+  // 傷害直接附加上玩家升級後的永久基礎加成
+  const totalDamage = w.damage + player.baseBonusDamage;
+
   bullets.push({
     x: player.x, y: player.y,
     vx: Math.cos(angle) * w.speed, vy: Math.sin(angle) * w.speed,
     radius: w.type === 'staff' ? 6 : (w.type === 'bow' ? 3 : 4.5),
-    damage: w.damage, type: w.type
+    damage: totalDamage, type: w.type
   });
 
   if (w.type === 'melee' || w.type === 'bare') playTone(280, 'sawtooth', 0.1);
@@ -870,7 +918,7 @@ function updateGame() {
     }
   }
 
-  // 命中判定
+  // 子彈命中判定
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i];
     b.x += b.vx; b.y += b.vy;
@@ -893,7 +941,6 @@ function updateGame() {
         kills += 15;
         txtKills.innerText = `擊退海嗣: ${kills}`;
 
-        // 掉落寶箱：記錄是否為第 10 關終極霸主
         chest.active = true;
         chest.isApex = boss.isApex;
         chest.x = boss.x;
@@ -916,14 +963,15 @@ function updateGame() {
           kills++;
           txtKills.innerText = `擊退海嗣: ${kills}`;
 
-          // 常規關卡：擊殺達 50 隻通關
+          // 初期關卡擊殺門檻降低 (第 1 國前幾關只需殺 25 隻即可通關)
+          const killThreshold = (activeCountryStageId === 1 && activeSubstage < 5) ? 25 : 50;
+
           if (activeSubstage !== 5 && activeSubstage !== 10) {
-            if (kills >= 50) {
+            if (kills >= killThreshold) {
               completeSubstage();
             }
           } else {
-            // 第 5 與第 10 關：擊殺 50 隻召喚 Boss
-            if (kills >= 50 && !boss.active && !chest.active) {
+            if (kills >= killThreshold && !boss.active && !chest.active) {
               checkAndSpawnStageBoss();
             }
           }
@@ -947,11 +995,11 @@ function updateGame() {
     }
 
     if (!player.isDashing && Math.hypot(player.x - boss.x, player.y - boss.y) < player.radius + boss.radius) {
-      player.hp -= boss.isApex ? 0.75 : 0.5;
+      player.hp -= boss.isApex ? 0.6 : 0.35;
       updateHUD();
       if (player.hp <= 0) {
-        alert(`哨站失守！你被深海巨獸撕碎。總擊殺數：${kills}`);
-        location.reload();
+        triggerPlayerDefeat();
+        return;
       }
     }
   }
@@ -970,31 +1018,55 @@ function updateGame() {
       updateHUD();
       playTone(150, 'sawtooth', 0.1);
       if (player.hp <= 0) {
-        alert(`哨站失守！你共消滅了 ${kills} 隻海嗣。`);
-        location.reload();
+        triggerPlayerDefeat();
+        return;
       }
     }
   }
 
-  // 生成大洲小怪
+  // 生成小怪計時 (初期關卡節奏大幅放緩)
   spawnTimer++;
-  if (spawnTimer >= spawnInterval) {
+  const currentInterval = (activeCountryStageId === 1) ? 90 : 35;
+  if (spawnTimer >= currentInterval) {
     spawnContinentEnemy();
     spawnTimer = 0;
   }
+
+  // 怪物直線移動與邊界完全彈性反射
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
     e.pulse += 0.08;
-    const angle = Math.atan2(player.y - e.y, player.x - e.x);
-    e.x += Math.cos(angle) * e.speed;
-    e.y += Math.sin(angle) * e.speed;
 
+    // 依據自身直線向量移動
+    e.x += e.vx;
+    e.y += e.vy;
+
+    // 碰撞左右牆壁：水平速度反向
+    if (e.x - e.radius <= 0) {
+      e.x = e.radius;
+      e.vx = -e.vx;
+    } else if (e.x + e.radius >= canvas.width) {
+      e.x = canvas.width - e.radius;
+      e.vx = -e.vx;
+    }
+
+    // 碰撞上下牆壁：垂直速度反向
+    if (e.y - e.radius <= 0) {
+      e.y = e.radius;
+      e.vy = -e.vy;
+    } else if (e.y + e.radius >= canvas.height) {
+      e.y = canvas.height - e.radius;
+      e.vy = -e.vy;
+    }
+
+    // 碰觸玩家受傷判定 (初期關卡怪物傷害極低)
     if (!player.isDashing && Math.hypot(player.x - e.x, player.y - e.y) < player.radius + e.radius) {
-      player.hp -= 0.35;
+      const dmg = (activeCountryStageId === 1) ? 0.12 : 0.35;
+      player.hp -= dmg;
       updateHUD();
       if (player.hp <= 0) {
-        alert(`哨站失守！你共消滅了 ${kills} 隻海嗣。`);
-        location.reload();
+        triggerPlayerDefeat();
+        return;
       }
     }
   }
@@ -1003,9 +1075,9 @@ function updateGame() {
   for (let i = gems.length - 1; i >= 0; i--) {
     const g = gems[i];
     const dist = Math.hypot(player.x - g.x, player.y - g.y);
-    if (dist < 65) {
+    if (dist < 75) {
       const angle = Math.atan2(player.y - g.y, player.x - g.x);
-      g.x += Math.cos(angle) * 5.5; g.y += Math.sin(angle) * 5.5;
+      g.x += Math.cos(angle) * 6; g.y += Math.sin(angle) * 6;
     }
     if (dist < player.radius + g.radius) {
       gems.splice(i, 1);
@@ -1017,14 +1089,22 @@ function updateGame() {
   }
 }
 
+// 升級：自動提高基礎血量上限與基礎傷害
 function triggerLevelUp() {
   isPaused = true;
   player.level++;
   player.exp = 0;
-  player.nextExp = Math.floor(player.nextExp * 1.4);
+  player.nextExp = Math.floor(player.nextExp * 1.35);
+
+  // 升級被動永久強化：基礎血量上限 +15 並瞬間補滿，基礎攻擊 +5
+  player.maxHp += 15;
+  player.hp = player.maxHp;
+  player.baseBonusDamage += 5;
+
   txtLevel.innerText = `階級: Lv.${player.level}`;
   upgradeModal.style.display = 'flex';
   playTone(700, 'sine', 0.25);
+  updateHUD();
   syncPlayerSaveState();
 }
 
@@ -1043,30 +1123,22 @@ function chooseUpgrade(type) {
 function renderGame() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // 1. 繪製該國所屬大洲的科技濾鏡網格
   const cont = activeCountryData ? activeCountryData.continent : 'EU';
   drawContinentBackground(ctx, cont, canvas.width, canvas.height);
 
-  // 2. 經驗寶石
   for (const g of gems) {
     ctx.fillStyle = '#38bdf8';
     ctx.beginPath(); ctx.arc(g.x, g.y, g.radius, 0, Math.PI * 2); ctx.fill();
   }
 
-  // 3. 子彈
   for (const b of bullets) {
     ctx.fillStyle = b.type === 'staff' ? '#c084fc' : (b.type === 'bow' ? '#38bdf8' : '#67e8f9');
     ctx.beginPath(); ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2); ctx.fill();
   }
 
-  // 4. 特異小怪、Boss 與環狀彈幕
   drawEnemies(ctx, enemies, boss);
   drawBossBullets(ctx, bossBullets);
-
-  // 5. 戰利品自選寶箱
   drawChestItem(ctx, chest, globalTime);
-
-  // 6. 玩家紙娃娃、衝刺殘影與護符寵物
   drawDashGhosts(ctx, dashGhosts);
   drawPlayerPaperdoll(ctx, player);
   drawPet(ctx, pet, player, globalTime);
