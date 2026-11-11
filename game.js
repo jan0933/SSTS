@@ -1,5 +1,5 @@
 /**
- * SSTS - 戰鬥引擎、雙武切換(近戰/遠程)、法器大招與無背包純戰鬥介面 (game.js)
+ * SSTS - 戰鬥引擎、右上角全螢幕自選、四大法器動態粒子 (game.js)
  */
 
 let audioCtx = null;
@@ -22,7 +22,198 @@ function playTone(freq, type, duration, gainLevel = 0.08) {
   } catch(e){}
 }
 
-/* ==================== 戰鬥狀態 ==================== */
+/* ==================== 右上角手動全螢幕切換 ==================== */
+function toggleGlobalFullscreen() {
+  const btn = document.getElementById('btn-global-fullscreen');
+  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+    const elem = document.documentElement;
+    if (elem.requestFullscreen) {
+      elem.requestFullscreen().catch(() => {});
+    } else if (elem.webkitRequestFullscreen) {
+      elem.webkitRequestFullscreen();
+    }
+    if (screen.orientation && screen.orientation.lock) {
+      screen.orientation.lock('landscape').catch(() => {});
+    }
+    btn.innerText = "✖ 退出全螢幕";
+  } else {
+    if (document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+    } else if (document.webkitExitFullscreen) {
+      document.webkitExitFullscreen();
+    }
+    btn.innerText = "⛶ 全螢幕";
+  }
+}
+
+// 監聽全螢幕變化同步按鈕文字
+document.addEventListener('fullscreenchange', () => {
+  const btn = document.getElementById('btn-global-fullscreen');
+  if (btn) btn.innerText = document.fullscreenElement ? "✖ 退出全螢幕" : "⛶ 全螢幕";
+});
+
+/* ==================== 首頁純程式碼動態 LOGO ==================== */
+const logoCanvas = document.getElementById('logo-canvas');
+const lctx = logoCanvas.getContext('2d');
+let logoTime = 0;
+let logoAnimId = null;
+
+const bubbles = Array.from({ length: 35 }, () => ({
+  x: Math.random() * logoCanvas.width,
+  y: Math.random() * logoCanvas.height,
+  r: 1 + Math.random() * 2.5,
+  speed: 0.3 + Math.random() * 0.7,
+  alpha: 0.15 + Math.random() * 0.4
+}));
+
+function drawLogo() {
+  logoTime += 0.035;
+  lctx.clearRect(0, 0, logoCanvas.width, logoCanvas.height);
+
+  for (const b of bubbles) {
+    b.y -= b.speed;
+    if (b.y < -10) { b.y = logoCanvas.height + 10; b.x = Math.random() * logoCanvas.width; }
+    lctx.fillStyle = `rgba(56, 189, 248, ${b.alpha})`;
+    lctx.beginPath();
+    lctx.arc(b.x + Math.sin(logoTime + b.y * 0.05) * 5, b.y, b.r, 0, Math.PI * 2);
+    lctx.fill();
+  }
+
+  const cx = logoCanvas.width / 2;
+  const pulse = Math.sin(logoTime);
+
+  lctx.save();
+  lctx.font = "900 15px 'Courier New', monospace";
+  lctx.textAlign = "center";
+  lctx.fillStyle = "rgba(56, 189, 248, 0.9)";
+  lctx.shadowColor = "#0284c7";
+  lctx.shadowBlur = 8 + pulse * 4;
+  lctx.fillText("— SSTS · 100 NATIONS SIEGE —", cx, 35);
+  lctx.restore();
+
+  lctx.save();
+  lctx.font = "900 39px -apple-system, BlinkMacSystemFont, 'Microsoft JhengHei', sans-serif";
+  lctx.textAlign = "center";
+  lctx.shadowColor = "rgba(14, 165, 233, 0.85)";
+  lctx.shadowBlur = 22 + pulse * 10;
+
+  const textGrad = lctx.createLinearGradient(cx - 200, 0, cx + 200, 0);
+  textGrad.addColorStop(0, "#34d399");
+  textGrad.addColorStop(0.45, "#38bdf8");
+  textGrad.addColorStop(1, "#06b6d4");
+  lctx.fillStyle = textGrad;
+  lctx.fillText("地表倖存者：深海逆鱗", cx, 102 + Math.sin(logoTime * 0.8) * 2);
+  lctx.restore();
+
+  lctx.save();
+  lctx.font = "800 15px 'Segoe UI', sans-serif";
+  lctx.textAlign = "center";
+  lctx.fillStyle = "#94a3b8";
+  lctx.shadowColor = "rgba(56, 189, 248, 0.4)";
+  lctx.shadowBlur = 6;
+  lctx.fillText("SURFACE SURVIVORS: TIDAL SIEGE", cx, 140);
+  lctx.restore();
+
+  logoAnimId = requestAnimationFrame(drawLogo);
+}
+drawLogo();
+
+/* ==================== 故事頁面 ==================== */
+const storyCanvas = document.getElementById('story-canvas');
+const sctx = storyCanvas.getContext('2d');
+let storyTime = 0;
+let storyAnimId = null;
+
+const storyData = [
+  { chapter: "SSTS // ARCHIVE 01", title: "海淵巨響 · 沉眠者復甦", desc: "萬米海溝深處的海洋霸主睜開眼瞳。遠古逆鱗引發深海沸騰狂潮，全球海岸線全面告急！" },
+  { chapter: "SSTS // ARCHIVE 02", title: "逆鱗狂潮 · 百國淪陷", desc: "自最小的梵蒂岡到遼闊大陸，各國海岸皆被變異海嗣突破，地表文明退守各大洲的核心掩體。" },
+  { chapter: "SSTS // ARCHIVE 03", title: "地表同盟 · 哨站奪還戰", desc: "在大地圖自由整備紙娃娃裝備！戰鬥中利用右下角切換近戰/遠程，引爆戰術法器大招！" },
+  { chapter: "SSTS // MISSION START", title: "全球反擊 · 征途展開", desc: "裝備與等級永久保存。自由切換全螢幕，利用觸控搖桿或鍵盤走位，逐一奪回地表 100 國領土！" }
+];
+
+let storyIndex = 0;
+
+function drawStoryScene() {
+  storyTime += 0.04;
+  sctx.clearRect(0, 0, storyCanvas.width, storyCanvas.height);
+  const w = storyCanvas.width;
+  const h = storyCanvas.height;
+  const cx = w / 2;
+  const cy = h / 2;
+
+  if (storyIndex === 0) {
+    const grad = sctx.createRadialGradient(cx, cy, 20, cx, cy, 140);
+    grad.addColorStop(0, '#0c4a6e'); grad.addColorStop(1, '#020617');
+    sctx.fillStyle = grad; sctx.fillRect(0, 0, w, h);
+    sctx.save();
+    sctx.translate(cx, cy);
+    sctx.scale(1, 0.65 + Math.sin(storyTime * 0.8) * 0.08);
+    sctx.strokeStyle = '#0284c7'; sctx.lineWidth = 3;
+    sctx.beginPath(); sctx.ellipse(0, 0, 100, 55, 0, 0, Math.PI * 2); sctx.stroke();
+
+    const iris = sctx.createRadialGradient(0, 0, 5, 0, 0, 50);
+    iris.addColorStop(0, '#f59e0b'); iris.addColorStop(1, '#082f49');
+    sctx.fillStyle = iris; sctx.beginPath(); sctx.arc(0, 0, 46, 0, Math.PI * 2); sctx.fill();
+    sctx.fillStyle = '#020617'; sctx.beginPath(); sctx.ellipse(0, 0, 7 + Math.sin(storyTime * 2) * 2, 40, 0, 0, Math.PI * 2); sctx.fill();
+    sctx.restore();
+  } else {
+    sctx.fillStyle = '#050c1a'; sctx.fillRect(0, 0, w, h);
+    sctx.fillStyle = 'rgba(56, 189, 248, 0.6)';
+    sctx.beginPath(); sctx.moveTo(0, h);
+    for (let x = 0; x <= w; x += 10) sctx.lineTo(x, 120 + Math.sin(x * 0.02 + storyTime * 2) * 25);
+    sctx.lineTo(w, h); sctx.closePath(); sctx.fill();
+  }
+  storyAnimId = requestAnimationFrame(drawStoryScene);
+}
+
+function startStory() {
+  initAudio();
+  loadGameSave();
+  playTone(440, 'triangle', 0.2);
+  if (logoAnimId) cancelAnimationFrame(logoAnimId);
+  document.getElementById('title-screen').style.display = 'none';
+  document.getElementById('story-screen').style.display = 'flex';
+  renderStory();
+  if (!storyAnimId) drawStoryScene();
+}
+
+function renderStory() {
+  const current = storyData[storyIndex];
+  document.getElementById('story-chapter').innerText = current.chapter;
+  document.getElementById('story-title').innerText = current.title;
+  document.getElementById('story-desc').innerText = current.desc;
+  const dotsContainer = document.getElementById('dots-container');
+  dotsContainer.innerHTML = '';
+  storyData.forEach((_, idx) => {
+    const dot = document.createElement('div');
+    dot.className = `dot ${idx === storyIndex ? 'active' : ''}`;
+    dotsContainer.appendChild(dot);
+  });
+}
+
+function handleStoryScreenClick(e) {
+  if (e.target.classList.contains('story-skip-btn')) return;
+  nextStory();
+}
+
+function nextStory() {
+  playTone(550, 'sine', 0.15);
+  storyIndex++;
+  if (storyIndex >= storyData.length) {
+    if (storyAnimId) { cancelAnimationFrame(storyAnimId); storyAnimId = null; }
+    openWorldMapScreen();
+  } else {
+    renderStory();
+  }
+}
+
+function skipStory(e) {
+  e.stopPropagation();
+  if (storyAnimId) { cancelAnimationFrame(storyAnimId); storyAnimId = null; }
+  openWorldMapScreen();
+}
+
+/* ==================== 戰鬥引擎與狀態 ==================== */
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
 const expBar = document.getElementById('exp-bar');
@@ -62,7 +253,6 @@ let activeCountryData = null;
 let gameRunning = false;
 let globalTime = 0;
 
-// 玩家屬性
 const player = {
   x: canvas.width / 2,
   y: canvas.height / 2,
@@ -84,14 +274,12 @@ const player = {
   fireInterval: 32,
   fireTimer: 0,
 
-  // 雙武器槽位與當前戰鬥模式
-  combatMode: 'melee', // 'melee' 或 'ranged'
+  combatMode: 'melee',
   meleeWeapon: { type: 'bare', name: '空手電磁衝擊', damage: 30, speed: 8, color: '#38bdf8' },
   rangedWeapon: { type: 'bow', name: '電磁弩弓', damage: 35, speed: 11, color: '#0284c7' },
   artifact: { id: "art_nova", name: "等離子爆裂核", skillType: "nova" },
 
-  // 法器技能冷卻
-  artifactCooldown: 240, // 4 秒
+  artifactCooldown: 240,
   artifactCooldownTimer: 0,
 
   isDashing: false,
@@ -119,6 +307,9 @@ const pet = { active: false, type: null, x: 0, y: 0, targetX: 0, targetY: 0, tim
 const chest = { active: false, x: 0, y: 0, radius: 16, isApex: false };
 let battlePickups = [];
 let stageObstacles = [];
+
+// 戰術法器動態粒子特效清單
+let artifactEffects = [];
 
 /* ==================== 裝備資料庫 ==================== */
 const EQUIPMENT_DATABASE = {
@@ -170,7 +361,6 @@ function startCountryBattle(countryId, substageIndex) {
   player.hp = player.maxHp;
   player.baseBonusDamage = (player.level - 1) * 5;
 
-  // 讀取雙武器與法器設定
   player.meleeWeapon = userSave.equipped.meleeWeapon || { type: 'melee', name: '離子軍刀', damage: 45, speed: 9, color: '#38bdf8' };
   player.rangedWeapon = userSave.equipped.rangedWeapon || { type: 'bow', name: '電磁弩弓', damage: 35, speed: 11, color: '#0284c7' };
   player.artifact = userSave.equipped.artifact || { id: "art_nova", name: "等離子爆裂核", skillType: "nova" };
@@ -195,6 +385,7 @@ function startCountryBattle(countryId, substageIndex) {
   gems = [];
   dashGhosts = [];
   battlePickups = [];
+  artifactEffects = [];
   kills = 0;
   boss.active = false;
   chest.active = false;
@@ -212,8 +403,7 @@ function startCountryBattle(countryId, substageIndex) {
   initGame();
 }
 
-/* ==================== 戰鬥右側四鍵操作邏輯 ==================== */
-// 手動觸發攻擊並切換近戰 / 遠程模式
+/* ==================== 戰鬥右側四鍵動作 ==================== */
 function triggerManualAttack(mode) {
   if (isPaused || !gameRunning) return;
 
@@ -228,11 +418,10 @@ function triggerManualAttack(mode) {
     txtWeaponMode.style.color = "#2dd4bf";
   }
 
-  // 立即出招
   executeAttack();
 }
 
-// 釋放法器大招
+// 釋放法器大招並生成對應粒子特效
 function triggerArtifactSkill() {
   if (isPaused || !gameRunning || player.artifactCooldownTimer > 0) return;
 
@@ -240,31 +429,114 @@ function triggerArtifactSkill() {
   const skill = player.artifact ? player.artifact.skillType : 'nova';
 
   if (skill === 'nova') {
-    // 1. 等離子爆裂：周圍 360 度烈焰爆炸
     playTone(200, 'sawtooth', 0.4, 0.25);
+    // 生成爆裂粒子群
+    const particles = [];
+    for (let i = 0; i < 28; i++) {
+      particles.push({
+        x: player.x,
+        y: player.y,
+        angle: Math.random() * Math.PI * 2,
+        speed: 3 + Math.random() * 5,
+        size: 3 + Math.random() * 3
+      });
+    }
+    artifactEffects.push({
+      type: 'nova',
+      x: player.x,
+      y: player.y,
+      timer: 30,
+      maxDuration: 30,
+      particles
+    });
+
     for (let i = enemies.length - 1; i >= 0; i--) {
       const e = enemies[i];
       if (Math.hypot(e.x - player.x, e.y - player.y) < 180) {
         e.hp -= (90 + player.baseBonusDamage);
       }
     }
+
   } else if (skill === 'freeze') {
-    // 2. 極寒霜環：全場緩速 60%
     playTone(850, 'sine', 0.3, 0.2);
+    // 生成冰晶粒子群
+    const particles = [];
+    for (let i = 0; i < 35; i++) {
+      particles.push({
+        x: player.x,
+        y: player.y,
+        angle: Math.random() * Math.PI * 2,
+        speed: 2 + Math.random() * 6
+      });
+    }
+    artifactEffects.push({
+      type: 'freeze',
+      x: player.x,
+      y: player.y,
+      timer: 35,
+      maxDuration: 35,
+      particles
+    });
+
     for (const e of enemies) {
       e.speed *= 0.4;
       e.hp -= (30 + player.baseBonusDamage);
     }
+
   } else if (skill === 'thunder') {
-    // 3. 天罰雷暴：劈死血量最高之強敵
     playTone(150, 'square', 0.5, 0.3);
+    const strikes = [];
     const sorted = [...enemies].sort((a, b) => b.hp - a.hp);
-    for (let i = 0; i < Math.min(5, sorted.length); i++) {
-      sorted[i].hp -= (150 + player.baseBonusDamage);
+    const strikeCount = Math.min(5, Math.max(3, sorted.length));
+
+    for (let i = 0; i < strikeCount; i++) {
+      const target = sorted[i] || { x: Math.random() * canvas.width, y: Math.random() * canvas.height, hp: 0 };
+      target.hp -= (150 + player.baseBonusDamage);
+
+      // 產生垂直分支電弧節點
+      const points = [];
+      let cy = 0;
+      let cx = target.x + (Math.random() - 0.5) * 60;
+      while (cy < target.y) {
+        cy += 40 + Math.random() * 30;
+        cx += (Math.random() - 0.5) * 35;
+        points.push({ x: cx, y: Math.min(cy, target.y) });
+      }
+      strikes.push({
+        x: target.x + (Math.random() - 0.5) * 40,
+        targetX: target.x,
+        targetY: target.y,
+        points
+      });
     }
+
+    artifactEffects.push({
+      type: 'thunder',
+      timer: 24,
+      maxDuration: 24,
+      strikes
+    });
+
   } else if (skill === 'blackhole') {
-    // 4. 深淵黑洞：強制聚怪並燃燒
     playTone(120, 'sawtooth', 0.6, 0.25);
+    const particles = [];
+    for (let i = 0; i < 40; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const dist = 70 + Math.random() * 120;
+      particles.push({
+        x: canvas.width / 2 + Math.cos(a) * dist,
+        y: canvas.height / 2 + Math.sin(a) * dist
+      });
+    }
+    artifactEffects.push({
+      type: 'blackhole',
+      x: canvas.width / 2,
+      y: canvas.height / 2,
+      timer: 50,
+      maxDuration: 50,
+      particles
+    });
+
     for (const e of enemies) {
       e.x = canvas.width / 2 + (Math.random() - 0.5) * 40;
       e.y = canvas.height / 2 + (Math.random() - 0.5) * 40;
@@ -701,7 +973,6 @@ function updateGame() {
     dashCooldownOverlay.style.height = `0%`;
   }
 
-  // 法器冷卻進度
   if (player.artifactCooldownTimer > 0) {
     player.artifactCooldownTimer--;
     artifactCooldownOverlay.style.height = `${(player.artifactCooldownTimer / player.artifactCooldown) * 100}%`;
@@ -731,7 +1002,6 @@ function updateGame() {
   nextPx = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x + player.vx));
   nextPy = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y + player.vy));
 
-  // 掩體阻擋玩家穿透
   for (const obs of stageObstacles) {
     const halfW = obs.width / 2 + player.radius;
     const halfH = obs.height / 2 + player.radius;
@@ -748,7 +1018,6 @@ function updateGame() {
     if (dashGhosts[i].alpha <= 0) dashGhosts.splice(i, 1);
   }
 
-  // 自動攻擊循環 (若手動未點按，依目前模式自動攻擊)
   if (player.attackTimer > 0) player.attackTimer--;
   player.fireTimer++;
   if (player.fireTimer >= player.fireInterval) {
@@ -773,7 +1042,6 @@ function updateGame() {
     }
   }
 
-  // 子彈飛行與掩體吸收
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i];
     b.x += b.vx; b.y += b.vy;
@@ -899,7 +1167,6 @@ function updateGame() {
     }
   }
 
-  // 小怪生成
   spawnTimer++;
   const currentInterval = (activeCountryStageId === 1) ? 90 : 35;
   if (spawnTimer >= currentInterval) {
@@ -907,7 +1174,6 @@ function updateGame() {
     spawnTimer = 0;
   }
 
-  // 小怪直線移動與掩體反彈
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
     e.pulse += 0.08;
@@ -947,16 +1213,17 @@ function updateGame() {
     }
   }
 
-  // 寶石吸附
   for (let i = gems.length - 1; i >= 0; i--) {
     const g = gems[i];
     const dist = Math.hypot(player.x - g.x, player.y - g.y);
+
     if (g.magnetPull || dist < 75) {
       const pullSpeed = g.magnetPull ? 14 : 6;
       const angle = Math.atan2(player.y - g.y, player.x - g.x);
       g.x += Math.cos(angle) * pullSpeed;
       g.y += Math.sin(angle) * pullSpeed;
     }
+
     if (dist < player.radius + g.radius + 4) {
       gems.splice(i, 1);
       player.exp++;
@@ -1018,6 +1285,10 @@ function renderGame() {
 
   drawEnemies(ctx, enemies, boss);
   drawBossBullets(ctx, bossBullets);
+
+  // 繪製四大法器動態粒子特效
+  drawArtifactSkillEffects(ctx, artifactEffects, globalTime);
+
   drawChestItem(ctx, chest, globalTime);
   drawDashGhosts(ctx, dashGhosts);
   drawPlayerPaperdoll(ctx, player);
