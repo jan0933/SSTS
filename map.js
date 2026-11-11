@@ -1,5 +1,5 @@
 /**
- * SSTS - 全球選關、大洲環境濾鏡、國旗與大地圖人形背包系統 (map.js)
+ * SSTS - 全球選關、金幣升星強化與拆解系統 (map.js)
  */
 
 const COUNTRIES_STAGE_DATA = [
@@ -105,13 +105,14 @@ const COUNTRIES_STAGE_DATA = [
   { id: 100, flag: "🌐", name: "加拿大與全球終局 (Global Core)", area: "10,000,000+ km²", continent: "GL", lat: 56.1, lon: -106.3, diff: 10, desc: "【世界終局決戰】北極冰蓋與全球海溝同步崩裂，深海王者本體降臨！" }
 ];
 
-/* ==================== 存檔系統 ==================== */
-const SAVE_KEY = "SSTS_SURFACE_SURVIVORS_SAVE_V4";
+/* ==================== 存檔系統 (金幣 + 5品階 + 1~5星) ==================== */
+const SAVE_KEY = "SSTS_SURFACE_SURVIVORS_SAVE_V5";
 
 const defaultSaveState = {
   unlockedCountryStage: 1,
   currentSelectedStage: 1,
   stageProgress: { 1: 0 },
+  playerGold: 120, // 初始整備金幣
   playerLevel: 1,
   playerExp: 0,
   playerNextExp: 5,
@@ -124,10 +125,8 @@ const defaultSaveState = {
     boots: null,
     accessory: null,
     talisman: null,
-    meleeWeapon: { type: 'melee', name: '離子軍刀', damage: 45, speed: 9, color: '#38bdf8' },
-    rangedWeapon: { type: 'bow', name: '電磁弩弓', damage: 35, speed: 11, color: '#0284c7' },
-    artifact: { id: "art_nova", name: "等離子爆裂核", skillType: "nova" },
-    activeCombatMode: 'melee'
+    weapon: { id: "w_start", slot: "weapon", name: "斥候脈衝弓", type: "bow", tier: "common", stars: 1, damage: 32, speed: 11, color: '#38bdf8' },
+    artifact: { id: "art_nova", slot: "artifact", name: "等離子爆裂核", tier: "rare", stars: 1, skillType: "nova" }
   }
 };
 
@@ -139,7 +138,7 @@ function loadGameSave() {
     if (raw) {
       const parsed = JSON.parse(raw);
       userSave = { ...defaultSaveState, ...parsed };
-      if (!userSave.stageProgress) userSave.stageProgress = { 1: 0 };
+      if (typeof userSave.playerGold !== 'number') userSave.playerGold = 120;
       return true;
     }
   } catch(e) {
@@ -154,9 +153,18 @@ function saveGameProgress() {
     localStorage.setItem(SAVE_KEY, JSON.stringify(userSave));
     const statusText = document.getElementById('map-save-status');
     if (statusText) statusText.innerText = "進度已即時存檔 (" + new Date().toLocaleTimeString() + ")";
+    updateGoldDisplays();
   } catch(e) {
     console.warn("存檔失敗", e);
   }
+}
+
+function updateGoldDisplays() {
+  const g = userSave.playerGold || 0;
+  const mapGold = document.getElementById('map-gold-display');
+  const invGold = document.getElementById('inv-gold-badge');
+  if (mapGold) mapGold.innerText = `💰 金幣: ${g}`;
+  if (invGold) invGold.innerText = `💰 金幣: ${g}`;
 }
 
 function resetSaveData() {
@@ -293,8 +301,7 @@ function drawGlobeScene() {
         gctx.beginPath(); gctx.arc(0, 0, 3.5, 0, Math.PI * 2); gctx.fill();
       } else if (isUnlocked) {
         gctx.fillStyle = "#facc15";
-        gctx.shadowColor = "#eab308";
-        gctx.shadowBlur = 8;
+        gctx.shadowColor = "#eab308"; gctx.shadowBlur = 8;
         gctx.beginPath(); gctx.arc(0, 0, 4, 0, Math.PI * 2); gctx.fill();
       } else {
         gctx.fillStyle = "rgba(239, 68, 68, 0.4)";
@@ -423,6 +430,7 @@ function openWorldMapScreen() {
   document.getElementById('world-map-screen').style.display = 'flex';
 
   updateSelectedStageUI();
+  updateGoldDisplays();
   saveGameProgress();
 
   if (!globeAnimId) drawGlobeScene();
@@ -434,9 +442,18 @@ function continueGameFromSave() {
   openWorldMapScreen();
 }
 
-/* ==================== 人體工學紙娃娃裝備面板 ==================== */
+/* ==================== 人體工學紙娃娃裝備面板 (單武器 + 升星 + 拆解) ==================== */
 let isInventoryOpen = false;
 let currentSelectingSlot = null;
+
+// 品階中文名稱與色票類別
+const TIER_META = {
+  common: { name: "普通", color: "#f1f5f9", class: "tier-common", mult: 1.0, salvageBase: 25 },
+  rare: { name: "稀有", color: "#38bdf8", class: "tier-rare", mult: 1.3, salvageBase: 60 },
+  elite: { name: "菁英", color: "#facc15", class: "tier-elite", mult: 1.6, salvageBase: 120 },
+  epic: { name: "史詩", color: "#c084fc", class: "tier-epic", mult: 2.0, salvageBase: 240 },
+  legendary: { name: "傳說", color: "#fb923c", class: "tier-legendary", mult: 2.6, salvageBase: 500 }
+};
 
 function toggleInventory() {
   isInventoryOpen = !isInventoryOpen;
@@ -445,7 +462,7 @@ function toggleInventory() {
   if (isInventoryOpen) {
     modal.style.display = 'flex';
     updatePaperdollSlotsDisplay();
-    selectSlotForEquip('melee');
+    selectSlotForEquip('weapon');
     startDollPreviewLoop();
     playTone(520, 'sine', 0.1);
   } else {
@@ -455,16 +472,66 @@ function toggleInventory() {
   }
 }
 
+function renderStarsStr(num) {
+  const n = Math.min(5, Math.max(1, num || 1));
+  let s = "";
+  for (let i = 0; i < n; i++) s += "★";
+  return s;
+}
+
 function updatePaperdollSlotsDisplay() {
   const eq = userSave.equipped;
-  document.getElementById('val-helmet').innerText = eq.helmet ? EQUIPMENT_REGISTRY.helmets[eq.helmet].name || eq.helmet : "未裝備";
-  document.getElementById('val-melee').innerText = eq.meleeWeapon ? eq.meleeWeapon.name : "赤手空拳";
-  document.getElementById('val-ranged').innerText = eq.rangedWeapon ? eq.rangedWeapon.name : "未裝備";
-  document.getElementById('val-armor').innerText = eq.armor ? eq.armor : "未裝備";
-  document.getElementById('val-gloves').innerText = eq.gloves ? eq.gloves : "未裝備";
-  document.getElementById('val-boots').innerText = eq.boots ? eq.boots : "未裝備";
-  document.getElementById('val-talisman').innerText = eq.talisman ? EQUIPMENT_REGISTRY.talismans[eq.talisman].name : "未裝備";
-  document.getElementById('val-artifact').innerText = eq.artifact ? eq.artifact.name : "未裝備";
+  const formatSlot = (item, defaultName) => {
+    if (!item) return { name: defaultName, stars: "" };
+    const tierMeta = TIER_META[item.tier || 'common'] || TIER_META.common;
+    return {
+      name: item.name || defaultName,
+      stars: renderStarsStr(item.stars),
+      color: tierMeta.color
+    };
+  };
+
+  const helm = formatSlot(eq.helmet, "未裝備");
+  const elH = document.getElementById('val-helmet');
+  elH.innerText = helm.name;
+  if (helm.color) elH.style.color = helm.color;
+  document.getElementById('star-helmet').innerText = helm.stars;
+
+  const wep = formatSlot(eq.weapon, "赤手脈衝");
+  const elW = document.getElementById('val-weapon');
+  elW.innerText = wep.name;
+  if (wep.color) elW.style.color = wep.color;
+  document.getElementById('star-weapon').innerText = wep.stars;
+
+  const arm = formatSlot(eq.armor, "未裝備");
+  const elA = document.getElementById('val-armor');
+  elA.innerText = arm.name;
+  if (arm.color) elA.style.color = arm.color;
+  document.getElementById('star-armor').innerText = arm.stars;
+
+  const glo = formatSlot(eq.gloves, "未裝備");
+  const elG = document.getElementById('val-gloves');
+  elG.innerText = glo.name;
+  if (glo.color) elG.style.color = glo.color;
+  document.getElementById('star-gloves').innerText = glo.stars;
+
+  const boo = formatSlot(eq.boots, "未裝備");
+  const elB = document.getElementById('val-boots');
+  elB.innerText = boo.name;
+  if (boo.color) elB.style.color = boo.color;
+  document.getElementById('star-boots').innerText = boo.stars;
+
+  const tal = formatSlot(eq.talisman, "未裝備");
+  const elT = document.getElementById('val-talisman');
+  elT.innerText = tal.name;
+  if (tal.color) elT.style.color = tal.color;
+  document.getElementById('star-talisman').innerText = tal.stars;
+
+  const art = formatSlot(eq.artifact, "等離子爆裂核");
+  const elArt = document.getElementById('val-artifact');
+  elArt.innerText = art.name;
+  if (art.color) elArt.style.color = art.color;
+  document.getElementById('star-artifact').innerText = art.stars;
 }
 
 function selectSlotForEquip(slotKey) {
@@ -474,14 +541,13 @@ function selectSlotForEquip(slotKey) {
   scrollBox.innerHTML = '';
 
   const slotTitles = {
-    helmet: "頭盔防具庫存",
-    melee: "近戰武器庫存",
-    ranged: "遠程武器庫存",
-    armor: "胸甲防具庫存",
-    gloves: "戰術手套庫存",
-    boots: "推進戰靴庫存",
+    helmet: "頭盔庫存 (升星 / 拆解)",
+    weapon: "遠程武器庫存 (升星 / 拆解)",
+    armor: "胸甲庫存 (升星 / 拆解)",
+    gloves: "戰術手套庫存 (升星 / 拆解)",
+    boots: "推進戰靴庫存 (升星 / 拆解)",
     talisman: "護符 (寵物) 庫存",
-    artifact: "戰術法器庫存"
+    artifact: "戰術法器庫存 (升星 / 拆解)"
   };
   title.innerText = slotTitles[slotKey] || "裝備庫存";
 
@@ -489,48 +555,119 @@ function selectSlotForEquip(slotKey) {
   const activeEl = document.getElementById(`slot-${slotKey}`);
   if (activeEl) activeEl.classList.add('active-selecting');
 
-  const matchingItems = userSave.myInventory.filter(item => {
-    if (slotKey === 'melee') return item.slot === 'weapon' && (item.data.type === 'melee' || item.data.type === 'bare');
-    if (slotKey === 'ranged') return item.slot === 'weapon' && (item.data.type === 'bow' || item.data.type === 'staff');
-    if (slotKey === 'artifact') return item.slot === 'artifact';
-    return item.slot === slotKey;
-  });
+  const matchingItems = userSave.myInventory.filter(item => item.slot === slotKey);
 
   if (matchingItems.length === 0) {
-    scrollBox.innerHTML = `<div style="color: #64748b; font-size: 11px; padding: 20px 0; text-align: center;">此欄位尚無可用備用裝備<br>請在關卡中擊敗 Boss 獲取！</div>`;
+    scrollBox.innerHTML = `<div style="color: #64748b; font-size: 11px; padding: 20px 0; text-align: center;">此欄位尚無閒置備用裝備<br>擊破第 5 關與第 10 關 Boss 獲取！</div>`;
     return;
   }
 
-  matchingItems.forEach(item => {
+  matchingItems.forEach((item, idx) => {
     const card = document.createElement('div');
     card.className = 'inv-equip-card';
+
+    const tierMeta = TIER_META[item.tier || 'common'] || TIER_META.common;
+    const curStars = item.stars || 1;
+    const upgradeCost = curStars * 80 + (curStars >= 4 ? 120 : 0);
+    const salvageGold = Math.floor(tierMeta.salvageBase * (1 + (curStars - 1) * 0.4));
+
     card.innerHTML = `
-      <div>
-        <div style="font-size: 12px; font-weight: bold; color: #fff;">${item.name}</div>
-        <div style="font-size: 10px; color: #94a3b8;">${item.desc}</div>
+      <div class="card-header-row">
+        <span style="font-size: 12.5px; font-weight: bold; color: ${tierMeta.color};">
+          ${item.name} <span style="color: #facc15;">${renderStarsStr(curStars)}</span>
+        </span>
+        <span class="card-tier-tag ${tierMeta.class}">${tierMeta.name}</span>
       </div>
-      <button class="btn" style="padding: 4px 10px; font-size: 11px;">裝備</button>
+      <div style="font-size: 10.5px; color: #94a3b8;">${item.desc || ''}</div>
+      <div class="card-actions-row">
+        ${curStars < 5 ? `<button class="btn-card-action btn-upgrade" onclick="upgradeItemStar('${item.id}')">升星 (${upgradeCost}金)</button>` : `<span style="font-size: 10px; color: #facc15; font-weight: bold;">已滿星</span>`}
+        <button class="btn-card-action btn-equip" onclick="equipItemToSlot('${slotKey}', '${item.id}')">穿戴</button>
+        <button class="btn-card-action btn-salvage" onclick="salvageItem('${item.id}')">拆解 (+${salvageGold}金)</button>
+      </div>
     `;
-    card.onclick = () => {
-      equipItemToSlot(slotKey, item);
-    };
     scrollBox.appendChild(card);
   });
 }
 
-function equipItemToSlot(slotKey, item) {
-  if (slotKey === 'melee') userSave.equipped.meleeWeapon = { ...item.data };
-  else if (slotKey === 'ranged') userSave.equipped.rangedWeapon = { ...item.data };
-  else if (slotKey === 'artifact') userSave.equipped.artifact = { ...item };
-  else if (slotKey === 'helmet') userSave.equipped.helmet = item.val;
-  else if (slotKey === 'armor') userSave.equipped.armor = item.val;
-  else if (slotKey === 'gloves') userSave.equipped.gloves = item.val;
-  else if (slotKey === 'boots') userSave.equipped.boots = item.val;
-  else if (slotKey === 'talisman') userSave.equipped.talisman = item.val;
+// 裝備穿戴
+function equipItemToSlot(slotKey, itemId) {
+  const itemIndex = userSave.myInventory.findIndex(i => i.id === itemId);
+  if (itemIndex === -1) return;
+  const item = userSave.myInventory[itemIndex];
+
+  // 卸下目前身上穿戴的裝備放回背包
+  const currentEquipped = userSave.equipped[slotKey];
+  if (currentEquipped && currentEquipped.id && currentEquipped.id !== "w_start") {
+    userSave.myInventory.push(currentEquipped);
+  }
+
+  // 穿戴新裝備並從背包庫存移除
+  userSave.equipped[slotKey] = { ...item };
+  userSave.myInventory.splice(itemIndex, 1);
 
   saveGameProgress();
   updatePaperdollSlotsDisplay();
+  selectSlotForEquip(slotKey);
   playTone(700, 'triangle', 0.1);
+}
+
+// 升星強化 (1~5★)
+function upgradeItemStar(itemId) {
+  // 先找背包，再找身上
+  let item = userSave.myInventory.find(i => i.id === itemId);
+  let isEquipped = false;
+  if (!item) {
+    for (const key in userSave.equipped) {
+      if (userSave.equipped[key] && userSave.equipped[key].id === itemId) {
+        item = userSave.equipped[key];
+        isEquipped = true;
+        break;
+      }
+    }
+  }
+  if (!item) return;
+
+  const curStars = item.stars || 1;
+  if (curStars >= 5) {
+    alert("此裝備已達最高 5 ★ 級別！");
+    return;
+  }
+
+  const cost = curStars * 80 + (curStars >= 4 ? 120 : 0);
+  if (userSave.playerGold < cost) {
+    alert(`金幣不足！升到 ${curStars + 1} ★ 需要 ${cost} 金幣。`);
+    return;
+  }
+
+  userSave.playerGold -= cost;
+  item.stars = curStars + 1;
+
+  // 數值提升：武器傷害提升 30%，防具數值提升
+  if (item.damage) item.damage = Math.floor(item.damage * 1.3);
+
+  saveGameProgress();
+  updatePaperdollSlotsDisplay();
+  if (currentSelectingSlot) selectSlotForEquip(currentSelectingSlot);
+  playTone(850, 'square', 0.2);
+}
+
+// 拆解裝備換金幣
+function salvageItem(itemId) {
+  const index = userSave.myInventory.findIndex(i => i.id === itemId);
+  if (index === -1) return;
+
+  const item = userSave.myInventory[index];
+  const tierMeta = TIER_META[item.tier || 'common'] || TIER_META.common;
+  const curStars = item.stars || 1;
+  const salvageGold = Math.floor(tierMeta.salvageBase * (1 + (curStars - 1) * 0.4));
+
+  if (confirm(`確定要拆解【${item.name}】嗎？將獲得 ${salvageGold} 金幣。`)) {
+    userSave.playerGold += salvageGold;
+    userSave.myInventory.splice(index, 1);
+    saveGameProgress();
+    if (currentSelectingSlot) selectSlotForEquip(currentSelectingSlot);
+    playTone(400, 'sawtooth', 0.15);
+  }
 }
 
 let dollPreviewAnimId = null;
@@ -549,13 +686,13 @@ function startDollPreviewLoop() {
       isMoving: false, attackTimer: 0, isDashing: false, facing: 1,
       animTimer: dollPreviewTime,
       equipment: {
-        helmet: userSave.equipped.helmet,
-        armor: userSave.equipped.armor,
-        gloves: userSave.equipped.gloves,
-        boots: userSave.equipped.boots,
-        accessory: userSave.equipped.accessory,
-        talisman: userSave.equipped.talisman,
-        weapon: userSave.equipped.meleeWeapon || { type: 'bare', name: '空手' }
+        helmet: userSave.equipped.helmet ? userSave.equipped.helmet.val : null,
+        armor: userSave.equipped.armor ? userSave.equipped.armor.val : null,
+        gloves: userSave.equipped.gloves ? userSave.equipped.gloves.val : null,
+        boots: userSave.equipped.boots ? userSave.equipped.boots.val : null,
+        accessory: userSave.equipped.accessory ? userSave.equipped.accessory.val : null,
+        talisman: userSave.equipped.talisman ? userSave.equipped.talisman.val : null,
+        weapon: userSave.equipped.weapon || { type: 'bare', name: '赤手脈衝' }
       }
     };
 
