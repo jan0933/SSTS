@@ -1,5 +1,5 @@
 /**
- * SSTS - 美術渲染、紙娃娃、護符寵物、寶箱、殘影與 Boss 繪製模組 (render_art.js)
+ * SSTS - 美術渲染、紙娃娃、護符寵物、大洲專屬怪物與背景網格 (render_art.js)
  */
 
 const EQUIPMENT_REGISTRY = {
@@ -13,16 +13,8 @@ const EQUIPMENT_REGISTRY = {
     heavy: { base: "#334155", plate: "#64748b" },
     archmage: { base: "#4c1d95", plate: "#7c3aed" }
   },
-  gloves: {
-    scout: "#2dd4bf",
-    heavy: "#94a3b8",
-    archmage: "#a78bfa"
-  },
-  boots: {
-    scout: "#0d9488",
-    heavy: "#1e293b",
-    archmage: "#5b21b6"
-  },
+  gloves: { scout: "#2dd4bf", heavy: "#94a3b8", archmage: "#a78bfa" },
+  boots: { scout: "#0d9488", heavy: "#1e293b", archmage: "#5b21b6" },
   accessories: {
     mantle: { color: "rgba(56, 189, 248, 0.4)" },
     relic: { color: "#f59e0b" }
@@ -34,20 +26,38 @@ const EQUIPMENT_REGISTRY = {
   }
 };
 
+/**
+ * 依大洲板塊繪製特色科技戰鬥網格背景
+ */
+function drawContinentBackground(ctx, continent, width, height) {
+  const continentColors = {
+    EU: "rgba(2, 132, 199, 0.08)",   // 歐陸寒霜藍
+    OC: "rgba(6, 182, 212, 0.09)",   // 大洋洲深洋青
+    AM: "rgba(220, 38, 38, 0.07)",   // 美洲赤岩紅
+    AS: "rgba(16, 185, 129, 0.08)",  // 亞洲翡翠毒沼綠
+    AF: "rgba(217, 119, 6, 0.08)",   // 非洲琥珀金
+    GL: "rgba(124, 58, 237, 0.08)"   // 終極深淵紫
+  };
+
+  ctx.strokeStyle = continentColors[continent] || "rgba(14, 165, 233, 0.06)";
+  ctx.lineWidth = 1;
+  for (let x = 0; x < width; x += 40) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
+  }
+  for (let y = 0; y < height; y += 40) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
+  }
+}
+
 function drawChestItem(ctx, chest, time) {
   if (!chest.active) return;
   ctx.save();
   ctx.translate(chest.x, chest.y);
-
-  const hoverY = Math.sin(time * 3) * 3;
-  ctx.translate(0, hoverY);
+  ctx.translate(0, Math.sin(time * 3) * 3);
 
   ctx.fillStyle = "rgba(234, 179, 8, 0.15)";
   ctx.beginPath();
-  ctx.moveTo(-16, 12);
-  ctx.lineTo(16, 12);
-  ctx.lineTo(24, -30);
-  ctx.lineTo(-24, -30);
+  ctx.moveTo(-16, 12); ctx.lineTo(16, 12); ctx.lineTo(24, -30); ctx.lineTo(-24, -30);
   ctx.closePath();
   ctx.fill();
 
@@ -61,15 +71,12 @@ function drawChestItem(ctx, chest, time) {
   ctx.strokeRect(-12, -8, 24, 16);
 
   ctx.fillStyle = "#facc15";
-  ctx.beginPath();
-  ctx.arc(0, 0, 3, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI * 2); ctx.fill();
 
   ctx.font = "800 10px monospace";
   ctx.fillStyle = "#fde047";
   ctx.textAlign = "center";
   ctx.fillText("〔 碰觸開箱 〕", 0, -14);
-
   ctx.restore();
 }
 
@@ -82,10 +89,7 @@ function drawPet(ctx, pet, p, time) {
     ctx.fillStyle = "#38bdf8";
     ctx.shadowColor = "#0284c7";
     ctx.shadowBlur = 10;
-    ctx.beginPath();
-    ctx.arc(0, 0, 6, 0, Math.PI * 2);
-    ctx.fill();
-
+    ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = "#7dd3fc";
     ctx.lineWidth = 1.5;
     for (let i = 0; i < 3; i++) {
@@ -99,10 +103,7 @@ function drawPet(ctx, pet, p, time) {
     ctx.fillStyle = "rgba(52, 211, 153, 0.85)";
     ctx.shadowColor = "#10b981";
     ctx.shadowBlur = 12;
-    ctx.beginPath();
-    ctx.arc(0, -2, 7, Math.PI, 0);
-    ctx.fill();
-
+    ctx.beginPath(); ctx.arc(0, -2, 7, Math.PI, 0); ctx.fill();
     ctx.strokeStyle = "#a7f3d0";
     ctx.lineWidth = 1;
     for (let t = -2; t <= 2; t += 2) {
@@ -113,26 +114,19 @@ function drawPet(ctx, pet, p, time) {
     }
   } else if (pet.type === 'pull') {
     ctx.fillStyle = "#1e1b4b";
-    ctx.beginPath();
-    ctx.arc(0, 0, 6, 0, Math.PI * 2);
-    ctx.fill();
-
+    ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = "#c084fc";
     ctx.shadowColor = "#a855f7";
     ctx.shadowBlur = 10;
     ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(0, 0, 9 + Math.sin(time * 6) * 2, 0, Math.PI * 2);
-    ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, 9 + Math.sin(time * 6) * 2, 0, Math.PI * 2); ctx.stroke();
   }
-
   ctx.restore();
 }
 
 function drawPlayerPaperdoll(ctx, p) {
   ctx.save();
   ctx.translate(p.x, p.y);
-
   if (p.facing < 0) ctx.scale(-1, 1);
 
   let walkCycle = 0;
@@ -148,9 +142,7 @@ function drawPlayerPaperdoll(ctx, p) {
     ctx.lineWidth = 2;
     ctx.shadowColor = "#38bdf8";
     ctx.shadowBlur = 14;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 18, 22, 0, 0, Math.PI * 2);
-    ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(0, 0, 18, 22, 0, 0, Math.PI * 2); ctx.stroke();
     ctx.restore();
   }
 
@@ -176,56 +168,40 @@ function drawPlayerPaperdoll(ctx, p) {
   const rightLegAngle = -walkCycle * 0.45;
 
   ctx.save();
-  ctx.translate(-4, 6 - bobbing);
-  ctx.rotate(leftLegAngle);
-  ctx.fillStyle = bootColor;
-  ctx.fillRect(-2, 0, 4, 8);
+  ctx.translate(-4, 6 - bobbing); ctx.rotate(leftLegAngle);
+  ctx.fillStyle = bootColor; ctx.fillRect(-2, 0, 4, 8);
   ctx.restore();
 
   ctx.save();
-  ctx.translate(4, 6 - bobbing);
-  ctx.rotate(rightLegAngle);
-  ctx.fillStyle = bootColor;
-  ctx.fillRect(-2, 0, 4, 8);
+  ctx.translate(4, 6 - bobbing); ctx.rotate(rightLegAngle);
+  ctx.fillStyle = bootColor; ctx.fillRect(-2, 0, 4, 8);
   ctx.restore();
 
   ctx.save();
   ctx.translate(0, -bobbing);
   ctx.fillStyle = armorConfig ? armorConfig.base : "#1e293b";
   ctx.fillRect(-6, -8, 12, 14);
-
   if (armorConfig) {
     ctx.fillStyle = armorConfig.plate;
     ctx.beginPath();
-    ctx.moveTo(-5, -6);
-    ctx.lineTo(5, -6);
-    ctx.lineTo(3, 4);
-    ctx.lineTo(-3, 4);
-    ctx.closePath();
-    ctx.fill();
+    ctx.moveTo(-5, -6); ctx.lineTo(5, -6); ctx.lineTo(3, 4); ctx.lineTo(-3, 4);
+    ctx.closePath(); ctx.fill();
   }
   ctx.restore();
 
   ctx.save();
   ctx.translate(0, -12 - bobbing);
   ctx.fillStyle = helmConfig ? helmConfig.color : "#334155";
-  ctx.beginPath();
-  ctx.arc(0, 0, 7.5, 0, Math.PI * 2);
-  ctx.fill();
-
+  ctx.beginPath(); ctx.arc(0, 0, 7.5, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = helmConfig ? helmConfig.visor : "#38bdf8";
   ctx.fillRect(1, -2, 6, 3);
-
   if (helmConfig && helmConfig.horn) {
     ctx.fillStyle = "#94a3b8";
-    ctx.beginPath();
-    ctx.moveTo(-4, -6); ctx.lineTo(-10, -12); ctx.lineTo(-2, -8);
-    ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-4, -6); ctx.lineTo(-10, -12); ctx.lineTo(-2, -8); ctx.fill();
   }
   ctx.restore();
 
   drawWeaponSystem(ctx, p, gloveColor, bobbing);
-
   ctx.restore();
 }
 
@@ -244,9 +220,7 @@ function drawWeaponSystem(ctx, p, gloveColor, bobbing) {
     ctx.fillRect(punchX, -2, 6, 4);
     if (isAttacking) {
       ctx.fillStyle = "#38bdf8";
-      ctx.beginPath();
-      ctx.arc(punchX + 8, 0, 3, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.beginPath(); ctx.arc(punchX + 8, 0, 3, 0, Math.PI * 2); ctx.fill();
     }
   } else if (w.type === 'melee') {
     let swingAngle = -0.4;
@@ -254,52 +228,31 @@ function drawWeaponSystem(ctx, p, gloveColor, bobbing) {
       swingAngle = -1.2 + attackProgress * 2.8;
       ctx.strokeStyle = "rgba(56, 189, 248, 0.45)";
       ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.arc(0, 0, 22, -1.2, swingAngle);
-      ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, 22, -1.2, swingAngle); ctx.stroke();
     }
     ctx.rotate(swingAngle);
-
-    ctx.fillStyle = gloveColor;
-    ctx.fillRect(0, -2, 5, 4);
-    ctx.fillStyle = "#334155";
-    ctx.fillRect(4, -1.5, 4, 3);
+    ctx.fillStyle = gloveColor; ctx.fillRect(0, -2, 5, 4);
+    ctx.fillStyle = "#334155"; ctx.fillRect(4, -1.5, 4, 3);
     ctx.fillStyle = w.color || "#38bdf8";
     ctx.shadowColor = w.color || "#38bdf8";
     ctx.shadowBlur = 10;
     ctx.fillRect(8, -1, 16, 2);
-
   } else if (w.type === 'bow') {
     let drawPull = 0;
     if (isAttacking) drawPull = Math.sin(attackProgress * Math.PI) * 4;
-
-    ctx.fillStyle = gloveColor;
-    ctx.fillRect(0, -2, 7, 4);
-
+    ctx.fillStyle = gloveColor; ctx.fillRect(0, -2, 7, 4);
     ctx.save();
     ctx.translate(8, 0);
     ctx.strokeStyle = w.color || "#0284c7";
     ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.arc(0, 0, 12, -Math.PI / 2.3, Math.PI / 2.3);
-    ctx.stroke();
-
-    ctx.strokeStyle = "#cbd5e1";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(4, -11);
-    ctx.lineTo(-drawPull, 0);
-    ctx.lineTo(4, 11);
-    ctx.stroke();
-
+    ctx.beginPath(); ctx.arc(0, 0, 12, -Math.PI / 2.3, Math.PI / 2.3); ctx.stroke();
+    ctx.strokeStyle = "#cbd5e1"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(4, -11); ctx.lineTo(-drawPull, 0); ctx.lineTo(4, 11); ctx.stroke();
     if (isAttacking) {
-      ctx.fillStyle = "#67e8f9";
-      ctx.shadowColor = "#38bdf8";
-      ctx.shadowBlur = 6;
+      ctx.fillStyle = "#67e8f9"; ctx.shadowColor = "#38bdf8"; ctx.shadowBlur = 6;
       ctx.fillRect(-drawPull, -1, 16, 2);
     }
     ctx.restore();
-
   } else if (w.type === 'staff') {
     let staffTilt = 0.2;
     if (isAttacking) {
@@ -308,109 +261,88 @@ function drawWeaponSystem(ctx, p, gloveColor, bobbing) {
       ctx.translate(18, -14);
       ctx.strokeStyle = `rgba(168, 85, 247, ${0.5 + Math.sin(p.animTimer * 10) * 0.3})`;
       ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(0, 0, 8, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.stroke();
       ctx.restore();
     }
     ctx.rotate(staffTilt);
-
-    ctx.fillStyle = gloveColor;
-    ctx.fillRect(0, -2, 5, 4);
-    ctx.fillStyle = "#64748b";
-    ctx.fillRect(4, -1.5, 20, 3);
+    ctx.fillStyle = gloveColor; ctx.fillRect(0, -2, 5, 4);
+    ctx.fillStyle = "#64748b"; ctx.fillRect(4, -1.5, 20, 3);
     ctx.fillStyle = w.color || "#c084fc";
-    ctx.shadowColor = "#a855f7";
+    ctx.shadowColor = w.color || "#a855f7";
     ctx.shadowBlur = 12;
-    ctx.beginPath();
-    ctx.arc(24, 0, 4.5, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.beginPath(); ctx.arc(24, 0, 4.5, 0, Math.PI * 2); ctx.fill();
   }
-
   ctx.restore();
 }
 
+/**
+ * 繪製不同大洲的特異小怪、Mini-Boss 與終極霸主 Boss
+ */
 function drawEnemies(ctx, enemies, boss) {
+  // 1. 各洲特化小怪
   for (const e of enemies) {
     ctx.save();
     ctx.translate(e.x, e.y);
 
-    if (e.type === 'jelly') {
-      ctx.fillStyle = 'rgba(236, 72, 153, 0.85)';
-      ctx.shadowColor = '#ec4899';
-      ctx.shadowBlur = 10;
+    if (e.kind === 'shark') {
+      // 狂暴利齒鯊 (大洋/美洲特有：青黑流線，高速)
+      ctx.fillStyle = '#0f766e';
       ctx.beginPath();
-      ctx.arc(0, -2, e.radius, Math.PI, 0);
-      ctx.closePath();
+      ctx.ellipse(0, 0, e.radius * 1.3, e.radius * 0.6, 0, 0, Math.PI * 2);
       ctx.fill();
-
-      ctx.strokeStyle = '#f472b6';
-      ctx.lineWidth = 1.5;
-      for (let t = -3; t <= 3; t += 2) {
-        ctx.beginPath();
-        ctx.moveTo(t * 2.5, -2);
-        const wave = Math.sin(e.pulse + t) * 3;
-        ctx.quadraticCurveTo(t * 2.5 + wave, 6, t * 2.5 - wave, 12);
-        ctx.stroke();
-      }
+      // 背鰭
+      ctx.fillStyle = '#14b8a6';
+      ctx.beginPath();
+      ctx.moveTo(-2, -e.radius * 0.6);
+      ctx.lineTo(2, -e.radius * 1.2);
+      ctx.lineTo(6, -e.radius * 0.4);
+      ctx.fill();
+    } else if (e.kind === 'crab') {
+      // 岩甲寄居蟹 (亞洲/非洲特有：高防厚甲)
+      ctx.fillStyle = '#b45309';
+      ctx.beginPath(); ctx.arc(0, 0, e.radius, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2; ctx.stroke();
+    } else if (e.kind === 'ice_jelly') {
+      // 冰晶水母 (歐洲/極地特有：冰霜青白，自帶微弱光暈)
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.85)';
+      ctx.shadowColor = '#38bdf8'; ctx.shadowBlur = 8;
+      ctx.beginPath(); ctx.arc(0, -2, e.radius, Math.PI, 0); ctx.closePath(); ctx.fill();
     } else {
+      // 預設突變寄生魚
       ctx.fillStyle = '#ef4444';
-      ctx.shadowColor = '#ef4444';
-      ctx.shadowBlur = 8;
-      ctx.beginPath();
-      ctx.ellipse(0, 0, e.radius * 1.2, e.radius * 0.7, 0, 0, Math.PI * 2);
-      ctx.fill();
-
+      ctx.beginPath(); ctx.ellipse(0, 0, e.radius * 1.2, e.radius * 0.7, 0, 0, Math.PI * 2); ctx.fill();
       const tailWiggle = Math.sin(e.pulse * 2) * 5;
-      ctx.beginPath();
-      ctx.moveTo(-e.radius * 0.8, 0);
-      ctx.lineTo(-e.radius * 1.5, -5 + tailWiggle);
-      ctx.lineTo(-e.radius * 1.5, 5 + tailWiggle);
-      ctx.closePath();
-      ctx.fill();
-
-      ctx.fillStyle = '#fef08a';
-      ctx.beginPath();
-      ctx.arc(e.radius * 0.6, -2, 2, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-e.radius * 0.8, 0); ctx.lineTo(-e.radius * 1.5, -5 + tailWiggle); ctx.lineTo(-e.radius * 1.5, 5 + tailWiggle); ctx.fill();
     }
     ctx.restore();
   }
 
+  // 2. Boss (分為第 5 關先鋒 Mini-Boss 與第 10 關 Apex 終極霸主)
   if (boss && boss.active) {
     ctx.save();
     ctx.translate(boss.x, boss.y);
 
-    ctx.shadowColor = '#ef4444';
-    ctx.shadowBlur = 25;
-    ctx.fillStyle = '#7f1d1d';
-    ctx.beginPath();
-    ctx.arc(0, 0, boss.radius, 0, Math.PI * 2);
-    ctx.fill();
+    const isApex = boss.isApex;
 
+    ctx.shadowColor = isApex ? '#ef4444' : '#f59e0b';
+    ctx.shadowBlur = isApex ? 28 : 16;
+    ctx.fillStyle = isApex ? '#7f1d1d' : '#854d0e';
+    ctx.beginPath(); ctx.arc(0, 0, boss.radius, 0, Math.PI * 2); ctx.fill();
+
+    // 內層旋轉重型甲殼
     ctx.save();
     ctx.rotate(boss.pulse * 0.5);
-    ctx.strokeStyle = '#f87171';
-    ctx.lineWidth = 4;
-    for (let a = 0; a < Math.PI * 2; a += Math.PI / 3) {
-      ctx.beginPath();
-      ctx.arc(Math.cos(a) * 20, Math.sin(a) * 20, 10, 0, Math.PI * 2);
-      ctx.stroke();
+    ctx.strokeStyle = isApex ? '#f87171' : '#fde047';
+    ctx.lineWidth = isApex ? 4 : 2.5;
+    const spokes = isApex ? 6 : 4;
+    for (let a = 0; a < Math.PI * 2; a += Math.PI * 2 / spokes) {
+      ctx.beginPath(); ctx.arc(Math.cos(a) * 20, Math.sin(a) * 20, 9, 0, Math.PI * 2); ctx.stroke();
     }
     ctx.restore();
 
-    const corePulse = Math.sin(boss.pulse * 3) * 4;
-    ctx.fillStyle = '#ef4444';
-    ctx.beginPath();
-    ctx.arc(0, 0, 16 + corePulse, 0, Math.PI * 2);
-    ctx.fill();
-
-    const clawOffset = Math.sin(boss.pulse * 2) * 6;
-    ctx.fillStyle = '#991b1b';
-    ctx.beginPath();
-    ctx.arc(-boss.radius - 6, -10 + clawOffset, 12, 0, Math.PI * 2);
-    ctx.arc(boss.radius + 6, -10 - clawOffset, 12, 0, Math.PI * 2);
-    ctx.fill();
+    // 核心光核
+    ctx.fillStyle = isApex ? '#ef4444' : '#eab308';
+    ctx.beginPath(); ctx.arc(0, 0, 14 + Math.sin(boss.pulse * 3) * 3, 0, Math.PI * 2); ctx.fill();
 
     ctx.restore();
   }
@@ -419,12 +351,10 @@ function drawEnemies(ctx, enemies, boss) {
 function drawBossBullets(ctx, bossBullets) {
   for (const b of bossBullets) {
     ctx.save();
-    ctx.fillStyle = '#f87171';
-    ctx.shadowColor = '#ef4444';
-    ctx.shadowBlur = 12;
-    ctx.beginPath();
-    ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.fillStyle = b.isApex ? '#f87171' : '#fde047';
+    ctx.shadowColor = b.isApex ? '#ef4444' : '#eab308';
+    ctx.shadowBlur = 10;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   }
 }
@@ -435,14 +365,9 @@ function drawDashGhosts(ctx, ghosts) {
     ctx.save();
     ctx.translate(g.x, g.y);
     if (g.facing < 0) ctx.scale(-1, 1);
-
     ctx.fillStyle = `rgba(56, 189, 248, ${g.alpha * 0.45})`;
-    ctx.shadowColor = "#38bdf8";
-    ctx.shadowBlur = 10 * g.alpha;
-
-    ctx.beginPath();
-    ctx.arc(0, -10, 7, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.shadowColor = "#38bdf8"; ctx.shadowBlur = 10 * g.alpha;
+    ctx.beginPath(); ctx.arc(0, -10, 7, 0, Math.PI * 2); ctx.fill();
     ctx.fillRect(-6, -6, 12, 16);
     ctx.restore();
   }
@@ -450,20 +375,7 @@ function drawDashGhosts(ctx, ghosts) {
 
 function drawInventoryPreview(ctx, p, animTime) {
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-
-  const mockPlayer = {
-    ...p,
-    x: 0,
-    y: 0,
-    vx: 0,
-    vy: 0,
-    isMoving: false,
-    attackTimer: 0,
-    isDashing: false,
-    facing: 1,
-    animTimer: animTime
-  };
-
+  const mockPlayer = { ...p, x: 0, y: 0, vx: 0, vy: 0, isMoving: false, attackTimer: 0, isDashing: false, facing: 1, animTimer: animTime };
   ctx.save();
   ctx.translate(ctx.canvas.width / 2, ctx.canvas.height / 2 + 10);
   ctx.scale(2.2, 2.2);
