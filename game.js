@@ -1,5 +1,5 @@
 /**
- * SSTS - 遊戲核心控制、故事狀態機、觸控搖桿與背包邏輯
+ * SSTS - 遊戲核心控制、故事狀態機、觸控搖桿、衝刺閃避與背包邏輯
  */
 
 /* ==================== 音效引擎 (Web Audio API) ==================== */
@@ -127,7 +127,7 @@ const storyData = [
   {
     chapter: "SSTS // MISSION START",
     title: "陸防前線 · 迎擊異形海嗣",
-    desc: "突變潮汐已抵達據點！你可以透過手指觸控滑動或 WASD 移動，點擊背包隨時自由換裝，守衛陸地生靈！"
+    desc: "突變潮汐已抵達據點！你可以透過搖桿移動、右手快捷鍵衝刺閃避與更換裝備，守衛陸地生靈！"
   }
 ];
 
@@ -245,6 +245,7 @@ const txtLevel = document.getElementById('txt-level');
 const txtKills = document.getElementById('txt-kills');
 const txtHp = document.getElementById('txt-hp');
 const upgradeModal = document.getElementById('upgrade-modal');
+const dashCooldownOverlay = document.getElementById('dash-cooldown-overlay');
 
 let isPaused = false;
 let kills = 0;
@@ -269,6 +270,17 @@ const player = {
   attackDuration: 14,
   fireInterval: 32,
   fireTimer: 0,
+
+  // 電磁衝刺狀態控制
+  isDashing: false,
+  dashDuration: 9,      // 衝刺持續 9 幀
+  dashTimer: 0,
+  dashSpeedMulti: 3.5,  // 瞬間加速 3.5 倍
+  dashCooldown: 90,     // 冷卻 90 幀 (~1.5 秒)
+  dashCooldownTimer: 0,
+  dashDirX: 1,
+  dashDirY: 0,
+
   equipment: {
     helmet: 'scout',
     armor: 'scout',
@@ -285,10 +297,37 @@ const player = {
   }
 };
 
+let dashGhosts = [];
+
+// 觸發電磁衝刺
+function triggerDash() {
+  if (isPaused || !gameRunning || player.dashCooldownTimer > 0 || player.isDashing) return;
+
+  player.isDashing = true;
+  player.dashTimer = player.dashDuration;
+  player.dashCooldownTimer = player.dashCooldown;
+
+  // 若目前有移動向量則朝該方向衝，否則朝當前面向方向衝
+  if (player.vx !== 0 || player.vy !== 0) {
+    const len = Math.hypot(player.vx, player.vy);
+    player.dashDirX = player.vx / len;
+    player.dashDirY = player.vy / len;
+  } else {
+    player.dashDirX = player.facing;
+    player.dashDirY = 0;
+  }
+
+  playTone(920, 'sawtooth', 0.12, 0.08);
+}
+
 const keys = {};
 window.addEventListener('keydown', e => {
   keys[e.key.toLowerCase()] = true;
   if (e.key === 'b' || e.key === 'B') toggleInventory();
+  if (e.code === 'Space') {
+    e.preventDefault();
+    triggerDash();
+  }
 });
 window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
 
@@ -306,26 +345,33 @@ const joystick = {
   maxRadius: 50
 };
 
+// 避免右手點按按鈕時觸發左側搖桿
 canvas.addEventListener('touchstart', (e) => {
   if (isPaused || !gameRunning) return;
   if (joystick.active) return;
 
-  const touch = e.changedTouches[0];
   const rect = canvas.getBoundingClientRect();
-  const touchX = touch.clientX - rect.left;
-  const touchY = touch.clientY - rect.top;
+  for (let i = 0; i < e.changedTouches.length; i++) {
+    const touch = e.changedTouches[i];
+    const touchX = touch.clientX - rect.left;
+    const touchY = touch.clientY - rect.top;
 
-  joystick.active = true;
-  joystick.touchId = touch.identifier;
-  joystick.startX = touchX;
-  joystick.startY = touchY;
-  joystick.vectorX = 0;
-  joystick.vectorY = 0;
+    // 螢幕左半部（或左側 60% 區域）觸控才判定為呼叫移動搖桿
+    if (touchX < rect.width * 0.65) {
+      joystick.active = true;
+      joystick.touchId = touch.identifier;
+      joystick.startX = touchX;
+      joystick.startY = touchY;
+      joystick.vectorX = 0;
+      joystick.vectorY = 0;
 
-  joyBase.style.left = `${touchX}px`;
-  joyBase.style.top = `${touchY}px`;
-  joyBase.style.display = 'block';
-  joyThumb.style.transform = `translate(-50%, -50%)`;
+      joyBase.style.left = `${touchX}px`;
+      joyBase.style.top = `${touchY}px`;
+      joyBase.style.display = 'block';
+      joyThumb.style.transform = `translate(-50%, -50%)`;
+      break;
+    }
+  }
 }, { passive: false });
 
 window.addEventListener('touchmove', (e) => {
@@ -533,6 +579,7 @@ function executeAttack() {
 function updateGame() {
   if (isPaused) return;
 
+  // 1. 移動輸入計算
   let dx = 0, dy = 0;
   if (keys['w'] || keys['arrowup']) dy -= 1;
   if (keys['s'] || keys['arrowdown']) dy += 1;
@@ -547,17 +594,54 @@ function updateGame() {
     dy = joystick.vectorY;
   }
 
-  player.isMoving = (Math.abs(dx) > 0.05 || Math.abs(dy) > 0.05);
-  if (player.isMoving) {
-    player.animTimer += 0.08;
-    if (Math.abs(dx) > 0.05) player.facing = dx > 0 ? 1 : -1;
+  // 2. 處理衝刺冷卻與衝刺位移邏輯
+  if (player.dashCooldownTimer > 0) {
+    player.dashCooldownTimer--;
+    // 更新衝刺按鈕遮罩高度百分比 (冷卻進度)
+    const pct = (player.dashCooldownTimer / player.dashCooldown) * 100;
+    dashCooldownOverlay.style.height = `${pct}%`;
+  } else {
+    dashCooldownOverlay.style.height = `0%`;
   }
 
-  player.vx = dx * player.speed;
-  player.vy = dy * player.speed;
+  if (player.isDashing) {
+    player.dashTimer--;
+    player.vx = player.dashDirX * player.speed * player.dashSpeedMulti;
+    player.vy = player.dashDirY * player.speed * player.dashSpeedMulti;
+
+    // 每幀生成殘影
+    dashGhosts.push({
+      x: player.x,
+      y: player.y,
+      facing: player.facing,
+      alpha: 1.0
+    });
+
+    if (player.dashTimer <= 0) {
+      player.isDashing = false;
+    }
+  } else {
+    player.isMoving = (Math.abs(dx) > 0.05 || Math.abs(dy) > 0.05);
+    if (player.isMoving) {
+      player.animTimer += 0.08;
+      if (Math.abs(dx) > 0.05) player.facing = dx > 0 ? 1 : -1;
+    }
+    player.vx = dx * player.speed;
+    player.vy = dy * player.speed;
+  }
+
   player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x + player.vx));
   player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y + player.vy));
 
+  // 3. 更新殘影透明度衰退
+  for (let i = dashGhosts.length - 1; i >= 0; i--) {
+    dashGhosts[i].alpha -= 0.12;
+    if (dashGhosts[i].alpha <= 0) {
+      dashGhosts.splice(i, 1);
+    }
+  }
+
+  // 4. 自動攻擊
   if (player.attackTimer > 0) player.attackTimer--;
   player.fireTimer++;
   if (player.fireTimer >= player.fireInterval) {
@@ -565,6 +649,7 @@ function updateGame() {
     player.fireTimer = 0;
   }
 
+  // 5. 子彈飛行與碰撞
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i];
     b.x += b.vx;
@@ -590,6 +675,7 @@ function updateGame() {
     }
   }
 
+  // 6. 敵群追蹤與撞擊判定 (衝刺期間具備無敵免疫)
   spawnTimer++;
   if (spawnTimer >= spawnInterval) {
     spawnSeaEnemy();
@@ -602,7 +688,7 @@ function updateGame() {
     e.x += Math.cos(angle) * e.speed;
     e.y += Math.sin(angle) * e.speed;
 
-    if (Math.hypot(player.x - e.x, player.y - e.y) < player.radius + e.radius) {
+    if (!player.isDashing && Math.hypot(player.x - e.x, player.y - e.y) < player.radius + e.radius) {
       player.hp -= 0.35;
       txtHp.innerText = `核心護甲: ${Math.max(0, Math.floor(player.hp))}/${player.maxHp}`;
       if (player.hp <= 0) {
@@ -612,6 +698,7 @@ function updateGame() {
     }
   }
 
+  // 7. 經驗寶石吸附
   for (let i = gems.length - 1; i >= 0; i--) {
     const g = gems[i];
     const dist = Math.hypot(player.x - g.x, player.y - g.y);
@@ -677,6 +764,9 @@ function renderGame() {
   }
 
   drawEnemies(ctx, enemies);
+
+  // 繪製衝刺殘影與玩家紙娃娃
+  drawDashGhosts(ctx, dashGhosts);
   drawPlayerPaperdoll(ctx, player);
 }
 
