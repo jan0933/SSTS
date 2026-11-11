@@ -51,39 +51,50 @@ html, body {
 
 @media (min-width: 900px) and (min-height: 600px) {
   .screen {
-    width: 780px;
-    height: 540px;
+    width: 820px;
+    height: 560px;
     border-radius: 14px;
     box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9), 0 0 35px rgba(6, 182, 212, 0.25);
   }
 }
 
-/* 1. 首頁 */
+/* 首頁 */
 #title-screen {
   background: radial-gradient(circle at 50% 45%, #082f49 0%, #030712 85%);
   text-align: center;
   padding: 20px;
 }
 #logo-canvas { display: block; margin: 0 auto 12px; max-width: 90%; height: auto; }
+.title-btn-group { display: flex; gap: 16px; justify-content: center; }
 .btn {
   background: linear-gradient(135deg, #0284c7, #0369a1);
   color: white;
   border: 1px solid #38bdf8;
-  padding: 13px 40px;
-  font-size: 16px;
+  padding: 12px 36px;
+  font-size: 15px;
   font-weight: bold;
   border-radius: 30px;
   cursor: pointer;
   box-shadow: 0 4px 25px rgba(2, 132, 199, 0.5);
   transition: all 0.2s ease;
-  letter-spacing: 2px;
+  letter-spacing: 1.5px;
 }
 .btn:hover {
   transform: translateY(-2px) scale(1.04);
   box-shadow: 0 6px 30px rgba(56, 189, 248, 0.7);
 }
+.btn-secondary-home {
+  background: rgba(15, 23, 42, 0.8);
+  border-color: #64748b;
+  color: #94a3b8;
+}
+.btn-secondary-home:hover {
+  border-color: #34d399;
+  color: #34d399;
+  box-shadow: 0 4px 20px rgba(52, 211, 153, 0.3);
+}
 
-/* 2. 故事頁面 */
+/* 故事頁面 */
 #story-screen {
   background: #030712;
   display: none;
@@ -159,9 +170,149 @@ html, body {
   cursor: pointer;
   z-index: 10;
 }
-.story-skip-btn:hover { color: #f1f5f9; border-color: #94a3b8; }
 
-/* 3. 戰鬥畫面與 HUD */
+/* ==================== 3D 地球大地圖選關介面 ==================== */
+#world-map-screen {
+  background: radial-gradient(circle at 50% 50%, #0c1a30 0%, #020617 90%);
+  display: none;
+  padding: 16px 24px;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.map-header {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(56, 189, 248, 0.25);
+  padding-bottom: 8px;
+}
+.map-title {
+  font-size: 17px;
+  font-weight: 900;
+  color: #38bdf8;
+  letter-spacing: 2px;
+  text-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+}
+.map-save-info {
+  font-size: 11px;
+  color: #34d399;
+  font-weight: bold;
+}
+.map-body {
+  width: 100%;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding-top: 10px;
+}
+.globe-viewport {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+#globe-canvas {
+  cursor: grab;
+  max-width: 100%;
+  height: auto;
+}
+#globe-canvas:active { cursor: grabbing; }
+.globe-hint {
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 4px;
+}
+.stage-info-card {
+  width: 320px;
+  background: rgba(11, 23, 49, 0.85);
+  border: 1.5px solid #0284c7;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 0 25px rgba(14, 165, 233, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.stage-rank-tag {
+  font-size: 11px;
+  font-weight: 800;
+  color: #38bdf8;
+  letter-spacing: 1.5px;
+}
+.stage-country-name {
+  font-size: 20px;
+  font-weight: 900;
+  color: #ffffff;
+}
+.stage-area-data {
+  font-size: 12px;
+  color: #f59e0b;
+  font-weight: bold;
+}
+.stage-brief-box {
+  background: #060d1f;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: #cbd5e1;
+  min-height: 52px;
+}
+.stage-meta-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11.5px;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+.stage-action-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 6px;
+}
+.map-nav-btn {
+  background: #1e293b;
+  border: 1px solid #475569;
+  color: #cbd5e1;
+  padding: 8px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.map-nav-btn:hover { background: #0284c7; color: white; border-color: #38bdf8; }
+.btn-enter-stage {
+  flex: 1;
+  padding: 10px 0;
+  font-size: 14px;
+}
+.btn-enter-stage.locked {
+  background: #334155 !important;
+  border-color: #64748b !important;
+  color: #94a3b8 !important;
+  cursor: not-allowed;
+  box-shadow: none !important;
+}
+.btn-clear-save {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  font-size: 10px;
+  text-decoration: underline;
+  cursor: pointer;
+  align-self: center;
+  margin-top: 4px;
+}
+.btn-clear-save:hover { color: #f43f5e; }
+
+/* 戰鬥畫面 HUD */
 #game-container { display: none; background: #090d16; }
 canvas#game-canvas {
   background: #060913;
@@ -170,8 +321,6 @@ canvas#game-canvas {
   height: 100%;
   object-fit: contain;
 }
-
-/* 核心 HUD 標籤與條狀設計 */
 #hud {
   position: absolute;
   top: 10px;
@@ -182,11 +331,7 @@ canvas#game-canvas {
   display: flex;
   flex-direction: column;
 }
-.hud-bar-wrapper {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-}
+.hud-bar-wrapper { width: 100%; display: flex; flex-direction: column; }
 .hud-bar-info {
   display: flex;
   justify-content: space-between;
@@ -204,25 +349,18 @@ canvas#game-canvas {
   background: rgba(15, 23, 42, 0.9);
   border: 1px solid #334155;
 }
-.bar-fill {
-  height: 100%;
-  width: 0%;
-  transition: width 0.12s ease-out;
-}
-/* 經驗值：金黃能量感 */
+.bar-fill { height: 100%; width: 0%; transition: width 0.12s ease-out; }
 .exp-bg { border-color: #854d0e; }
 .exp-fill {
   background: linear-gradient(90deg, #ca8a04, #eab308);
   box-shadow: 0 0 10px rgba(234, 179, 8, 0.7);
 }
-/* 生命核心：生機翡翠綠 */
 .hp-bg { border-color: #065f46; }
 .hp-fill {
   background: linear-gradient(90deg, #059669, #10b981);
   box-shadow: 0 0 10px rgba(16, 185, 129, 0.7);
   width: 100%;
 }
-
 .hud-stats {
   display: flex;
   justify-content: space-between;
@@ -239,7 +377,6 @@ canvas#game-canvas {
   border: 1px solid rgba(56, 189, 248, 0.3);
   text-shadow: 1px 1px 2px black;
 }
-
 #btn-open-bag {
   background: rgba(14, 165, 233, 0.25);
   border: 1px solid #38bdf8;
@@ -281,7 +418,6 @@ canvas#game-canvas {
   text-shadow: 0 0 20px #ef4444, 0 0 40px #b91c1c;
   letter-spacing: 3px;
 }
-
 #boss-bar-container {
   display: none;
   position: absolute;
@@ -316,7 +452,7 @@ canvas#game-canvas {
   transition: width 0.15s ease-out;
 }
 
-/* 搖桿 */
+/* 搖桿與按鈕 */
 #joystick-base {
   position: absolute;
   width: 120px;
@@ -342,8 +478,6 @@ canvas#game-canvas {
   transform: translate(-50%, -50%);
   transition: transform 0.04s ease-out;
 }
-
-/* 手機右手動作鈕 */
 #mobile-action-group {
   position: absolute;
   bottom: 24px;
@@ -369,7 +503,6 @@ canvas#game-canvas {
   -webkit-tap-highlight-color: transparent;
 }
 .touch-action-btn:active { transform: scale(0.92); }
-
 #btn-touch-dash {
   width: 68px;
   height: 68px;
@@ -391,7 +524,6 @@ canvas#game-canvas {
 #btn-touch-bag .btn-icon { font-size: 15px; }
 .btn-text { font-size: 10px; font-weight: 800; margin-top: 2px; }
 #btn-touch-bag .btn-text { font-size: 8.5px; }
-
 #dash-cooldown-overlay {
   position: absolute;
   inset: 0;
@@ -403,7 +535,7 @@ canvas#game-canvas {
   transition: height 0.05s linear;
 }
 
-/* 彈窗共用 Backdrop */
+/* 彈窗與通關面板 */
 .modal-backdrop {
   position: absolute;
   inset: 0;
@@ -415,8 +547,6 @@ canvas#game-canvas {
   z-index: 50;
   backdrop-filter: blur(4px);
 }
-
-/* 升級卡片 */
 .upgrade-card {
   background: #0f172a;
   border: 1px solid #38bdf8;
@@ -432,7 +562,6 @@ canvas#game-canvas {
 }
 .upgrade-card:hover { background: #0284c7; transform: scale(1.04); }
 
-/* Boss 戰利品自選寶箱視窗 */
 .chest-box-container {
   width: 660px;
   max-width: 95%;
@@ -443,24 +572,9 @@ canvas#game-canvas {
   padding: 18px;
   text-align: center;
 }
-.chest-title {
-  font-size: 18px;
-  font-weight: 900;
-  color: #fde047;
-  letter-spacing: 2px;
-  text-shadow: 0 0 10px rgba(234, 179, 8, 0.8);
-}
-.chest-subtitle {
-  font-size: 12px;
-  color: #94a3b8;
-  margin-top: 4px;
-  margin-bottom: 14px;
-}
-.chest-cards-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-gap: 12px;
-}
+.chest-title { font-size: 18px; font-weight: 900; color: #fde047; letter-spacing: 2px; }
+.chest-subtitle { font-size: 12px; color: #94a3b8; margin: 4px 0 14px; }
+.chest-cards-grid { display: grid; grid-template-columns: repeat(3, 1fr); grid-gap: 12px; }
 .chest-card {
   background: #111e38;
   border: 1.5px solid #475569;
@@ -483,6 +597,22 @@ canvas#game-canvas {
 .chest-card-type { font-size: 11px; font-weight: 800; }
 .chest-card-name { font-size: 14px; font-weight: 900; color: #ffffff; margin: 6px 0; }
 .chest-card-desc { font-size: 11px; color: #cbd5e1; line-height: 1.4; }
+
+/* 勝利彈窗 */
+.victory-container {
+  width: 440px;
+  max-width: 90%;
+  background: #0b1329;
+  border: 2px solid #34d399;
+  box-shadow: 0 0 35px rgba(52, 211, 153, 0.4);
+  border-radius: 12px;
+  padding: 24px;
+  text-align: center;
+}
+.victory-title { font-size: 22px; font-weight: 900; color: #34d399; letter-spacing: 2px; }
+.victory-country { font-size: 18px; font-weight: bold; color: #ffffff; margin: 12px 0 6px; }
+.victory-desc { font-size: 12px; color: #94a3b8; line-height: 1.6; margin-bottom: 20px; }
+.btn-return-map { width: 100%; padding: 12px 0; font-size: 15px; }
 
 /* 背包視窗 */
 .inv-container {
