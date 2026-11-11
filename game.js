@@ -626,7 +626,6 @@ function resetJoystick(e) {
 window.addEventListener('touchend', resetJoystick, { passive: false });
 window.addEventListener('touchcancel', resetJoystick, { passive: false });
 
-// 視窗尺寸改變時重設搖桿防錯
 window.addEventListener('resize', () => {
   joystick.active = false;
   joystick.touchId = null;
@@ -1101,7 +1100,6 @@ function updateGame() {
     }
   }
 
-  // 子彈碰撞
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i];
     b.x += b.vx; b.y += b.vy;
