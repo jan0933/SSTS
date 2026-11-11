@@ -1,5 +1,5 @@
 /**
- * SSTS - 戰鬥引擎、右上角全螢幕自選、四大法器動態粒子 (game.js)
+ * SSTS - 戰鬥引擎、升級數值卡片、1~5關數量遞增、6~10關血量翻倍 (game.js)
  */
 
 let audioCtx = null;
@@ -22,198 +22,7 @@ function playTone(freq, type, duration, gainLevel = 0.08) {
   } catch(e){}
 }
 
-/* ==================== 右上角手動全螢幕切換 ==================== */
-function toggleGlobalFullscreen() {
-  const btn = document.getElementById('btn-global-fullscreen');
-  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-    const elem = document.documentElement;
-    if (elem.requestFullscreen) {
-      elem.requestFullscreen().catch(() => {});
-    } else if (elem.webkitRequestFullscreen) {
-      elem.webkitRequestFullscreen();
-    }
-    if (screen.orientation && screen.orientation.lock) {
-      screen.orientation.lock('landscape').catch(() => {});
-    }
-    btn.innerText = "✖ 退出全螢幕";
-  } else {
-    if (document.exitFullscreen) {
-      document.exitFullscreen().catch(() => {});
-    } else if (document.webkitExitFullscreen) {
-      document.webkitExitFullscreen();
-    }
-    btn.innerText = "⛶ 全螢幕";
-  }
-}
-
-// 監聽全螢幕變化同步按鈕文字
-document.addEventListener('fullscreenchange', () => {
-  const btn = document.getElementById('btn-global-fullscreen');
-  if (btn) btn.innerText = document.fullscreenElement ? "✖ 退出全螢幕" : "⛶ 全螢幕";
-});
-
-/* ==================== 首頁純程式碼動態 LOGO ==================== */
-const logoCanvas = document.getElementById('logo-canvas');
-const lctx = logoCanvas.getContext('2d');
-let logoTime = 0;
-let logoAnimId = null;
-
-const bubbles = Array.from({ length: 35 }, () => ({
-  x: Math.random() * logoCanvas.width,
-  y: Math.random() * logoCanvas.height,
-  r: 1 + Math.random() * 2.5,
-  speed: 0.3 + Math.random() * 0.7,
-  alpha: 0.15 + Math.random() * 0.4
-}));
-
-function drawLogo() {
-  logoTime += 0.035;
-  lctx.clearRect(0, 0, logoCanvas.width, logoCanvas.height);
-
-  for (const b of bubbles) {
-    b.y -= b.speed;
-    if (b.y < -10) { b.y = logoCanvas.height + 10; b.x = Math.random() * logoCanvas.width; }
-    lctx.fillStyle = `rgba(56, 189, 248, ${b.alpha})`;
-    lctx.beginPath();
-    lctx.arc(b.x + Math.sin(logoTime + b.y * 0.05) * 5, b.y, b.r, 0, Math.PI * 2);
-    lctx.fill();
-  }
-
-  const cx = logoCanvas.width / 2;
-  const pulse = Math.sin(logoTime);
-
-  lctx.save();
-  lctx.font = "900 15px 'Courier New', monospace";
-  lctx.textAlign = "center";
-  lctx.fillStyle = "rgba(56, 189, 248, 0.9)";
-  lctx.shadowColor = "#0284c7";
-  lctx.shadowBlur = 8 + pulse * 4;
-  lctx.fillText("— SSTS · 100 NATIONS SIEGE —", cx, 35);
-  lctx.restore();
-
-  lctx.save();
-  lctx.font = "900 39px -apple-system, BlinkMacSystemFont, 'Microsoft JhengHei', sans-serif";
-  lctx.textAlign = "center";
-  lctx.shadowColor = "rgba(14, 165, 233, 0.85)";
-  lctx.shadowBlur = 22 + pulse * 10;
-
-  const textGrad = lctx.createLinearGradient(cx - 200, 0, cx + 200, 0);
-  textGrad.addColorStop(0, "#34d399");
-  textGrad.addColorStop(0.45, "#38bdf8");
-  textGrad.addColorStop(1, "#06b6d4");
-  lctx.fillStyle = textGrad;
-  lctx.fillText("地表倖存者：深海逆鱗", cx, 102 + Math.sin(logoTime * 0.8) * 2);
-  lctx.restore();
-
-  lctx.save();
-  lctx.font = "800 15px 'Segoe UI', sans-serif";
-  lctx.textAlign = "center";
-  lctx.fillStyle = "#94a3b8";
-  lctx.shadowColor = "rgba(56, 189, 248, 0.4)";
-  lctx.shadowBlur = 6;
-  lctx.fillText("SURFACE SURVIVORS: TIDAL SIEGE", cx, 140);
-  lctx.restore();
-
-  logoAnimId = requestAnimationFrame(drawLogo);
-}
-drawLogo();
-
-/* ==================== 故事頁面 ==================== */
-const storyCanvas = document.getElementById('story-canvas');
-const sctx = storyCanvas.getContext('2d');
-let storyTime = 0;
-let storyAnimId = null;
-
-const storyData = [
-  { chapter: "SSTS // ARCHIVE 01", title: "海淵巨響 · 沉眠者復甦", desc: "萬米海溝深處的海洋霸主睜開眼瞳。遠古逆鱗引發深海沸騰狂潮，全球海岸線全面告急！" },
-  { chapter: "SSTS // ARCHIVE 02", title: "逆鱗狂潮 · 百國淪陷", desc: "自最小的梵蒂岡到遼闊大陸，各國海岸皆被變異海嗣突破，地表文明退守各大洲的核心掩體。" },
-  { chapter: "SSTS // ARCHIVE 03", title: "地表同盟 · 哨站奪還戰", desc: "在大地圖自由整備紙娃娃裝備！戰鬥中利用右下角切換近戰/遠程，引爆戰術法器大招！" },
-  { chapter: "SSTS // MISSION START", title: "全球反擊 · 征途展開", desc: "裝備與等級永久保存。自由切換全螢幕，利用觸控搖桿或鍵盤走位，逐一奪回地表 100 國領土！" }
-];
-
-let storyIndex = 0;
-
-function drawStoryScene() {
-  storyTime += 0.04;
-  sctx.clearRect(0, 0, storyCanvas.width, storyCanvas.height);
-  const w = storyCanvas.width;
-  const h = storyCanvas.height;
-  const cx = w / 2;
-  const cy = h / 2;
-
-  if (storyIndex === 0) {
-    const grad = sctx.createRadialGradient(cx, cy, 20, cx, cy, 140);
-    grad.addColorStop(0, '#0c4a6e'); grad.addColorStop(1, '#020617');
-    sctx.fillStyle = grad; sctx.fillRect(0, 0, w, h);
-    sctx.save();
-    sctx.translate(cx, cy);
-    sctx.scale(1, 0.65 + Math.sin(storyTime * 0.8) * 0.08);
-    sctx.strokeStyle = '#0284c7'; sctx.lineWidth = 3;
-    sctx.beginPath(); sctx.ellipse(0, 0, 100, 55, 0, 0, Math.PI * 2); sctx.stroke();
-
-    const iris = sctx.createRadialGradient(0, 0, 5, 0, 0, 50);
-    iris.addColorStop(0, '#f59e0b'); iris.addColorStop(1, '#082f49');
-    sctx.fillStyle = iris; sctx.beginPath(); sctx.arc(0, 0, 46, 0, Math.PI * 2); sctx.fill();
-    sctx.fillStyle = '#020617'; sctx.beginPath(); sctx.ellipse(0, 0, 7 + Math.sin(storyTime * 2) * 2, 40, 0, 0, Math.PI * 2); sctx.fill();
-    sctx.restore();
-  } else {
-    sctx.fillStyle = '#050c1a'; sctx.fillRect(0, 0, w, h);
-    sctx.fillStyle = 'rgba(56, 189, 248, 0.6)';
-    sctx.beginPath(); sctx.moveTo(0, h);
-    for (let x = 0; x <= w; x += 10) sctx.lineTo(x, 120 + Math.sin(x * 0.02 + storyTime * 2) * 25);
-    sctx.lineTo(w, h); sctx.closePath(); sctx.fill();
-  }
-  storyAnimId = requestAnimationFrame(drawStoryScene);
-}
-
-function startStory() {
-  initAudio();
-  loadGameSave();
-  playTone(440, 'triangle', 0.2);
-  if (logoAnimId) cancelAnimationFrame(logoAnimId);
-  document.getElementById('title-screen').style.display = 'none';
-  document.getElementById('story-screen').style.display = 'flex';
-  renderStory();
-  if (!storyAnimId) drawStoryScene();
-}
-
-function renderStory() {
-  const current = storyData[storyIndex];
-  document.getElementById('story-chapter').innerText = current.chapter;
-  document.getElementById('story-title').innerText = current.title;
-  document.getElementById('story-desc').innerText = current.desc;
-  const dotsContainer = document.getElementById('dots-container');
-  dotsContainer.innerHTML = '';
-  storyData.forEach((_, idx) => {
-    const dot = document.createElement('div');
-    dot.className = `dot ${idx === storyIndex ? 'active' : ''}`;
-    dotsContainer.appendChild(dot);
-  });
-}
-
-function handleStoryScreenClick(e) {
-  if (e.target.classList.contains('story-skip-btn')) return;
-  nextStory();
-}
-
-function nextStory() {
-  playTone(550, 'sine', 0.15);
-  storyIndex++;
-  if (storyIndex >= storyData.length) {
-    if (storyAnimId) { cancelAnimationFrame(storyAnimId); storyAnimId = null; }
-    openWorldMapScreen();
-  } else {
-    renderStory();
-  }
-}
-
-function skipStory(e) {
-  e.stopPropagation();
-  if (storyAnimId) { cancelAnimationFrame(storyAnimId); storyAnimId = null; }
-  openWorldMapScreen();
-}
-
-/* ==================== 戰鬥引擎與狀態 ==================== */
+/* ==================== 戰鬥狀態 ==================== */
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
 const expBar = document.getElementById('exp-bar');
@@ -307,8 +116,6 @@ const pet = { active: false, type: null, x: 0, y: 0, targetX: 0, targetY: 0, tim
 const chest = { active: false, x: 0, y: 0, radius: 16, isApex: false };
 let battlePickups = [];
 let stageObstacles = [];
-
-// 戰術法器動態粒子特效清單
 let artifactEffects = [];
 
 /* ==================== 裝備資料庫 ==================== */
@@ -403,7 +210,6 @@ function startCountryBattle(countryId, substageIndex) {
   initGame();
 }
 
-/* ==================== 戰鬥右側四鍵動作 ==================== */
 function triggerManualAttack(mode) {
   if (isPaused || !gameRunning) return;
 
@@ -421,7 +227,6 @@ function triggerManualAttack(mode) {
   executeAttack();
 }
 
-// 釋放法器大招並生成對應粒子特效
 function triggerArtifactSkill() {
   if (isPaused || !gameRunning || player.artifactCooldownTimer > 0) return;
 
@@ -430,7 +235,6 @@ function triggerArtifactSkill() {
 
   if (skill === 'nova') {
     playTone(200, 'sawtooth', 0.4, 0.25);
-    // 生成爆裂粒子群
     const particles = [];
     for (let i = 0; i < 28; i++) {
       particles.push({
@@ -459,7 +263,6 @@ function triggerArtifactSkill() {
 
   } else if (skill === 'freeze') {
     playTone(850, 'sine', 0.3, 0.2);
-    // 生成冰晶粒子群
     const particles = [];
     for (let i = 0; i < 35; i++) {
       particles.push({
@@ -493,7 +296,6 @@ function triggerArtifactSkill() {
       const target = sorted[i] || { x: Math.random() * canvas.width, y: Math.random() * canvas.height, hp: 0 };
       target.hp -= (150 + player.baseBonusDamage);
 
-      // 產生垂直分支電弧節點
       const points = [];
       let cy = 0;
       let cx = target.x + (Math.random() - 0.5) * 60;
@@ -674,7 +476,8 @@ function checkAndSpawnStageBoss() {
   boss.y = -60;
 
   const stageScaling = Math.max(0, activeCountryStageId - 1) * 80;
-  const baseHp = isApex ? 650 : 350;
+  // 若第 10 關則血量對應翻倍強化
+  const baseHp = isApex ? 900 : 400;
   boss.hp = baseHp + stageScaling;
   boss.maxHp = boss.hp;
   boss.radius = isApex ? 38 : 28;
@@ -848,7 +651,7 @@ function activateEmpBomb() {
   txtKills.innerText = `擊退海嗣: ${kills}`;
 }
 
-/* ==================== 戰鬥更新與物理循環 ==================== */
+/* ==================== 怪物數量階梯與血量翻倍機制 ==================== */
 let enemies = [];
 let bullets = [];
 let gems = [];
@@ -869,9 +672,15 @@ function updateHUD() {
   hpBar.style.width = `${Math.max(0, (player.hp / player.maxHp) * 100)}%`;
 }
 
+// 依據「1~5 關數量越來越多，6~10 關數量對應 1~5 關但血量加倍」生成怪物
 function spawnContinentEnemy() {
-  const isEarlyStage = (activeCountryStageId === 1);
-  const maxCap = isEarlyStage ? 6 : (12 + activeSubstage * 2);
+  // 1. 計算等效對照階梯 (1~5: index 1~5; 6~10: index 1~5)
+  const normSubstage = (activeSubstage > 5) ? (activeSubstage - 5) : activeSubstage;
+  const isHpDoubled = (activeSubstage > 5);
+
+  // 2. 數量上限計算：normSubstage (1~5) 數量越來越多 (從 6 隻逐關遞增到 14 隻)
+  const isEarlyCountry = (activeCountryStageId === 1);
+  const maxCap = isEarlyCountry ? (4 + normSubstage * 2) : (7 + normSubstage * 3);
   if (enemies.length >= maxCap) return;
 
   const edge = Math.floor(Math.random() * 4);
@@ -893,17 +702,24 @@ function spawnContinentEnemy() {
 
   const cont = activeCountryData ? activeCountryData.continent : 'EU';
   let kind = 'default';
-  let baseSpeed = isEarlyStage ? 1.0 : 1.4;
+  let baseSpeed = isEarlyCountry ? 1.0 : 1.35;
   let radius = 10;
-  let hp = isEarlyStage ? (12 + activeSubstage) : (25 + activeCountryStageId * 3);
+
+  // 3. 基礎血量計算：依國家基礎值 + 哨站成長
+  let baseHp = isEarlyCountry ? (12 + normSubstage * 2) : (25 + activeCountryStageId * 3);
+
+  // 4. 若處於第 6~10 關，怪物血量直接加倍！
+  if (isHpDoubled) {
+    baseHp *= 2;
+  }
 
   if (cont === 'OC' || cont === 'AM') {
     kind = 'shark';
-    baseSpeed = isEarlyStage ? 1.2 : 1.8;
+    baseSpeed = isEarlyCountry ? 1.2 : 1.7;
   } else if (cont === 'AS' || cont === 'AF') {
     kind = 'crab';
-    baseSpeed = isEarlyStage ? 0.7 : 1.0;
-    hp = Math.floor(hp * 1.3);
+    baseSpeed = isEarlyCountry ? 0.7 : 0.95;
+    baseHp = Math.floor(baseHp * 1.3);
   } else if (cont === 'EU' || cont === 'GL') {
     kind = 'ice_jelly';
   }
@@ -912,7 +728,8 @@ function spawnContinentEnemy() {
     x, y,
     vx: Math.cos(angle) * baseSpeed,
     vy: Math.sin(angle) * baseSpeed,
-    kind, radius, hp,
+    kind, radius,
+    hp: baseHp,
     pulse: Math.random() * 10
   });
 }
@@ -1042,6 +859,7 @@ function updateGame() {
     }
   }
 
+  // 子彈碰撞
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i];
     b.x += b.vx; b.y += b.vy;
@@ -1167,13 +985,16 @@ function updateGame() {
     }
   }
 
+  // 生成怪物間隔：1~5 關間隔逐關縮短 (出怪越來越快)；6~10 關對應 1~5 關的頻率
+  const normSubstage = (activeSubstage > 5) ? (activeSubstage - 5) : activeSubstage;
   spawnTimer++;
-  const currentInterval = (activeCountryStageId === 1) ? 90 : 35;
+  const currentInterval = Math.max(25, 75 - (normSubstage * 9));
   if (spawnTimer >= currentInterval) {
     spawnContinentEnemy();
     spawnTimer = 0;
   }
 
+  // 小怪直線移動與彈射
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
     e.pulse += 0.08;
@@ -1213,6 +1034,7 @@ function updateGame() {
     }
   }
 
+  // 寶石吸附
   for (let i = gems.length - 1; i >= 0; i--) {
     const g = gems[i];
     const dist = Math.hypot(player.x - g.x, player.y - g.y);
@@ -1234,15 +1056,27 @@ function updateGame() {
   }
 }
 
+// 升級時動態更新三選一卡片的當前數值與預覽加成
 function triggerLevelUp() {
   isPaused = true;
   player.level++;
   player.exp = 0;
   player.nextExp = Math.floor(player.nextExp * 1.35);
 
-  player.maxHp += 15;
-  player.hp = player.maxHp;
-  player.baseBonusDamage += 5;
+  // 1. 計算攻擊力顯示
+  const curMelee = player.meleeWeapon.damage + player.baseBonusDamage;
+  const curRanged = player.rangedWeapon.damage + player.baseBonusDamage;
+  document.getElementById('up-stat-damage').innerText = 
+    `目前: 近戰 ${curMelee} / 遠程 ${curRanged} ➜ 各 +15`;
+
+  // 2. 計算血量顯示
+  document.getElementById('up-stat-hp').innerText = 
+    `目前: ${Math.floor(player.hp)} / ${player.maxHp} ➜ 上限: ${player.maxHp + 25} (並補滿)`;
+
+  // 3. 計算移動速度顯示
+  const nextSpeed = (player.speed * 1.12).toFixed(2);
+  document.getElementById('up-stat-speed').innerText = 
+    `目前: ${player.speed.toFixed(2)} ➜ 升級後: ${nextSpeed}`;
 
   txtLevel.innerText = `階級: Lv.${player.level}`;
   upgradeModal.style.display = 'flex';
@@ -1251,13 +1085,20 @@ function triggerLevelUp() {
   syncPlayerSaveState();
 }
 
+// 選擇三選一具體機能
 function chooseUpgrade(type) {
-  if (type === 'firerate') player.fireInterval = Math.max(8, Math.floor(player.fireInterval * 0.8));
   if (type === 'damage') {
-    player.meleeWeapon.damage = Math.floor(player.meleeWeapon.damage * 1.4);
-    player.rangedWeapon.damage = Math.floor(player.rangedWeapon.damage * 1.4);
+    // 基礎攻擊力 +15 (永久疊加到所有武器)
+    player.baseBonusDamage += 15;
+  } else if (type === 'hp') {
+    // 生命上限 +25 並自動補滿生命值
+    player.maxHp += 25;
+    player.hp = player.maxHp;
+  } else if (type === 'speed') {
+    // 移動速度 +12%
+    player.speed = parseFloat((player.speed * 1.12).toFixed(2));
   }
-  if (type === 'speed') player.speed *= 1.15;
+
   upgradeModal.style.display = 'none';
   isPaused = false;
   updateHUD();
@@ -1285,8 +1126,6 @@ function renderGame() {
 
   drawEnemies(ctx, enemies, boss);
   drawBossBullets(ctx, bossBullets);
-
-  // 繪製四大法器動態粒子特效
   drawArtifactSkillEffects(ctx, artifactEffects, globalTime);
 
   drawChestItem(ctx, chest, globalTime);
