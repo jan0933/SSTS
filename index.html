@@ -8,7 +8,7 @@
 </head>
 <body>
 
-<!-- 右上角通用全螢幕按鈕 -->
+<!-- 右上角手動全螢幕按鈕 (手機/電腦皆可點選) -->
 <button id="btn-global-fullscreen" onclick="toggleGlobalFullscreen()">⛶ 全螢幕</button>
 
 <!-- 直向持握提示遮罩 -->
@@ -19,7 +19,9 @@
 
 <!-- 1. 首頁畫面 -->
 <div id="title-screen" class="screen">
-  <canvas id="logo-canvas" width="700" height="260"></canvas>
+  <div class="logo-wrapper">
+    <canvas id="logo-canvas" width="700" height="260"></canvas>
+  </div>
   <div class="title-btn-group">
     <button class="btn" onclick="startStory()">開始作戰 (START)</button>
     <button class="btn btn-secondary-home" id="btn-continue-game" onclick="continueGameFromSave()">延續進度 (CONTINUE)</button>
@@ -33,7 +35,9 @@
     <div class="story-badge" id="story-chapter">SSTS // ARCHIVE 01</div>
     <div class="story-title" id="story-title">沉眠者之醒</div>
   </div>
-  <canvas id="story-canvas" width="640" height="220"></canvas>
+  <div class="story-canvas-box">
+    <canvas id="story-canvas" width="640" height="220"></canvas>
+  </div>
   <div class="story-desc" id="story-desc">載入中...</div>
   <div class="story-hint">〔 輕觸螢幕任意處繼續 〕</div>
   <button class="story-skip-btn" onclick="skipStory(event)">略過劇情 (SKIP)</button>
@@ -55,7 +59,6 @@
       <div class="globe-hint">滑動旋轉地球 | 點選航點開啟國家作戰</div>
     </div>
 
-    <!-- 國家總覽情報卡 -->
     <div class="stage-info-card">
       <div class="stage-card-top">
         <span class="stage-flag" id="stage-flag">🇻🇦</span>
@@ -98,7 +101,7 @@
     </div>
   </div>
 
-  <!-- 人體工學紙娃娃裝備視窗 -->
+  <!-- 人體工學紙娃娃裝備面板 -->
   <div id="inventory-modal" class="modal-backdrop">
     <div class="paperdoll-inv-container">
       <div class="inv-header">
@@ -170,76 +173,77 @@
   </div>
 </div>
 
-<!-- 4. 戰鬥主畫面 -->
+<!-- 4. 戰鬥主畫面 (固定 780x540 邏輯畫布，外層等比自適應貼合) -->
 <div id="game-container" class="screen">
-  <canvas id="game-canvas" width="780" height="540"></canvas>
-  
-  <div id="emp-flash-overlay"></div>
+  <div class="canvas-aspect-wrapper">
+    <canvas id="game-canvas" width="780" height="540"></canvas>
+    <div id="emp-flash-overlay"></div>
 
-  <div id="boss-alarm-overlay">
-    <div class="alarm-text" id="alarm-text">⚠️ 警告：區域霸主現身 ⚠️</div>
-  </div>
-
-  <div id="boss-bar-container">
-    <div class="boss-label">
-      <span id="boss-name">【國家領土霸主】</span>
-      <span id="boss-hp-text">100%</span>
+    <div id="boss-alarm-overlay">
+      <div class="alarm-text" id="alarm-text">⚠️ 警告：區域霸主現身 ⚠️</div>
     </div>
-    <div class="boss-bar-bg"><div id="boss-bar-fill"></div></div>
-  </div>
 
-  <!-- HUD 介面 -->
-  <div id="hud">
-    <div class="hud-bar-wrapper">
-      <div class="hud-bar-info">
-        <span class="bar-title">經驗進度 (EXP)</span>
-        <span id="txt-exp-val">0 / 6</span>
+    <div id="boss-bar-container">
+      <div class="boss-label">
+        <span id="boss-name">【國家領土霸主】</span>
+        <span id="boss-hp-text">100%</span>
       </div>
-      <div class="bar-bg exp-bg"><div class="bar-fill exp-fill" id="exp-bar"></div></div>
+      <div class="boss-bar-bg"><div id="boss-bar-fill"></div></div>
     </div>
 
-    <div class="hud-bar-wrapper" style="margin-top: 5px;">
-      <div class="hud-bar-info">
-        <span class="bar-title">核心護甲 (HP)</span>
-        <span id="txt-hp-val">100 / 100</span>
+    <!-- HUD 介面 -->
+    <div id="hud">
+      <div class="hud-bar-wrapper">
+        <div class="hud-bar-info">
+          <span class="bar-title">經驗進度 (EXP)</span>
+          <span id="txt-exp-val">0 / 6</span>
+        </div>
+        <div class="bar-bg exp-bg"><div class="bar-fill exp-fill" id="exp-bar"></div></div>
       </div>
-      <div class="bar-bg hp-bg"><div class="bar-fill hp-fill" id="hp-bar"></div></div>
+
+      <div class="hud-bar-wrapper" style="margin-top: 5px;">
+        <div class="hud-bar-info">
+          <span class="bar-title">核心護甲 (HP)</span>
+          <span id="txt-hp-val">100 / 100</span>
+        </div>
+        <div class="bar-bg hp-bg"><div class="bar-fill hp-fill" id="hp-bar"></div></div>
+      </div>
+
+      <div class="hud-stats">
+        <span id="txt-level" class="stat-badge">階級: Lv.1</span>
+        <span id="txt-current-country" class="stat-badge" style="color: #f59e0b; border-color: #f59e0b;">🇻🇦 梵蒂岡 (0.49 km²) - 1/10</span>
+        <span id="txt-weapon-mode" class="stat-badge" style="color: #38bdf8;">模式: 近戰斬擊</span>
+        <span id="txt-kills" class="stat-badge">擊退海嗣: 0</span>
+      </div>
     </div>
 
-    <div class="hud-stats">
-      <span id="txt-level" class="stat-badge">階級: Lv.1</span>
-      <span id="txt-current-country" class="stat-badge" style="color: #f59e0b; border-color: #f59e0b;">🇻🇦 梵蒂岡 (0.49 km²) - 1/10</span>
-      <span id="txt-weapon-mode" class="stat-badge" style="color: #38bdf8;">模式: 近戰斬擊</span>
-      <span id="txt-kills" class="stat-badge">擊退海嗣: 0</span>
+    <!-- 動態搖桿 -->
+    <div id="joystick-base"><div id="joystick-thumb"></div></div>
+
+    <!-- 右側動作按鈕群 -->
+    <div id="battle-action-cluster">
+      <button id="btn-act-melee" class="cluster-btn btn-melee" onclick="triggerManualAttack('melee')">
+        <span class="act-icon">⚔️</span>
+        <span class="act-txt">近戰</span>
+      </button>
+      <button id="btn-act-ranged" class="cluster-btn btn-ranged" onclick="triggerManualAttack('ranged')">
+        <span class="act-icon">🏹</span>
+        <span class="act-txt">遠程</span>
+      </button>
+      <button id="btn-act-artifact" class="cluster-btn btn-artifact" onclick="triggerArtifactSkill()">
+        <span class="act-icon">🔮</span>
+        <span class="act-txt">法器</span>
+        <div id="artifact-cooldown-overlay"></div>
+      </button>
+      <button id="btn-act-dash" class="cluster-btn btn-dash" onclick="triggerDash()">
+        <span class="act-icon">⚡</span>
+        <span class="act-txt">衝刺</span>
+        <div id="dash-cooldown-overlay"></div>
+      </button>
     </div>
   </div>
 
-  <!-- 搖桿 -->
-  <div id="joystick-base"><div id="joystick-thumb"></div></div>
-
-  <!-- 右側動作按鈕群 -->
-  <div id="battle-action-cluster">
-    <button id="btn-act-melee" class="cluster-btn btn-melee" onclick="triggerManualAttack('melee')">
-      <span class="act-icon">⚔️</span>
-      <span class="act-txt">近戰</span>
-    </button>
-    <button id="btn-act-ranged" class="cluster-btn btn-ranged" onclick="triggerManualAttack('ranged')">
-      <span class="act-icon">🏹</span>
-      <span class="act-txt">遠程</span>
-    </button>
-    <button id="btn-act-artifact" class="cluster-btn btn-artifact" onclick="triggerArtifactSkill()">
-      <span class="act-icon">🔮</span>
-      <span class="act-txt">法器</span>
-      <div id="artifact-cooldown-overlay"></div>
-    </button>
-    <button id="btn-act-dash" class="cluster-btn btn-dash" onclick="triggerDash()">
-      <span class="act-icon">⚡</span>
-      <span class="act-txt">衝刺</span>
-      <div id="dash-cooldown-overlay"></div>
-    </button>
-  </div>
-
-  <!-- 升級彈窗 (攻擊力 / 血量 / 移動速度，均顯示當前數值) -->
+  <!-- 升級彈窗 (攻擊/血量/移速) -->
   <div id="upgrade-modal" class="modal-backdrop">
     <h3 style="color: #38bdf8; letter-spacing: 2px;">防衛系統進化升級</h3>
     <div style="font-size: 12px; color: #94a3b8; margin: 4px 0 12px;">請選擇一項核心機能強化：</div>
@@ -257,7 +261,7 @@
     </div>
   </div>
 
-  <!-- Boss 戰利品自選寶箱視窗 -->
+  <!-- 戰利品自選寶箱視窗 -->
   <div id="chest-modal" class="modal-backdrop">
     <div class="chest-box-container">
       <div class="chest-title" id="chest-title">👑 擊破區域 Boss · 頂級裝備自選</div>
@@ -266,7 +270,7 @@
     </div>
   </div>
 
-  <!-- 關卡勝利結算彈窗 -->
+  <!-- 勝利結算彈窗 -->
   <div id="victory-modal" class="modal-backdrop">
     <div class="victory-container">
       <div class="victory-title">★ 哨站肅清完畢 ★</div>
