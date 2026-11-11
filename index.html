@@ -8,10 +8,8 @@
 </head>
 <body>
 
-<!-- 右上角手動全螢幕按鈕 (手機/電腦皆可點選) -->
 <button id="btn-global-fullscreen" onclick="toggleGlobalFullscreen()">⛶ 全螢幕</button>
 
-<!-- 直向持握提示遮罩 -->
 <div id="rotate-device-overlay">
   <div style="font-size: 32px; margin-bottom: 12px;">📱 ↻</div>
   <div>請將裝置轉為橫向以獲得完整作戰視野</div>
@@ -43,11 +41,12 @@
   <button class="story-skip-btn" onclick="skipStory(event)">略過劇情 (SKIP)</button>
 </div>
 
-<!-- 3. 大地圖選關畫面 (3D 旋轉地球 + 背包按鈕) -->
+<!-- 3. 大地圖選關畫面 (含頂部金幣顯示與整備背包) -->
 <div id="world-map-screen" class="screen">
   <div class="map-header">
     <div class="map-title">全球防衛陣線 · 100國領土收復</div>
     <div class="map-header-right">
+      <div class="gold-display" id="map-gold-display">💰 金幣: 0</div>
       <button id="btn-map-inventory" class="btn-map-bag" onclick="toggleInventory()">🎒 機甲整裝 (INVENTORY)</button>
       <div class="map-save-info" id="map-save-status">進度已自動雲端存檔</div>
     </div>
@@ -96,68 +95,81 @@
         </div>
         <button class="close-btn" onclick="closeSubstagesModal()">✕</button>
       </div>
-      <div class="substage-desc">前 1~5 關怪物數量遞增；6~10 關怪物數量對照前段但血量加倍！第 5 與第 10 關迎擊 Boss。</div>
+      <div class="substage-desc">前 1~5 關怪物數量遞增；6~10 關怪物數量對照前段但血量加倍！第 5 與第 10 關迎擊 Boss 掉落自選裝備。</div>
       <div class="substage-grid" id="substage-grid"></div>
     </div>
   </div>
 
-  <!-- 人體工學紙娃娃裝備面板 -->
+  <!-- 人體工學紙娃娃裝備面板 (單一遠程武器 + 強化升星 + 裝備拆解) -->
   <div id="inventory-modal" class="modal-backdrop">
     <div class="paperdoll-inv-container">
       <div class="inv-header">
-        <span>機甲整備系統 (INVENTORY)</span>
+        <div>
+          <span>機甲整備系統 (INVENTORY)</span>
+          <span class="gold-badge" id="inv-gold-badge" style="margin-left: 14px;">💰 金幣: 0</span>
+        </div>
         <button class="close-btn" onclick="toggleInventory()">✕</button>
       </div>
       
       <div class="paperdoll-layout">
         <div class="gear-doll-wrapper">
+          <!-- 上方：頭盔 -->
           <div class="doll-row top-row">
             <div class="gear-slot" id="slot-helmet" onclick="selectSlotForEquip('helmet')">
               <span class="slot-label">頭盔</span>
               <span class="slot-val" id="val-helmet">未裝備</span>
+              <span class="slot-stars" id="star-helmet"></span>
             </div>
           </div>
 
+          <!-- 中央：單一遠程武器 + 盔甲 + 紙娃娃預覽 -->
           <div class="doll-row mid-row">
-            <div class="gear-slot weapon-slot" id="slot-melee" onclick="selectSlotForEquip('melee')">
-              <span class="slot-label">近戰武器</span>
-              <span class="slot-val" id="val-melee">赤手空拳</span>
+            <!-- 單一遠距武器 -->
+            <div class="gear-slot weapon-slot" id="slot-weapon" onclick="selectSlotForEquip('weapon')">
+              <span class="slot-label">遠程武器</span>
+              <span class="slot-val" id="val-weapon">赤手脈衝</span>
+              <span class="slot-stars" id="star-weapon"></span>
             </div>
 
+            <!-- 中央核心預覽與盔甲 -->
             <div class="doll-center-core">
               <canvas id="preview-canvas" width="160" height="170"></canvas>
               <div class="gear-slot armor-slot" id="slot-armor" onclick="selectSlotForEquip('armor')">
                 <span class="slot-label">胸部盔甲</span>
                 <span class="slot-val" id="val-armor">未裝備</span>
+                <span class="slot-stars" id="star-armor"></span>
               </div>
             </div>
 
-            <div class="gear-slot weapon-slot" id="slot-ranged" onclick="selectSlotForEquip('ranged')">
-              <span class="slot-label">遠程武器</span>
-              <span class="slot-val" id="val-ranged">未裝備</span>
+            <!-- 右側戰術法器 -->
+            <div class="gear-slot weapon-slot" id="slot-artifact" onclick="selectSlotForEquip('artifact')">
+              <span class="slot-label">戰術法器</span>
+              <span class="slot-val" id="val-artifact">等離子爆裂核</span>
+              <span class="slot-stars" id="star-artifact"></span>
             </div>
           </div>
 
+          <!-- 下方：手套、鞋子、護符 -->
           <div class="doll-row bottom-row">
             <div class="gear-slot" id="slot-gloves" onclick="selectSlotForEquip('gloves')">
               <span class="slot-label">手套</span>
               <span class="slot-val" id="val-gloves">未裝備</span>
+              <span class="slot-stars" id="star-gloves"></span>
             </div>
             <div class="gear-slot" id="slot-boots" onclick="selectSlotForEquip('boots')">
               <span class="slot-label">鞋子</span>
               <span class="slot-val" id="val-boots">未裝備</span>
+              <span class="slot-stars" id="star-boots"></span>
             </div>
             <div class="gear-slot" id="slot-talisman" onclick="selectSlotForEquip('talisman')">
               <span class="slot-label">護符 (寵物)</span>
               <span class="slot-val" id="val-talisman">未裝備</span>
-            </div>
-            <div class="gear-slot" id="slot-artifact" onclick="selectSlotForEquip('artifact')">
-              <span class="slot-label">戰術法器</span>
-              <span class="slot-val" id="val-artifact">未裝備</span>
+              <span class="slot-stars" id="star-talisman"></span>
             </div>
           </div>
         </div>
 
+        <!-- 右側：裝備庫存清單與強化/拆解面板 -->
         <div class="gear-inventory-panel">
           <div class="inv-panel-title" id="inv-panel-title">點選左側槽位進行替換</div>
           <div class="inv-items-scroll" id="inv-items-scroll">
@@ -167,13 +179,13 @@
       </div>
 
       <div class="inv-footer">
-        <span>在大地圖完成配裝後，點擊關卡即可攜帶全套裝備進入戰鬥</span>
+        <span>在大地圖使用金幣可進行【升星強化 (1~5★)】；閒置裝備可【拆解】回收金幣</span>
       </div>
     </div>
   </div>
 </div>
 
-<!-- 4. 戰鬥主畫面 (固定 780x540 邏輯畫布，外層等比自適應貼合) -->
+<!-- 4. 戰鬥主畫面 -->
 <div id="game-container" class="screen">
   <div class="canvas-aspect-wrapper">
     <canvas id="game-canvas" width="780" height="540"></canvas>
@@ -212,7 +224,7 @@
       <div class="hud-stats">
         <span id="txt-level" class="stat-badge">階級: Lv.1</span>
         <span id="txt-current-country" class="stat-badge" style="color: #f59e0b; border-color: #f59e0b;">🇻🇦 梵蒂岡 (0.49 km²) - 1/10</span>
-        <span id="txt-weapon-mode" class="stat-badge" style="color: #38bdf8;">模式: 近戰斬擊</span>
+        <span id="txt-weapon-info" class="stat-badge" style="color: #38bdf8;">武器: 遠距脈衝 1★</span>
         <span id="txt-kills" class="stat-badge">擊退海嗣: 0</span>
       </div>
     </div>
@@ -220,15 +232,11 @@
     <!-- 動態搖桿 -->
     <div id="joystick-base"><div id="joystick-thumb"></div></div>
 
-    <!-- 右側動作按鈕群 -->
+    <!-- 戰鬥右側精簡動作群 (遠程射擊、法器、衝刺) -->
     <div id="battle-action-cluster">
-      <button id="btn-act-melee" class="cluster-btn btn-melee" onclick="triggerManualAttack('melee')">
-        <span class="act-icon">⚔️</span>
-        <span class="act-txt">近戰</span>
-      </button>
-      <button id="btn-act-ranged" class="cluster-btn btn-ranged" onclick="triggerManualAttack('ranged')">
+      <button id="btn-act-shoot" class="cluster-btn btn-shoot" onclick="triggerManualShoot()">
         <span class="act-icon">🏹</span>
-        <span class="act-txt">遠程</span>
+        <span class="act-txt">射擊</span>
       </button>
       <button id="btn-act-artifact" class="cluster-btn btn-artifact" onclick="triggerArtifactSkill()">
         <span class="act-icon">🔮</span>
@@ -261,7 +269,7 @@
     </div>
   </div>
 
-  <!-- 戰利品自選寶箱視窗 -->
+  <!-- Boss 戰利品自選寶箱視窗 -->
   <div id="chest-modal" class="modal-backdrop">
     <div class="chest-box-container">
       <div class="chest-title" id="chest-title">👑 擊破區域 Boss · 頂級裝備自選</div>
@@ -270,11 +278,12 @@
     </div>
   </div>
 
-  <!-- 勝利結算彈窗 -->
+  <!-- 勝利結算彈窗 (顯示獲得金幣) -->
   <div id="victory-modal" class="modal-backdrop">
     <div class="victory-container">
       <div class="victory-title">★ 哨站肅清完畢 ★</div>
       <div class="victory-country" id="victory-country-name">梵蒂岡 - 哨站 1 肅清！</div>
+      <div class="victory-gold-reward" id="victory-gold-reward">💰 作戰津貼：+150 金幣</div>
       <div class="victory-desc" id="victory-desc-text">戰利品已全數入庫，作戰紀錄已自動寫入核心。</div>
       <button class="btn btn-return-map" onclick="returnToWorldMap()">返回全球地圖</button>
     </div>
