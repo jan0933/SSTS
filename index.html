@@ -8,7 +8,7 @@
 </head>
 <body>
 
-<!-- 直向持握提示遮罩 (僅在手機拿直時自動出現) -->
+<!-- 直向持握提示遮罩 -->
 <div id="rotate-device-overlay">
   <div style="font-size: 32px; margin-bottom: 12px;">📱 ↻</div>
   <div>請將裝置轉為橫向以獲得最佳作戰視野</div>
@@ -55,6 +55,21 @@
     <div id="joystick-thumb"></div>
   </div>
 
+  <!-- 手機端右手快捷動作按鈕群 -->
+  <div id="mobile-action-group">
+    <!-- 快捷背包按鈕 -->
+    <button id="btn-touch-bag" class="touch-action-btn" onclick="toggleInventory()">
+      <span class="btn-icon">🎒</span>
+      <span class="btn-text">裝備</span>
+    </button>
+    <!-- 電磁衝刺按鈕 (含冷卻進度遮罩) -->
+    <button id="btn-touch-dash" class="touch-action-btn" onclick="triggerDash()">
+      <span class="btn-icon">⚡</span>
+      <span class="btn-text">衝刺</span>
+      <div id="dash-cooldown-overlay"></div>
+    </button>
+  </div>
+
   <!-- 升級彈窗 -->
   <div id="upgrade-modal">
     <h3 style="color: #38bdf8; letter-spacing: 2px;">防衛系統進化升級</h3>
@@ -83,7 +98,7 @@
         </div>
       </div>
       <div class="inv-footer">
-        <span>快捷操作：電腦端可按 [B] 鍵關閉 | 支援即時換裝</span>
+        <span>快捷操作：鍵盤 [Space] 衝刺、[B] 背包 | 支援觸控快捷按鈕</span>
       </div>
     </div>
   </div>
