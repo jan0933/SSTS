@@ -120,7 +120,7 @@ function getRandomAffix() {
   return { ...AFFIX_POOL[idx] };
 }
 
-/* ==================== 存檔系統 (金幣 + 5品階 + 1~5星 + 5★詞條) ==================== */
+/* ==================== 存檔系統 ==================== */
 const SAVE_KEY = "SSTS_SURFACE_SURVIVORS_SAVE_V6";
 
 const defaultSaveState = {
@@ -316,8 +316,7 @@ function drawGlobeScene() {
         gctx.beginPath(); gctx.arc(0, 0, 3.5, 0, Math.PI * 2); gctx.fill();
       } else if (isUnlocked) {
         gctx.fillStyle = "#facc15";
-        gctx.shadowColor = "#eab308";
-        gctx.shadowBlur = 8;
+        gctx.shadowColor = "#eab308"; gctx.shadowBlur = 8;
         gctx.beginPath(); gctx.arc(0, 0, 4, 0, Math.PI * 2); gctx.fill();
       } else {
         gctx.fillStyle = "rgba(239, 68, 68, 0.4)";
@@ -458,7 +457,7 @@ function continueGameFromSave() {
   openWorldMapScreen();
 }
 
-/* ==================== 人體工學紙娃娃裝備面板 (含 5★詞條覺醒與升星特效) ==================== */
+/* ==================== 人體工學紙娃娃裝備面板 ==================== */
 let isInventoryOpen = false;
 let currentSelectingSlot = null;
 
@@ -594,7 +593,6 @@ function selectSlotForEquip(slotKey) {
     const upgradeCost = curStars * 80 + (curStars >= 4 ? 120 : 0);
     const salvageGold = Math.floor(tierMeta.salvageBase * (1 + (curStars - 1) * 0.4));
 
-    // 若 5★ 則顯示已覺醒的專屬詞條徽章
     let affixHtml = "";
     if (curStars === 5 && item.affix) {
       affixHtml = `<div class="card-affix-badge">${item.affix.name} · ${item.affix.desc}</div>`;
@@ -638,7 +636,6 @@ function equipItemToSlot(slotKey, itemId) {
   playTone(700, 'triangle', 0.1);
 }
 
-// 播放升星專用音效 (三段至五段連續高音水晶琶音)
 function playStarUpgradeSound(isMaxStar) {
   if (!audioCtx) return;
   try {
@@ -664,7 +661,6 @@ function playStarUpgradeSound(isMaxStar) {
   } catch(e) {}
 }
 
-// 在卡片上爆發 12~18 顆星芒粒子
 function spawnStarBurstParticles(targetElement, isMaxStar) {
   if (!targetElement) return;
 
@@ -702,7 +698,6 @@ function spawnStarBurstParticles(targetElement, isMaxStar) {
   }
 }
 
-// 升星強化 (升至 5★ 時解鎖隨機附魔詞條)
 function upgradeItemStar(itemId, clickedButtonElem) {
   let item = userSave.myInventory.find(i => i.id === itemId);
   if (!item) {
@@ -734,7 +729,6 @@ function upgradeItemStar(itemId, clickedButtonElem) {
 
   const isMaxStar = (item.stars === 5);
 
-  // 升至 5★ 時自動覺醒專屬詞條
   if (isMaxStar && !item.affix) {
     item.affix = getRandomAffix();
   }
@@ -754,7 +748,6 @@ function upgradeItemStar(itemId, clickedButtonElem) {
   }, 160);
 }
 
-// 拆解裝備
 function salvageItem(itemId) {
   const index = userSave.myInventory.findIndex(i => i.id === itemId);
   if (index === -1) return;
