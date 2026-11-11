@@ -97,6 +97,9 @@
 <div id="game-container" class="screen">
   <canvas id="game-canvas" width="780" height="540"></canvas>
   
+  <!-- 全屏白光爆震 (拾取炸彈時觸發) -->
+  <div id="emp-flash-overlay"></div>
+
   <div id="boss-alarm-overlay">
     <div class="alarm-text" id="alarm-text">⚠️ 警告：區域霸主現身 ⚠️</div>
   </div>
@@ -178,7 +181,7 @@
     </div>
   </div>
 
-  <!-- 專屬自製死亡結算彈窗 (徹底杜絕原生 alert 阻塞卡死) -->
+  <!-- 死亡結算彈窗 -->
   <div id="defeat-modal" class="modal-backdrop">
     <div class="defeat-container">
       <div class="defeat-title">💀 核心護甲耗盡 💀</div>
