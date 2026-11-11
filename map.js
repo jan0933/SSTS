@@ -1,5 +1,5 @@
 /**
- * SSTS - 全球選關、金幣升星、5★覺醒專屬詞條、升星金光粒子爆發與拆解系統 (map.js)
+ * SSTS - 全球選關、金幣升星、5★覺醒專屬詞條與拆解系統 (map.js)
  */
 
 const COUNTRIES_STAGE_DATA = [
@@ -140,8 +140,8 @@ const defaultSaveState = {
     boots: null,
     accessory: null,
     talisman: null,
-    weapon: { id: "w_start", slot: "weapon", name: "斥候脈衝弓", type: "bow", tier: "common", stars: 1, damage: 32, speed: 11, color: '#38bdf8' },
-    artifact: { id: "art_nova", slot: "artifact", name: "等離子爆裂核", tier: "rare", stars: 1, skillType: "nova" }
+    weapon: { id: "w_start", slot: "weapon", name: "斥候脈衝弓", type: "bow", tier: "common", stars: 1, damage: 32, speed: 11, color: '#38bdf8', affix: null },
+    artifact: { id: "art_nova", slot: "artifact", name: "等離子爆裂核", tier: "rare", stars: 1, skillType: "nova", affix: null }
   }
 };
 
@@ -458,7 +458,7 @@ function continueGameFromSave() {
   openWorldMapScreen();
 }
 
-/* ==================== 人體工學紙娃娃裝備面板 (含 5★詞條覺醒與升星特效) ==================== */
+/* ==================== 人體工學紙娃娃裝備面板 (穿戴裝備直接置頂強化/拆解) ==================== */
 let isInventoryOpen = false;
 let currentSelectingSlot = null;
 
@@ -557,6 +557,7 @@ function updatePaperdollSlotsDisplay() {
   document.getElementById('affix-artifact').innerText = art.affixText;
 }
 
+// 點擊左側槽位：顯示「目前已穿戴裝備（置頂可強化/拆解）」+「該槽位備用庫存」
 function selectSlotForEquip(slotKey) {
   currentSelectingSlot = slotKey;
   const title = document.getElementById('inv-panel-title');
@@ -564,28 +565,72 @@ function selectSlotForEquip(slotKey) {
   scrollBox.innerHTML = '';
 
   const slotTitles = {
-    helmet: "頭盔庫存 (升星 / 拆解)",
-    weapon: "遠程武器庫存 (升星 / 拆解)",
-    armor: "胸甲庫存 (升星 / 拆解)",
-    gloves: "戰術手套庫存 (升星 / 拆解)",
-    boots: "推進戰靴庫存 (升星 / 拆解)",
-    talisman: "護符 (寵物) 庫存",
-    artifact: "戰術法器庫存 (升星 / 拆解)"
+    helmet: "頭盔管理 (升星 / 拆解 / 替換)",
+    weapon: "遠程武器管理 (升星 / 拆解 / 替換)",
+    armor: "胸甲管理 (升星 / 拆解 / 替換)",
+    gloves: "戰術手套管理 (升星 / 拆解 / 替換)",
+    boots: "推進戰靴管理 (升星 / 拆解 / 替換)",
+    talisman: "護符 (寵物) 管理",
+    artifact: "戰術法器管理 (升星 / 拆解 / 替換)"
   };
-  title.innerText = slotTitles[slotKey] || "裝備庫存";
+  title.innerText = slotTitles[slotKey] || "裝備管理";
 
   document.querySelectorAll('.gear-slot').forEach(el => el.classList.remove('active-selecting'));
   const activeEl = document.getElementById(`slot-${slotKey}`);
   if (activeEl) activeEl.classList.add('active-selecting');
 
-  const matchingItems = userSave.myInventory.filter(item => item.slot === slotKey);
+  const equippedItem = userSave.equipped[slotKey];
+  const matchingInventory = userSave.myInventory.filter(item => item.slot === slotKey);
 
-  if (matchingItems.length === 0) {
-    scrollBox.innerHTML = `<div style="color: #64748b; font-size: 11px; padding: 20px 0; text-align: center;">此欄位尚無閒置備用裝備<br>擊破第 5 關與第 10 關 Boss 獲取！</div>`;
+  if (!equippedItem && matchingInventory.length === 0) {
+    scrollBox.innerHTML = `<div style="color: #64748b; font-size: 11px; padding: 20px 0; text-align: center;">此部位目前未穿戴裝備，且無備用庫存<br>擊破第 5 關與第 10 關 Boss 獲取！</div>`;
     return;
   }
 
-  matchingItems.forEach((item) => {
+  // 1. 若當前「有穿戴裝備」，將其置頂顯示
+  if (equippedItem && equippedItem.id) {
+    const tierMeta = TIER_META[equippedItem.tier || 'common'] || TIER_META.common;
+    const curStars = equippedItem.stars || 1;
+    const upgradeCost = curStars * 80 + (curStars >= 4 ? 120 : 0);
+    const salvageGold = Math.floor(tierMeta.salvageBase * (1 + (curStars - 1) * 0.4));
+    const isStarterWeapon = (equippedItem.id === "w_start");
+
+    let affixHtml = "";
+    if (curStars === 5 && equippedItem.affix) {
+      affixHtml = `<div class="card-affix-badge">${equippedItem.affix.name} · ${equippedItem.affix.desc}</div>`;
+    }
+
+    const equippedCard = document.createElement('div');
+    equippedCard.className = 'inv-equip-card is-currently-equipped';
+    equippedCard.innerHTML = `
+      <div class="card-header-row">
+        <span style="font-size: 12.5px; font-weight: bold; color: ${tierMeta.color};">
+          ${equippedItem.name} <span style="color: #facc15;">${renderStarsStr(curStars)}</span>
+        </span>
+        <div style="display: flex; gap: 4px; align-items: center;">
+          <span class="card-tier-tag ${tierMeta.class}">${tierMeta.name}</span>
+          <span class="equipped-tag">穿戴中</span>
+        </div>
+      </div>
+      <div style="font-size: 10.5px; color: #cbd5e1;">${equippedItem.desc || ''}</div>
+      ${affixHtml}
+      <div class="card-actions-row">
+        ${curStars < 5 
+          ? `<button class="btn-card-action btn-upgrade" onclick="upgradeItemStar('${equippedItem.id}', this)">升星 (${upgradeCost}金)</button>` 
+          : `<span style="font-size: 10px; color: #facc15; font-weight: bold;">5★ 滿星</span>`
+        }
+        ${!isStarterWeapon 
+          ? `<button class="btn-card-action btn-unequip" onclick="unequipSlotItem('${slotKey}')">卸下</button>
+             <button class="btn-card-action btn-salvage" onclick="salvageItem('${equippedItem.id}')">拆解 (+${salvageGold}金)</button>` 
+          : `<span style="font-size: 10px; color: #64748b;">(初始裝備不可拆解)</span>`
+        }
+      </div>
+    `;
+    scrollBox.appendChild(equippedCard);
+  }
+
+  // 2. 顯示背包庫存中的其他備用裝備
+  matchingInventory.forEach((item) => {
     const card = document.createElement('div');
     card.className = 'inv-equip-card';
 
@@ -609,13 +654,29 @@ function selectSlotForEquip(slotKey) {
       <div style="font-size: 10.5px; color: #94a3b8;">${item.desc || ''}</div>
       ${affixHtml}
       <div class="card-actions-row">
-        ${curStars < 5 ? `<button class="btn-card-action btn-upgrade" onclick="upgradeItemStar('${item.id}', this)">升星 (${upgradeCost}金)</button>` : `<span style="font-size: 10px; color: #facc15; font-weight: bold;">5★ 滿星已覺醒</span>`}
+        ${curStars < 5 
+          ? `<button class="btn-card-action btn-upgrade" onclick="upgradeItemStar('${item.id}', this)">升星 (${upgradeCost}金)</button>` 
+          : `<span style="font-size: 10px; color: #facc15; font-weight: bold;">5★ 滿星</span>`
+        }
         <button class="btn-card-action btn-equip" onclick="equipItemToSlot('${slotKey}', '${item.id}')">穿戴</button>
         <button class="btn-card-action btn-salvage" onclick="salvageItem('${item.id}')">拆解 (+${salvageGold}金)</button>
       </div>
     `;
     scrollBox.appendChild(card);
   });
+}
+
+function unequipSlotItem(slotKey) {
+  const currentEquipped = userSave.equipped[slotKey];
+  if (!currentEquipped || currentEquipped.id === "w_start") return;
+
+  userSave.myInventory.push({ ...currentEquipped });
+  userSave.equipped[slotKey] = null;
+
+  saveGameProgress();
+  updatePaperdollSlotsDisplay();
+  selectSlotForEquip(slotKey);
+  playTone(450, 'sine', 0.1);
 }
 
 function equipItemToSlot(slotKey, itemId) {
@@ -637,7 +698,6 @@ function equipItemToSlot(slotKey, itemId) {
   playTone(700, 'triangle', 0.1);
 }
 
-// 播放升星專用音效 (三段至五段連續高音水晶琶音)
 function playStarUpgradeSound(isMaxStar) {
   if (!audioCtx) return;
   try {
@@ -663,7 +723,6 @@ function playStarUpgradeSound(isMaxStar) {
   } catch(e) {}
 }
 
-// 在卡片上爆發 12~18 顆星芒粒子
 function spawnStarBurstParticles(targetElement, isMaxStar) {
   if (!targetElement) return;
 
@@ -701,13 +760,17 @@ function spawnStarBurstParticles(targetElement, isMaxStar) {
   }
 }
 
-// 升星強化 (升至 5★ 時解鎖隨機附魔詞條)
 function upgradeItemStar(itemId, clickedButtonElem) {
   let item = userSave.myInventory.find(i => i.id === itemId);
+  let isEquipped = false;
+  let equippedKey = null;
+
   if (!item) {
     for (const key in userSave.equipped) {
       if (userSave.equipped[key] && userSave.equipped[key].id === itemId) {
         item = userSave.equipped[key];
+        isEquipped = true;
+        equippedKey = key;
         break;
       }
     }
@@ -733,9 +796,12 @@ function upgradeItemStar(itemId, clickedButtonElem) {
 
   const isMaxStar = (item.stars === 5);
 
-  // 升至 5★ 時自動覺醒專屬詞條
   if (isMaxStar && !item.affix) {
     item.affix = getRandomAffix();
+  }
+
+  if (isEquipped && equippedKey) {
+    userSave.equipped[equippedKey] = { ...item };
   }
 
   playStarUpgradeSound(isMaxStar);
@@ -753,20 +819,50 @@ function upgradeItemStar(itemId, clickedButtonElem) {
   }, 160);
 }
 
-// 拆解裝備
 function salvageItem(itemId) {
-  const index = userSave.myInventory.findIndex(i => i.id === itemId);
-  if (index === -1) return;
+  let index = userSave.myInventory.findIndex(i => i.id === itemId);
+  let item = null;
+  let isEquipped = false;
+  let equippedKey = null;
 
-  const item = userSave.myInventory[index];
+  if (index !== -1) {
+    item = userSave.myInventory[index];
+  } else {
+    for (const key in userSave.equipped) {
+      if (userSave.equipped[key] && userSave.equipped[key].id === itemId) {
+        item = userSave.equipped[key];
+        isEquipped = true;
+        equippedKey = key;
+        break;
+      }
+    }
+  }
+
+  if (!item) return;
+  if (item.id === "w_start") {
+    alert("初始裝備不可拆解！");
+    return;
+  }
+
   const tierMeta = TIER_META[item.tier || 'common'] || TIER_META.common;
   const curStars = item.stars || 1;
   const salvageGold = Math.floor(tierMeta.salvageBase * (1 + (curStars - 1) * 0.4));
 
-  if (confirm(`確定要拆解【${item.name}】嗎？將獲得 ${salvageGold} 金幣。`)) {
+  const promptMsg = isEquipped 
+    ? `【${item.name}】目前正在穿戴中，確定要直接拆解嗎？拆解將獲得 ${salvageGold} 金幣並卸除該裝備。` 
+    : `確定要拆解【${item.name}】嗎？將獲得 ${salvageGold} 金幣。`;
+
+  if (confirm(promptMsg)) {
     userSave.playerGold += salvageGold;
-    userSave.myInventory.splice(index, 1);
+
+    if (isEquipped) {
+      userSave.equipped[equippedKey] = null;
+    } else {
+      userSave.myInventory.splice(index, 1);
+    }
+
     saveGameProgress();
+    updatePaperdollSlotsDisplay();
     if (currentSelectingSlot) selectSlotForEquip(currentSelectingSlot);
     playTone(400, 'sawtooth', 0.15);
   }
