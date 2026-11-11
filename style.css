@@ -19,18 +19,19 @@ html, body {
   align-items: center;
 }
 
+/* 全域右上角全螢幕按鈕 */
 #btn-global-fullscreen {
   position: fixed;
   top: 10px;
   right: 12px;
   z-index: 99999;
-  background: rgba(15, 23, 42, 0.75);
+  background: rgba(15, 23, 42, 0.85);
   backdrop-filter: blur(4px);
   border: 1px solid #38bdf8;
   color: #38bdf8;
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: bold;
-  padding: 4px 10px;
+  padding: 5px 11px;
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -61,9 +62,11 @@ html, body {
   #rotate-device-overlay { display: flex; }
 }
 
+/* 視窗容器：支援行動端 dvh 與滿版等比約束 */
 .screen {
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   position: relative;
   overflow: hidden;
   display: flex;
@@ -72,23 +75,28 @@ html, body {
   align-items: center;
 }
 
-@media (min-width: 900px) and (min-height: 600px) {
-  .screen {
-    width: 820px;
-    height: 560px;
-    border-radius: 14px;
-    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9), 0 0 35px rgba(6, 182, 212, 0.25);
-  }
-}
-
-/* 首頁 */
+/* 首頁容器與 Logo 穩定約束 */
 #title-screen {
   background: radial-gradient(circle at 50% 45%, #082f49 0%, #030712 85%);
   text-align: center;
   padding: 20px;
 }
-#logo-canvas { display: block; margin: 0 auto 12px; max-width: 90%; height: auto; }
-.title-btn-group { display: flex; gap: 16px; justify-content: center; }
+.logo-wrapper {
+  width: 100%;
+  max-width: 700px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+#logo-canvas {
+  width: 100%;
+  max-width: 700px;
+  height: auto;
+  aspect-ratio: 700 / 260;
+  display: block;
+  margin: 0 auto 12px;
+}
+.title-btn-group { display: flex; gap: 16px; justify-content: center; margin-top: 8px; }
 .btn {
   background: linear-gradient(135deg, #0284c7, #0369a1);
   color: white;
@@ -117,7 +125,7 @@ html, body {
   box-shadow: 0 4px 20px rgba(52, 211, 153, 0.3);
 }
 
-/* 故事 */
+/* 故事模式 */
 #story-screen {
   background: #030712;
   display: none;
@@ -150,13 +158,21 @@ html, body {
   letter-spacing: 1.5px;
   text-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
 }
+.story-canvas-box {
+  width: 100%;
+  max-width: 640px;
+  margin: 6px auto;
+  display: flex;
+  justify-content: center;
+}
 #story-canvas {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 640 / 220;
   border-radius: 8px;
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.8), inset 0 0 15px rgba(14, 165, 233, 0.2);
   border: 1px solid #1e293b;
-  margin: 6px 0;
-  max-width: 90%;
-  height: auto;
+  display: block;
   pointer-events: none;
 }
 .story-desc {
@@ -218,7 +234,7 @@ html, body {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-right: 85px;
+  margin-right: 90px;
 }
 .btn-map-bag {
   background: rgba(14, 165, 233, 0.2);
@@ -369,7 +385,7 @@ html, body {
 .substage-btn.locked { background: #090d16; border-color: #1e293b; color: #475569; cursor: not-allowed; }
 .substage-badge { font-size: 9px; padding: 1px 4px; border-radius: 4px; }
 
-/* 紙娃娃裝備面板 */
+/* 紙娃娃面板 */
 .paperdoll-inv-container {
   width: 720px;
   max-width: 95%;
@@ -462,20 +478,40 @@ html, body {
 }
 .inv-equip-card:hover { border-color: #38bdf8; background: #1e293b; }
 
-/* 戰鬥 HUD 與右側按鈕群 */
-#game-container { display: none; background: #090d16; }
-canvas#game-canvas {
-  background: #060913;
-  display: block;
+/* ==================== 戰鬥畫面：等比完美貼合 ==================== */
+#game-container {
+  display: none;
+  background: #090d16;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* 780x540 邏輯視窗容器：自動最大化貼合螢幕，絕不切邊 */
+.canvas-aspect-wrapper {
+  position: relative;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  max-width: calc(100dvh * (780 / 540));
+  max-height: calc(100vw * (540 / 780));
+  aspect-ratio: 780 / 540;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
+
+canvas#game-canvas {
+  width: 100%;
+  height: 100%;
+  background: #060913;
+  display: block;
+}
+
 #hud {
   position: absolute;
-  top: 10px;
-  left: 14px;
-  right: 14px;
+  top: max(8px, env(safe-area-inset-top));
+  left: max(10px, env(safe-area-inset-left));
+  right: max(10px, env(safe-area-inset-right));
   pointer-events: none;
   z-index: 10;
   display: flex;
@@ -622,8 +658,8 @@ canvas#game-canvas {
 /* 右側四鍵動作群 */
 #battle-action-cluster {
   position: absolute;
-  bottom: 20px;
-  right: 20px;
+  bottom: max(15px, env(safe-area-inset-bottom));
+  right: max(15px, env(safe-area-inset-right));
   width: 220px;
   height: 200px;
   pointer-events: none;
@@ -700,7 +736,7 @@ canvas#game-canvas {
   transition: height 0.05s linear;
 }
 
-/* 升級彈窗 (攻擊/血量/移速 卡片樣式) */
+/* 升級彈窗 */
 .modal-backdrop {
   position: absolute;
   inset: 0;
