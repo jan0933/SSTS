@@ -8,7 +8,7 @@
 </head>
 <body>
 
-<!-- 右上角通用全螢幕按鈕 (手機/電腦皆可自由切換) -->
+<!-- 右上角通用全螢幕按鈕 -->
 <button id="btn-global-fullscreen" onclick="toggleGlobalFullscreen()">⛶ 全螢幕</button>
 
 <!-- 直向持握提示遮罩 -->
@@ -93,7 +93,7 @@
         </div>
         <button class="close-btn" onclick="closeSubstagesModal()">✕</button>
       </div>
-      <div class="substage-desc">每個國家分為 10 個作戰分區：第 5 關降臨中階精英 Boss，第 10 關降臨終極霸主 Boss！</div>
+      <div class="substage-desc">前 1~5 關怪物數量遞增；6~10 關怪物數量對照前段但血量加倍！第 5 與第 10 關迎擊 Boss。</div>
       <div class="substage-grid" id="substage-grid"></div>
     </div>
   </div>
@@ -214,10 +214,10 @@
     </div>
   </div>
 
-  <!-- 搖桿 (左半屏限定) -->
+  <!-- 搖桿 -->
   <div id="joystick-base"><div id="joystick-thumb"></div></div>
 
-  <!-- 手機端右半側專用動作按鈕群 -->
+  <!-- 右側動作按鈕群 -->
   <div id="battle-action-cluster">
     <button id="btn-act-melee" class="cluster-btn btn-melee" onclick="triggerManualAttack('melee')">
       <span class="act-icon">⚔️</span>
@@ -239,13 +239,22 @@
     </button>
   </div>
 
-  <!-- 升級彈窗 -->
+  <!-- 升級彈窗 (攻擊力 / 血量 / 移動速度，均顯示當前數值) -->
   <div id="upgrade-modal" class="modal-backdrop">
     <h3 style="color: #38bdf8; letter-spacing: 2px;">防衛系統進化升級</h3>
-    <div style="font-size: 12px; color: #34d399; margin: 4px 0 10px;">★ 被動已提升：基礎攻擊 +5、生命上限 +15 ★</div>
-    <div class="upgrade-card" onclick="chooseUpgrade('firerate')">⚡ 聚焦脈衝冷卻加速 (-20%)</div>
-    <div class="upgrade-card" onclick="chooseUpgrade('damage')">💥 電磁等離子增幅 (+40% 傷害)</div>
-    <div class="upgrade-card" onclick="chooseUpgrade('speed')">👟 地表突擊推進器 (+15% 移速)</div>
+    <div style="font-size: 12px; color: #94a3b8; margin: 4px 0 12px;">請選擇一項核心機能強化：</div>
+    <div class="upgrade-card" id="up-card-damage" onclick="chooseUpgrade('damage')">
+      <div class="up-title">⚔️ 強化核心攻擊力 (+15)</div>
+      <div class="up-stat" id="up-stat-damage">目前: 30 ➜ 升級後: 45</div>
+    </div>
+    <div class="upgrade-card" id="up-card-hp" onclick="chooseUpgrade('hp')">
+      <div class="up-title">❤️ 提升核心生命上限 (+25 並回滿)</div>
+      <div class="up-stat" id="up-stat-hp">目前: 100/100 ➜ 升級後: 125/125</div>
+    </div>
+    <div class="upgrade-card" id="up-card-speed" onclick="chooseUpgrade('speed')">
+      <div class="up-title">👟 推進引擎加速 (+12%)</div>
+      <div class="up-stat" id="up-stat-speed">目前: 2.8 ➜ 升級後: 3.1</div>
+    </div>
   </div>
 
   <!-- Boss 戰利品自選寶箱視窗 -->
