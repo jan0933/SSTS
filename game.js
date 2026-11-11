@@ -1,8 +1,8 @@
 /**
- * SSTS - 遊戲核心控制、故事狀態機、觸控搖桿、衝刺閃避與背包邏輯
+ * SSTS - 核心邏輯、Boss 戰、左半屏動態搖桿、全螢幕翻頁與戰鬥控制
  */
 
-/* ==================== 音效引擎 (Web Audio API) ==================== */
+/* ==================== 音效引擎 ==================== */
 let audioCtx = null;
 function initAudio() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -23,7 +23,7 @@ function playTone(freq, type, duration, gainLevel = 0.08) {
   } catch(e){}
 }
 
-/* ==================== 手機全螢幕與方向鎖定請求 ==================== */
+/* ==================== 手機直接切換全螢幕 ==================== */
 function requestLandscapeFullscreen() {
   const elem = document.documentElement;
   if (elem.requestFullscreen) {
@@ -102,7 +102,7 @@ function drawLogo() {
 }
 drawLogo();
 
-/* ==================== 故事頁面與動態插圖 ==================== */
+/* ==================== 故事頁面 (點擊全螢幕任意處翻頁) ==================== */
 const storyCanvas = document.getElementById('story-canvas');
 const sctx = storyCanvas.getContext('2d');
 let storyTime = 0;
@@ -188,7 +188,7 @@ function drawStoryScene() {
 
 function startStory() {
   initAudio();
-  requestLandscapeFullscreen();
+  requestLandscapeFullscreen(); // 點擊瞬間切換全螢幕
   playTone(440, 'triangle', 0.2);
   if (logoAnimId) cancelAnimationFrame(logoAnimId);
   document.getElementById('title-screen').style.display = 'none';
@@ -210,15 +210,12 @@ function renderStory() {
     dot.className = `dot ${idx === storyIndex ? 'active' : ''}`;
     dotsContainer.appendChild(dot);
   });
+}
 
-  const nextBtn = document.getElementById('next-story-btn');
-  if (storyIndex === storyData.length - 1) {
-    nextBtn.innerText = "踏入戰場 (BATTLE)";
-    nextBtn.style.background = "linear-gradient(135deg, #e11d48, #be123c)";
-  } else {
-    nextBtn.innerText = "下一頁 (NEXT)";
-    nextBtn.style.background = "linear-gradient(135deg, #0284c7, #0369a1)";
-  }
+// 點擊全螢幕任意處翻頁
+function handleStoryScreenClick(e) {
+  if (e.target.classList.contains('story-skip-btn')) return;
+  nextStory();
 }
 
 function nextStory() {
@@ -226,6 +223,11 @@ function nextStory() {
   storyIndex++;
   if (storyIndex >= storyData.length) enterGame();
   else renderStory();
+}
+
+function skipStory(e) {
+  e.stopPropagation();
+  enterGame();
 }
 
 function enterGame() {
@@ -237,7 +239,7 @@ function enterGame() {
   initGame();
 }
 
-/* ==================== 割草遊戲核心戰鬥 ==================== */
+/* ==================== 割草主遊戲邏輯與 Boss 系統 ==================== */
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
 const expBar = document.getElementById('exp-bar');
@@ -247,8 +249,15 @@ const txtHp = document.getElementById('txt-hp');
 const upgradeModal = document.getElementById('upgrade-modal');
 const dashCooldownOverlay = document.getElementById('dash-cooldown-overlay');
 
+// Boss 介面 DOM
+const bossAlarmOverlay = document.getElementById('boss-alarm-overlay');
+const bossBarContainer = document.getElementById('boss-bar-container');
+const bossBarFill = document.getElementById('boss-bar-fill');
+const bossHpText = document.getElementById('boss-hp-text');
+
 let isPaused = false;
 let kills = 0;
+let lastBossKills = 0; // 記錄上次登場 Boss 時的殺敵數
 let gameRunning = false;
 
 const player = {
@@ -271,12 +280,12 @@ const player = {
   fireInterval: 32,
   fireTimer: 0,
 
-  // 電磁衝刺狀態控制
+  // 電磁衝刺
   isDashing: false,
-  dashDuration: 9,      // 衝刺持續 9 幀
+  dashDuration: 9,
   dashTimer: 0,
-  dashSpeedMulti: 3.5,  // 瞬間加速 3.5 倍
-  dashCooldown: 90,     // 冷卻 90 幀 (~1.5 秒)
+  dashSpeedMulti: 3.5,
+  dashCooldown: 90,
   dashCooldownTimer: 0,
   dashDirX: 1,
   dashDirY: 0,
@@ -299,7 +308,22 @@ const player = {
 
 let dashGhosts = [];
 
-// 觸發電磁衝刺
+// Boss 實體數據
+const boss = {
+  active: false,
+  x: 0,
+  y: 0,
+  radius: 36,
+  hp: 1200,
+  maxHp: 1200,
+  speed: 1.1,
+  pulse: 0,
+  ringAttackTimer: 0,
+  ringAttackInterval: 120 // 每 2 秒釋放一次 360 度環狀彈幕
+};
+
+let bossBullets = [];
+
 function triggerDash() {
   if (isPaused || !gameRunning || player.dashCooldownTimer > 0 || player.isDashing) return;
 
@@ -307,7 +331,6 @@ function triggerDash() {
   player.dashTimer = player.dashDuration;
   player.dashCooldownTimer = player.dashCooldown;
 
-  // 若目前有移動向量則朝該方向衝，否則朝當前面向方向衝
   if (player.vx !== 0 || player.vy !== 0) {
     const len = Math.hypot(player.vx, player.vy);
     player.dashDirX = player.vx / len;
@@ -331,7 +354,7 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
 
-/* ==================== 動態浮動虛擬搖桿 ==================== */
+/* ==================== 動態搖桿 (僅在螢幕左半側生成) ==================== */
 const joyBase = document.getElementById('joystick-base');
 const joyThumb = document.getElementById('joystick-thumb');
 
@@ -345,7 +368,7 @@ const joystick = {
   maxRadius: 50
 };
 
-// 避免右手點按按鈕時觸發左側搖桿
+// 嚴格限制：僅當觸控點在畫面寬度 50% 以內才生成移動搖桿
 canvas.addEventListener('touchstart', (e) => {
   if (isPaused || !gameRunning) return;
   if (joystick.active) return;
@@ -356,8 +379,7 @@ canvas.addEventListener('touchstart', (e) => {
     const touchX = touch.clientX - rect.left;
     const touchY = touch.clientY - rect.top;
 
-    // 螢幕左半部（或左側 60% 區域）觸控才判定為呼叫移動搖桿
-    if (touchX < rect.width * 0.65) {
+    if (touchX < rect.width * 0.5) {
       joystick.active = true;
       joystick.touchId = touch.identifier;
       joystick.startX = touchX;
@@ -513,7 +535,7 @@ function startPreviewLoop() {
   loop();
 }
 
-/* ==================== 實體與循環 ==================== */
+/* ==================== 實體、Boss 戰與遊戲循環 ==================== */
 let enemies = [];
 let bullets = [];
 let gems = [];
@@ -524,6 +546,43 @@ function initGame() {
   if (gameRunning) return;
   gameRunning = true;
   requestAnimationFrame(gameLoop);
+}
+
+// 產生 Boss
+function spawnBoss() {
+  boss.active = true;
+  boss.x = canvas.width / 2;
+  boss.y = -60; // 自上方緩緩降臨
+  boss.hp = 1200 + player.level * 200;
+  boss.maxHp = boss.hp;
+  boss.ringAttackTimer = 0;
+
+  // 觸發全螢幕紅色警報閃爍 2 秒
+  bossAlarmOverlay.style.display = 'flex';
+  bossBarContainer.style.display = 'block';
+  playTone(180, 'sawtooth', 0.6, 0.2);
+
+  setTimeout(() => {
+    bossAlarmOverlay.style.display = 'none';
+  }, 2200);
+}
+
+// Boss 發射 360 度環狀彈幕
+function fireBossRingBarrage() {
+  const bulletCount = 12;
+  const speed = 2.8;
+  for (let i = 0; i < bulletCount; i++) {
+    const angle = (Math.PI * 2 / bulletCount) * i + (boss.pulse * 0.5);
+    bossBullets.push({
+      x: boss.x,
+      y: boss.y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      radius: 6,
+      damage: 15
+    });
+  }
+  playTone(220, 'square', 0.2, 0.1);
 }
 
 function spawnSeaEnemy() {
@@ -546,19 +605,23 @@ function spawnSeaEnemy() {
 }
 
 function executeAttack() {
-  if (enemies.length === 0) return;
-  let nearest = null;
-  let minDist = Infinity;
-  for (const enemy of enemies) {
-    const d = Math.hypot(enemy.x - player.x, enemy.y - player.y);
-    if (d < minDist) { minDist = d; nearest = enemy; }
+  // 優先攻擊 Boss，否則尋找最近小怪
+  let target = null;
+  if (boss.active) {
+    target = boss;
+  } else if (enemies.length > 0) {
+    let minDist = Infinity;
+    for (const enemy of enemies) {
+      const d = Math.hypot(enemy.x - player.x, enemy.y - player.y);
+      if (d < minDist) { minDist = d; target = enemy; }
+    }
   }
-  if (!nearest) return;
+  if (!target) return;
 
   player.attackTimer = player.attackDuration;
-  player.facing = nearest.x >= player.x ? 1 : -1;
+  player.facing = target.x >= player.x ? 1 : -1;
 
-  const angle = Math.atan2(nearest.y - player.y, nearest.x - player.x);
+  const angle = Math.atan2(target.y - player.y, target.x - player.x);
   const w = player.equipment.weapon;
 
   bullets.push({
@@ -579,7 +642,7 @@ function executeAttack() {
 function updateGame() {
   if (isPaused) return;
 
-  // 1. 移動輸入計算
+  // 1. 移動輸入
   let dx = 0, dy = 0;
   if (keys['w'] || keys['arrowup']) dy -= 1;
   if (keys['s'] || keys['arrowdown']) dy += 1;
@@ -588,16 +651,14 @@ function updateGame() {
 
   if (dx !== 0 && dy !== 0) { dx *= 0.7071; dy *= 0.7071; }
 
-  // 融合虛擬搖桿輸入
   if (joystick.active && (joystick.vectorX !== 0 || joystick.vectorY !== 0)) {
     dx = joystick.vectorX;
     dy = joystick.vectorY;
   }
 
-  // 2. 處理衝刺冷卻與衝刺位移邏輯
+  // 2. 衝刺
   if (player.dashCooldownTimer > 0) {
     player.dashCooldownTimer--;
-    // 更新衝刺按鈕遮罩高度百分比 (冷卻進度)
     const pct = (player.dashCooldownTimer / player.dashCooldown) * 100;
     dashCooldownOverlay.style.height = `${pct}%`;
   } else {
@@ -609,7 +670,6 @@ function updateGame() {
     player.vx = player.dashDirX * player.speed * player.dashSpeedMulti;
     player.vy = player.dashDirY * player.speed * player.dashSpeedMulti;
 
-    // 每幀生成殘影
     dashGhosts.push({
       x: player.x,
       y: player.y,
@@ -617,9 +677,7 @@ function updateGame() {
       alpha: 1.0
     });
 
-    if (player.dashTimer <= 0) {
-      player.isDashing = false;
-    }
+    if (player.dashTimer <= 0) player.isDashing = false;
   } else {
     player.isMoving = (Math.abs(dx) > 0.05 || Math.abs(dy) > 0.05);
     if (player.isMoving) {
@@ -633,15 +691,13 @@ function updateGame() {
   player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x + player.vx));
   player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y + player.vy));
 
-  // 3. 更新殘影透明度衰退
+  // 3. 殘影衰退
   for (let i = dashGhosts.length - 1; i >= 0; i--) {
     dashGhosts[i].alpha -= 0.12;
-    if (dashGhosts[i].alpha <= 0) {
-      dashGhosts.splice(i, 1);
-    }
+    if (dashGhosts[i].alpha <= 0) dashGhosts.splice(i, 1);
   }
 
-  // 4. 自動攻擊
+  // 4. 自動開火
   if (player.attackTimer > 0) player.attackTimer--;
   player.fireTimer++;
   if (player.fireTimer >= player.fireInterval) {
@@ -649,7 +705,7 @@ function updateGame() {
     player.fireTimer = 0;
   }
 
-  // 5. 子彈飛行與碰撞
+  // 5. 玩家子彈碰撞
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i];
     b.x += b.vx;
@@ -658,6 +714,36 @@ function updateGame() {
       bullets.splice(i, 1);
       continue;
     }
+
+    // 擊中 Boss 判定
+    if (boss.active && Math.hypot(b.x - boss.x, b.y - boss.y) < b.radius + boss.radius) {
+      boss.hp -= b.damage;
+      bullets.splice(i, 1);
+      playTone(180, 'sawtooth', 0.04);
+
+      const bossHpPct = Math.max(0, (boss.hp / boss.maxHp) * 100);
+      bossBarFill.style.width = `${bossHpPct}%`;
+      bossHpText.innerText = `${Math.ceil(bossHpPct)}%`;
+
+      if (boss.hp <= 0) {
+        boss.active = false;
+        bossBarContainer.style.display = 'none';
+        kills += 10;
+        txtKills.innerText = `擊退海嗣: ${kills}`;
+        // 噴灑大量高階結晶
+        for (let g = 0; g < 15; g++) {
+          gems.push({
+            x: boss.x + (Math.random() - 0.5) * 60,
+            y: boss.y + (Math.random() - 0.5) * 60,
+            radius: 5
+          });
+        }
+        playTone(900, 'triangle', 0.5, 0.2);
+      }
+      continue;
+    }
+
+    // 擊中小怪判定
     for (let j = enemies.length - 1; j >= 0; j--) {
       const e = enemies[j];
       if (Math.hypot(b.x - e.x, b.y - e.y) < b.radius + e.radius) {
@@ -669,13 +755,66 @@ function updateGame() {
           enemies.splice(j, 1);
           kills++;
           txtKills.innerText = `擊退海嗣: ${kills}`;
+
+          // 每擊殺 50 隻觸發 Boss 登場
+          if (kills - lastBossKills >= 50 && !boss.active) {
+            lastBossKills = kills;
+            spawnBoss();
+          }
         }
         break;
       }
     }
   }
 
-  // 6. 敵群追蹤與撞擊判定 (衝刺期間具備無敵免疫)
+  // 6. Boss 行為與環狀彈幕
+  if (boss.active) {
+    boss.pulse += 0.05;
+    const angle = Math.atan2(player.y - boss.y, player.x - boss.x);
+    boss.x += Math.cos(angle) * boss.speed;
+    boss.y += Math.sin(angle) * boss.speed;
+
+    boss.ringAttackTimer++;
+    if (boss.ringAttackTimer >= boss.ringAttackInterval) {
+      fireBossRingBarrage();
+      boss.ringAttackTimer = 0;
+    }
+
+    // Boss 本體撞擊
+    if (!player.isDashing && Math.hypot(player.x - boss.x, player.y - boss.y) < player.radius + boss.radius) {
+      player.hp -= 0.6;
+      txtHp.innerText = `核心護甲: ${Math.max(0, Math.floor(player.hp))}/${player.maxHp}`;
+      if (player.hp <= 0) {
+        alert(`防衛要塞失守！你被深海霸主先鋒撕碎。總擊殺數：${kills}`);
+        location.reload();
+      }
+    }
+  }
+
+  // 7. Boss 彈幕更新與傷害
+  for (let i = bossBullets.length - 1; i >= 0; i--) {
+    const bb = bossBullets[i];
+    bb.x += bb.vx;
+    bb.y += bb.vy;
+
+    if (bb.x < 0 || bb.x > canvas.width || bb.y < 0 || bb.y > canvas.height) {
+      bossBullets.splice(i, 1);
+      continue;
+    }
+
+    if (!player.isDashing && Math.hypot(bb.x - player.x, bb.y - player.y) < bb.radius + player.radius) {
+      player.hp -= bb.damage;
+      bossBullets.splice(i, 1);
+      txtHp.innerText = `核心護甲: ${Math.max(0, Math.floor(player.hp))}/${player.maxHp}`;
+      playTone(150, 'sawtooth', 0.1);
+      if (player.hp <= 0) {
+        alert(`防衛要塞失守！你共消滅了 ${kills} 隻海嗣。`);
+        location.reload();
+      }
+    }
+  }
+
+  // 8. 一般敵群追逐
   spawnTimer++;
   if (spawnTimer >= spawnInterval) {
     spawnSeaEnemy();
@@ -698,7 +837,7 @@ function updateGame() {
     }
   }
 
-  // 7. 經驗寶石吸附
+  // 9. 經驗晶體吸附
   for (let i = gems.length - 1; i >= 0; i--) {
     const g = gems[i];
     const dist = Math.hypot(player.x - g.x, player.y - g.y);
@@ -763,9 +902,11 @@ function renderGame() {
     ctx.fill();
   }
 
-  drawEnemies(ctx, enemies);
+  // 繪製敵群、Boss 與環狀彈幕
+  drawEnemies(ctx, enemies, boss);
+  drawBossBullets(ctx, bossBullets);
 
-  // 繪製衝刺殘影與玩家紙娃娃
+  // 繪製玩家殘影與紙娃娃
   drawDashGhosts(ctx, dashGhosts);
   drawPlayerPaperdoll(ctx, player);
 }
