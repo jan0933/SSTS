@@ -11,7 +11,7 @@
 <!-- 直向持握提示遮罩 -->
 <div id="rotate-device-overlay">
   <div style="font-size: 32px; margin-bottom: 12px;">📱 ↻</div>
-  <div>請將裝置轉為橫向以獲得最佳作戰視野</div>
+  <div>請將裝置轉為橫向以獲得完整作戰視野</div>
 </div>
 
 <!-- 1. 首頁畫面 -->
@@ -20,8 +20,8 @@
   <button class="btn" onclick="startStory()">開始作戰 (START)</button>
 </div>
 
-<!-- 2. 故事模式與動態過場插圖 -->
-<div id="story-screen" class="screen">
+<!-- 2. 故事模式 (支援點擊全螢幕任意處翻頁) -->
+<div id="story-screen" class="screen" onclick="handleStoryScreenClick(event)">
   <div class="story-header">
     <div class="progress-dots" id="dots-container"></div>
     <div class="story-badge" id="story-chapter">SSTS // ARCHIVE 01</div>
@@ -29,16 +29,30 @@
   </div>
   <canvas id="story-canvas" width="640" height="220"></canvas>
   <div class="story-desc" id="story-desc">載入中...</div>
-  <div class="story-nav">
-    <button class="btn-secondary" onclick="enterGame()">略過劇情 (SKIP)</button>
-    <button class="btn" id="next-story-btn" onclick="nextStory()">下一頁 (NEXT)</button>
-  </div>
+  <div class="story-hint">〔 輕觸螢幕任意處繼續 〕</div>
+  <button class="story-skip-btn" onclick="skipStory(event)">略過劇情 (SKIP)</button>
 </div>
 
 <!-- 3. 戰鬥主畫面 -->
 <div id="game-container" class="screen">
   <canvas id="game-canvas" width="780" height="540"></canvas>
   
+  <!-- 全螢幕 Boss 警報遮罩 -->
+  <div id="boss-alarm-overlay">
+    <div class="alarm-text">⚠️ 警告：深海霸主先鋒接近 ⚠️</div>
+  </div>
+
+  <!-- Boss 專屬血條 -->
+  <div id="boss-bar-container">
+    <div class="boss-label">
+      <span id="boss-name">【深海巨螯·狂暴先鋒】</span>
+      <span id="boss-hp-text">100%</span>
+    </div>
+    <div class="boss-bar-bg">
+      <div id="boss-bar-fill"></div>
+    </div>
+  </div>
+
   <!-- HUD 介面 -->
   <div id="hud">
     <div class="bar-bg"><div class="bar-fill" id="exp-bar"></div></div>
@@ -50,19 +64,17 @@
     </div>
   </div>
 
-  <!-- 動態浮動觸控搖桿 -->
+  <!-- 動態浮動觸控搖桿 (僅在螢幕左半側生成) -->
   <div id="joystick-base">
     <div id="joystick-thumb"></div>
   </div>
 
   <!-- 手機端右手快捷動作按鈕群 -->
   <div id="mobile-action-group">
-    <!-- 快捷背包按鈕 -->
     <button id="btn-touch-bag" class="touch-action-btn" onclick="toggleInventory()">
       <span class="btn-icon">🎒</span>
       <span class="btn-text">裝備</span>
     </button>
-    <!-- 電磁衝刺按鈕 (含冷卻進度遮罩) -->
     <button id="btn-touch-dash" class="touch-action-btn" onclick="triggerDash()">
       <span class="btn-icon">⚡</span>
       <span class="btn-text">衝刺</span>
@@ -78,7 +90,7 @@
     <div class="upgrade-card" onclick="chooseUpgrade('speed')">👟 地表突擊推進器 (+15% 移速)</div>
   </div>
 
-  <!-- 九宮格裝備背包與角色紙娃娃特寫視窗 -->
+  <!-- 九宮格裝備背包 -->
   <div id="inventory-modal">
     <div class="inv-container">
       <div class="inv-header">
