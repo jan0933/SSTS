@@ -1,7 +1,8 @@
 /**
- * SSTS - 遊戲核心邏輯與控制引擎
+ * SSTS - 遊戲核心控制、故事狀態機、觸控搖桿與背包邏輯
  */
 
+/* ==================== 音效引擎 (Web Audio API) ==================== */
 let audioCtx = null;
 function initAudio() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -22,7 +23,20 @@ function playTone(freq, type, duration, gainLevel = 0.08) {
   } catch(e){}
 }
 
-/* ==================== 首頁動態發光 LOGO ==================== */
+/* ==================== 手機全螢幕與方向鎖定請求 ==================== */
+function requestLandscapeFullscreen() {
+  const elem = document.documentElement;
+  if (elem.requestFullscreen) {
+    elem.requestFullscreen().catch(() => {});
+  } else if (elem.webkitRequestFullscreen) {
+    elem.webkitRequestFullscreen();
+  }
+  if (screen.orientation && screen.orientation.lock) {
+    screen.orientation.lock('landscape').catch(() => {});
+  }
+}
+
+/* ==================== 首頁純程式碼動態 LOGO ==================== */
 const logoCanvas = document.getElementById('logo-canvas');
 const lctx = logoCanvas.getContext('2d');
 let logoTime = 0;
@@ -88,7 +102,7 @@ function drawLogo() {
 }
 drawLogo();
 
-/* ==================== 故事插圖與過場 ==================== */
+/* ==================== 故事頁面與動態插圖 ==================== */
 const storyCanvas = document.getElementById('story-canvas');
 const sctx = storyCanvas.getContext('2d');
 let storyTime = 0;
@@ -98,12 +112,12 @@ const storyData = [
   {
     chapter: "SSTS // ARCHIVE 01",
     title: "海淵巨響 · 沉眠者復甦",
-    desc: "萬米海溝深處的海洋霸主睜眼。遠古逆鱗共振引發深海熱泉狂潮，海洋不再溫馴，化為狂暴的變異進化母體。"
+    desc: "萬米海溝深處的海洋霸主睜開眼瞳。遠古逆鱗共振引發深海熱泉狂潮，海洋不再溫馴，化為狂暴的變異進化母體。"
   },
   {
     chapter: "SSTS // ARCHIVE 02",
     title: "逆鱗狂潮 · 異種登陸",
-    desc: "深海巨獸散發出超導進化信號。魚群長出覆甲足肢，水母演化出懸浮腺體，數以萬計的變異海嗣撕裂海岸堤防！"
+    desc: "深海巨獸散發出超導進化信號。魚群長出覆甲足肢，水母演化出懸浮腺體，數以萬計的變異海嗣撕裂海岸防線！"
   },
   {
     chapter: "SSTS // ARCHIVE 03",
@@ -113,7 +127,7 @@ const storyData = [
   {
     chapter: "SSTS // MISSION START",
     title: "陸防前線 · 迎擊異形海嗣",
-    desc: "突變潮汐已抵達據點！你可以透過數字鍵 [1]、[2]、[3] 即時更換近戰、弓弩與法杖，守衛陸地生靈！"
+    desc: "突變潮汐已抵達據點！你可以透過手指觸控滑動或 WASD 移動，點擊背包隨時自由換裝，守衛陸地生靈！"
   }
 ];
 
@@ -128,7 +142,6 @@ function drawStoryScene() {
   const cy = h / 2;
 
   if (storyIndex === 0) {
-    // 巨眼
     const grad = sctx.createRadialGradient(cx, cy, 20, cx, cy, 140);
     grad.addColorStop(0, '#0c4a6e');
     grad.addColorStop(1, '#020617');
@@ -158,7 +171,6 @@ function drawStoryScene() {
     sctx.fill();
     sctx.restore();
   } else {
-    // 波浪
     sctx.fillStyle = '#050c1a';
     sctx.fillRect(0, 0, w, h);
     sctx.fillStyle = 'rgba(56, 189, 248, 0.6)';
@@ -176,6 +188,7 @@ function drawStoryScene() {
 
 function startStory() {
   initAudio();
+  requestLandscapeFullscreen();
   playTone(440, 'triangle', 0.2);
   if (logoAnimId) cancelAnimationFrame(logoAnimId);
   document.getElementById('title-screen').style.display = 'none';
@@ -224,21 +237,19 @@ function enterGame() {
   initGame();
 }
 
-/* ==================== 割草主遊戲邏輯 ==================== */
+/* ==================== 割草遊戲核心戰鬥 ==================== */
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
 const expBar = document.getElementById('exp-bar');
 const txtLevel = document.getElementById('txt-level');
 const txtKills = document.getElementById('txt-kills');
 const txtHp = document.getElementById('txt-hp');
-const txtWeapon = document.getElementById('txt-weapon');
 const upgradeModal = document.getElementById('upgrade-modal');
 
 let isPaused = false;
 let kills = 0;
 let gameRunning = false;
 
-// 玩家實體與完整的換裝槽位數據
 const player = {
   x: canvas.width / 2,
   y: canvas.height / 2,
@@ -251,26 +262,22 @@ const player = {
   exp: 0,
   level: 1,
   nextExp: 6,
-  facing: 1, // 1: 右, -1: 左
+  facing: 1,
   isMoving: false,
   animTimer: 0,
-
-  // 攻擊動畫控制
   attackTimer: 0,
-  attackDuration: 14, // 攻擊動作持續幀數
+  attackDuration: 14,
   fireInterval: 32,
   fireTimer: 0,
-
-  // 完整裝備槽位 (紙娃娃外觀系統)
   equipment: {
-    helmet: 'scout',       // 'scout' | 'heavy' | 'archmage'
-    armor: 'scout',        // 'scout' | 'heavy' | 'archmage'
-    gloves: 'scout',       // 'scout' | 'heavy' | 'archmage'
-    boots: 'scout',        // 'scout' | 'heavy' | 'archmage'
-    accessory: 'mantle',   // 'mantle' | 'relic'
-    talisman: 'orb',       // 'orb' | 'totem'
+    helmet: 'scout',
+    armor: 'scout',
+    gloves: 'scout',
+    boots: 'scout',
+    accessory: 'mantle',
+    talisman: 'orb',
     weapon: {
-      type: 'melee',       // 'melee' (軍刀) | 'bow' (弓箭) | 'staff' (法杖)
+      type: 'melee',
       name: '離子軍刀',
       damage: 45,
       speed: 9
@@ -281,32 +288,186 @@ const player = {
 const keys = {};
 window.addEventListener('keydown', e => {
   keys[e.key.toLowerCase()] = true;
-
-  // 快捷換裝按鍵測試 (1: 近戰, 2: 弓箭, 3: 法杖)
-  if (e.key === '1') {
-    player.equipment.weapon = { type: 'melee', name: '離子軍刀', damage: 45, speed: 9 };
-    player.equipment.helmet = 'heavy';
-    player.equipment.armor = 'heavy';
-    txtWeapon.innerText = "武器: 離子軍刀 (近戰)";
-    playTone(400, 'sine', 0.1);
-  }
-  if (e.key === '2') {
-    player.equipment.weapon = { type: 'bow', name: '電磁弩弓', damage: 30, speed: 12 };
-    player.equipment.helmet = 'scout';
-    player.equipment.armor = 'scout';
-    txtWeapon.innerText = "武器: 電磁弩弓 (遠程)";
-    playTone(600, 'sine', 0.1);
-  }
-  if (e.key === '3') {
-    player.equipment.weapon = { type: 'staff', name: '星核法杖', damage: 60, speed: 6 };
-    player.equipment.helmet = 'archmage';
-    player.equipment.armor = 'archmage';
-    txtWeapon.innerText = "武器: 星核法杖 (法器)";
-    playTone(800, 'sine', 0.1);
-  }
+  if (e.key === 'b' || e.key === 'B') toggleInventory();
 });
 window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
 
+/* ==================== 動態浮動虛擬搖桿 ==================== */
+const joyBase = document.getElementById('joystick-base');
+const joyThumb = document.getElementById('joystick-thumb');
+
+const joystick = {
+  active: false,
+  touchId: null,
+  startX: 0,
+  startY: 0,
+  vectorX: 0,
+  vectorY: 0,
+  maxRadius: 50
+};
+
+canvas.addEventListener('touchstart', (e) => {
+  if (isPaused || !gameRunning) return;
+  if (joystick.active) return;
+
+  const touch = e.changedTouches[0];
+  const rect = canvas.getBoundingClientRect();
+  const touchX = touch.clientX - rect.left;
+  const touchY = touch.clientY - rect.top;
+
+  joystick.active = true;
+  joystick.touchId = touch.identifier;
+  joystick.startX = touchX;
+  joystick.startY = touchY;
+  joystick.vectorX = 0;
+  joystick.vectorY = 0;
+
+  joyBase.style.left = `${touchX}px`;
+  joyBase.style.top = `${touchY}px`;
+  joyBase.style.display = 'block';
+  joyThumb.style.transform = `translate(-50%, -50%)`;
+}, { passive: false });
+
+window.addEventListener('touchmove', (e) => {
+  if (!joystick.active) return;
+  for (let i = 0; i < e.changedTouches.length; i++) {
+    const touch = e.changedTouches[i];
+    if (touch.identifier === joystick.touchId) {
+      const rect = canvas.getBoundingClientRect();
+      const touchX = touch.clientX - rect.left;
+      const touchY = touch.clientY - rect.top;
+
+      const deltaX = touchX - joystick.startX;
+      const deltaY = touchY - joystick.startY;
+      const dist = Math.hypot(deltaX, deltaY);
+
+      if (dist === 0) {
+        joystick.vectorX = 0;
+        joystick.vectorY = 0;
+        joyThumb.style.transform = `translate(-50%, -50%)`;
+      } else {
+        const angle = Math.atan2(deltaY, deltaX);
+        const clampedDist = Math.min(dist, joystick.maxRadius);
+        const thumbX = Math.cos(angle) * clampedDist;
+        const thumbY = Math.sin(angle) * clampedDist;
+
+        joystick.vectorX = thumbX / joystick.maxRadius;
+        joystick.vectorY = thumbY / joystick.maxRadius;
+        joyThumb.style.transform = `translate(calc(-50% + ${thumbX}px), calc(-50% + ${thumbY}px))`;
+      }
+      break;
+    }
+  }
+}, { passive: false });
+
+function resetJoystick(e) {
+  if (!joystick.active) return;
+  for (let i = 0; i < e.changedTouches.length; i++) {
+    if (e.changedTouches[i].identifier === joystick.touchId) {
+      joystick.active = false;
+      joystick.touchId = null;
+      joystick.vectorX = 0;
+      joystick.vectorY = 0;
+      joyBase.style.display = 'none';
+      joyThumb.style.transform = `translate(-50%, -50%)`;
+      break;
+    }
+  }
+}
+window.addEventListener('touchend', resetJoystick, { passive: false });
+window.addEventListener('touchcancel', resetJoystick, { passive: false });
+
+/* ==================== 背包系統與九宮格數據 ==================== */
+let isInventoryOpen = false;
+let previewAnimId = null;
+let previewTime = 0;
+
+const previewCanvas = document.getElementById('preview-canvas');
+const pctx = previewCanvas.getContext('2d');
+const invModal = document.getElementById('inventory-modal');
+const invGrid = document.getElementById('inv-grid');
+const previewInfo = document.getElementById('preview-info');
+
+const INVENTORY_ITEMS = [
+  { id: "w_melee", slot: "weapon", name: "離子軍刀", type: "近戰武器", desc: "高速扇形揮砍 (傷害 45)", data: { type: 'melee', name: '離子軍刀', damage: 45, speed: 9 } },
+  { id: "w_bow", slot: "weapon", name: "電磁弩弓", type: "弓箭遠程", desc: "超遠距電磁貫穿 (傷害 30)", data: { type: 'bow', name: '電磁弩弓', damage: 30, speed: 12 } },
+  { id: "w_staff", slot: "weapon", name: "星核法杖", type: "法術法杖", desc: "聚能等離子寶珠 (傷害 60)", data: { type: 'staff', name: '星核法杖', damage: 60, speed: 6 } },
+  { id: "h_heavy", slot: "helmet", name: "重裝角盔", type: "頭盔", desc: "堅韌合金與猩紅目鏡", val: "heavy" },
+  { id: "h_archmage", slot: "helmet", name: "奧術風帽", type: "頭盔", desc: "聚能紫光法師頭部", val: "archmage" },
+  { id: "a_heavy", slot: "armor", name: "板塊重鎧", type: "盔甲", desc: "加厚金屬胸甲防禦片", val: "heavy" },
+  { id: "a_archmage", slot: "armor", name: "秘法星袍", type: "盔甲", desc: "深紫能量護符外袍", val: "archmage" },
+  { id: "t_totem", slot: "talisman", name: "赤焰圖騰", type: "法器", desc: "身後浮遊赤紅核心", val: "totem" },
+  { id: "acc_relic", slot: "accessory", name: "太陽遺物", type: "配件", desc: "金色神聖流動光輝", val: "relic" }
+];
+
+function toggleInventory() {
+  if (!gameRunning) return;
+  isInventoryOpen = !isInventoryOpen;
+
+  if (isInventoryOpen) {
+    isPaused = true;
+    invModal.style.display = "flex";
+    renderInventorySlots();
+    startPreviewLoop();
+    playTone(520, 'sine', 0.1);
+  } else {
+    isPaused = false;
+    invModal.style.display = "none";
+    if (previewAnimId) cancelAnimationFrame(previewAnimId);
+    playTone(380, 'sine', 0.1);
+  }
+}
+
+function renderInventorySlots() {
+  invGrid.innerHTML = '';
+  previewInfo.innerText = `武器：${player.equipment.weapon.name} | 頭盔：${player.equipment.helmet}`;
+
+  INVENTORY_ITEMS.forEach(item => {
+    const slot = document.createElement('div');
+    slot.className = 'item-slot';
+
+    let isEquipped = false;
+    if (item.slot === 'weapon' && player.equipment.weapon.name === item.data.name) isEquipped = true;
+    if (item.slot === 'helmet' && player.equipment.helmet === item.val) isEquipped = true;
+    if (item.slot === 'armor' && player.equipment.armor === item.val) isEquipped = true;
+    if (item.slot === 'talisman' && player.equipment.talisman === item.val) isEquipped = true;
+    if (item.slot === 'accessory' && player.equipment.accessory === item.val) isEquipped = true;
+
+    if (isEquipped) slot.classList.add('equipped');
+
+    slot.innerHTML = `
+      <div class="item-name">${item.name}</div>
+      <div class="item-type">${item.type}</div>
+      <div class="item-desc">${item.desc}</div>
+    `;
+
+    slot.onclick = () => equipItem(item);
+    invGrid.appendChild(slot);
+  });
+}
+
+function equipItem(item) {
+  if (item.slot === 'weapon') player.equipment.weapon = { ...item.data };
+  else if (item.slot === 'helmet') player.equipment.helmet = item.val;
+  else if (item.slot === 'armor') player.equipment.armor = item.val;
+  else if (item.slot === 'talisman') player.equipment.talisman = item.val;
+  else if (item.slot === 'accessory') player.equipment.accessory = item.val;
+
+  playTone(750, 'triangle', 0.08);
+  renderInventorySlots();
+}
+
+function startPreviewLoop() {
+  function loop() {
+    if (!isInventoryOpen) return;
+    previewTime += 0.04;
+    drawInventoryPreview(pctx, player, previewTime);
+    previewAnimId = requestAnimationFrame(loop);
+  }
+  loop();
+}
+
+/* ==================== 實體與循環 ==================== */
 let enemies = [];
 let bullets = [];
 let gems = [];
@@ -348,10 +509,7 @@ function executeAttack() {
   }
   if (!nearest) return;
 
-  // 觸發攻擊動畫計時器
   player.attackTimer = player.attackDuration;
-
-  // 自動調整角色面朝方向
   player.facing = nearest.x >= player.x ? 1 : -1;
 
   const angle = Math.atan2(nearest.y - player.y, nearest.x - player.x);
@@ -375,25 +533,31 @@ function executeAttack() {
 function updateGame() {
   if (isPaused) return;
 
-  // 1. 玩家移動計算
   let dx = 0, dy = 0;
   if (keys['w'] || keys['arrowup']) dy -= 1;
   if (keys['s'] || keys['arrowdown']) dy += 1;
   if (keys['a'] || keys['arrowleft']) dx -= 1;
   if (keys['d'] || keys['arrowright']) dx += 1;
 
-  player.isMoving = (dx !== 0 || dy !== 0);
+  if (dx !== 0 && dy !== 0) { dx *= 0.7071; dy *= 0.7071; }
+
+  // 融合虛擬搖桿輸入
+  if (joystick.active && (joystick.vectorX !== 0 || joystick.vectorY !== 0)) {
+    dx = joystick.vectorX;
+    dy = joystick.vectorY;
+  }
+
+  player.isMoving = (Math.abs(dx) > 0.05 || Math.abs(dy) > 0.05);
   if (player.isMoving) {
     player.animTimer += 0.08;
-    if (dx !== 0) player.facing = dx > 0 ? 1 : -1;
-    if (dx !== 0 && dy !== 0) { dx *= 0.7071; dy *= 0.7071; }
+    if (Math.abs(dx) > 0.05) player.facing = dx > 0 ? 1 : -1;
   }
+
   player.vx = dx * player.speed;
   player.vy = dy * player.speed;
   player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x + player.vx));
   player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y + player.vy));
 
-  // 2. 攻擊冷卻與攻擊動作衰減
   if (player.attackTimer > 0) player.attackTimer--;
   player.fireTimer++;
   if (player.fireTimer >= player.fireInterval) {
@@ -401,7 +565,6 @@ function updateGame() {
     player.fireTimer = 0;
   }
 
-  // 3. 子彈與擊中判定
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i];
     b.x += b.vx;
@@ -427,7 +590,6 @@ function updateGame() {
     }
   }
 
-  // 4. 敵人生成與追蹤
   spawnTimer++;
   if (spawnTimer >= spawnInterval) {
     spawnSeaEnemy();
@@ -450,7 +612,6 @@ function updateGame() {
     }
   }
 
-  // 5. 寶石吸附
   for (let i = gems.length - 1; i >= 0; i--) {
     const g = gems[i];
     const dist = Math.hypot(player.x - g.x, player.y - g.y);
@@ -492,7 +653,6 @@ function chooseUpgrade(type) {
 function renderGame() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // 背景科技網格
   ctx.strokeStyle = "rgba(14, 165, 233, 0.06)";
   ctx.lineWidth = 1;
   for (let x = 0; x < canvas.width; x += 40) {
@@ -502,7 +662,6 @@ function renderGame() {
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
   }
 
-  // 水晶
   for (const g of gems) {
     ctx.fillStyle = '#38bdf8';
     ctx.beginPath();
@@ -510,7 +669,6 @@ function renderGame() {
     ctx.fill();
   }
 
-  // 子彈
   for (const b of bullets) {
     ctx.fillStyle = b.type === 'staff' ? '#c084fc' : (b.type === 'bow' ? '#38bdf8' : '#67e8f9');
     ctx.beginPath();
@@ -518,10 +676,7 @@ function renderGame() {
     ctx.fill();
   }
 
-  // 繪製敵人 (呼叫 render_art.js)
   drawEnemies(ctx, enemies);
-
-  // 繪製紙娃娃玩家 (呼叫 render_art.js)
   drawPlayerPaperdoll(ctx, player);
 }
 
