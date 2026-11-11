@@ -1,5 +1,5 @@
 /**
- * SSTS - 遊戲核心戰鬥循環、怪物直線反彈物理、升級被動加成與死亡防卡死 (game.js)
+ * SSTS - 遊戲核心戰鬥循環、特色建物障礙碰撞、磁鐵與炸彈道具邏輯 (game.js)
  */
 
 let audioCtx = null;
@@ -106,7 +106,7 @@ let storyAnimId = null;
 const storyData = [
   { chapter: "SSTS // ARCHIVE 01", title: "海淵巨響 · 沉眠者復甦", desc: "萬米海溝深處的海洋霸主睜開眼瞳。遠古逆鱗引發深海沸騰狂潮，全球海岸線全面告急！" },
   { chapter: "SSTS // ARCHIVE 02", title: "逆鱗狂潮 · 百國淪陷", desc: "自最小的梵蒂岡到遼闊大陸，各國海岸皆被變異海嗣突破，地表文明退守各大洲的核心掩體。" },
-  { chapter: "SSTS // ARCHIVE 03", title: "地表同盟 · 哨站奪還戰", desc: "每收復一個國家需清空 10 個防衛哨站。擊敗第 5 關先鋒與第 10 關霸主掠奪高階戰甲！" },
+  { chapter: "SSTS // ARCHIVE 03", title: "地表同盟 · 哨站奪還戰", desc: "利用地圖掩體躲避彈幕！擊破彈跳海嗣獲取磁鐵與炸彈，迎擊各國先鋒與終極霸主！" },
   { chapter: "SSTS // MISSION START", title: "全球反擊 · 征途展開", desc: "裝備與等級永久保存。利用觸控搖桿或鍵盤走位，逐一奪回地表 100 國領土！" }
 ];
 
@@ -193,7 +193,7 @@ function skipStory(e) {
   openWorldMapScreen();
 }
 
-/* ==================== 戰鬥狀態 ==================== */
+/* ==================== 戰鬥引擎與狀態 ==================== */
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
 const expBar = document.getElementById('exp-bar');
@@ -215,6 +215,7 @@ const victoryDescText = document.getElementById('victory-desc-text');
 const defeatModal = document.getElementById('defeat-modal');
 const defeatCountryInfo = document.getElementById('defeat-country-info');
 const dashCooldownOverlay = document.getElementById('dash-cooldown-overlay');
+const empFlashOverlay = document.getElementById('emp-flash-overlay');
 
 const bossAlarmOverlay = document.getElementById('boss-alarm-overlay');
 const alarmText = document.getElementById('alarm-text');
@@ -230,7 +231,6 @@ let activeCountryData = null;
 let gameRunning = false;
 let globalTime = 0;
 
-// 玩家屬性：新增 baseBonusDamage 與 baseMaxHpBonus
 const player = {
   x: canvas.width / 2,
   y: canvas.height / 2,
@@ -240,7 +240,7 @@ const player = {
   speed: 2.8,
   hp: 100,
   maxHp: 100,
-  baseBonusDamage: 0, // 每升一級 +5
+  baseBonusDamage: 0,
   exp: 0,
   level: 1,
   nextExp: 5,
@@ -249,7 +249,7 @@ const player = {
   animTimer: 0,
   attackTimer: 0,
   attackDuration: 14,
-  fireInterval: 32, // 提升初始攻擊頻率
+  fireInterval: 32,
   fireTimer: 0,
 
   isDashing: false,
@@ -276,6 +276,12 @@ let dashGhosts = [];
 const pet = { active: false, type: null, x: 0, y: 0, targetX: 0, targetY: 0, timer: 0 };
 const chest = { active: false, x: 0, y: 0, radius: 16, isApex: false };
 
+// 戰地掉落道具 (磁鐵 / 炸彈)
+let battlePickups = [];
+
+// 地圖實體特色建築掩體陣列
+let stageObstacles = [];
+
 /* ==================== 階梯式裝備庫 ==================== */
 const EQUIPMENT_DATABASE = {
   1: [
@@ -301,6 +307,30 @@ const EQUIPMENT_DATABASE = {
   ]
 };
 
+// 依據國家大洲生成特色障礙物佈局
+function generateStageObstacles(continent) {
+  stageObstacles = [];
+  const count = 3 + Math.floor(Math.random() * 2); // 3~4 座建物
+
+  // 預設避開中央玩家出生區 (半徑 80 內不生成)
+  for (let i = 0; i < count; i++) {
+    let ox = 80 + Math.random() * (canvas.width - 160);
+    let oy = 80 + Math.random() * (canvas.height - 160);
+
+    // 若靠玩家太近則偏移
+    if (Math.hypot(ox - canvas.width / 2, oy - canvas.height / 2) < 90) {
+      ox += 110;
+    }
+
+    stageObstacles.push({
+      x: ox,
+      y: oy,
+      width: 44,
+      height: 44
+    });
+  }
+}
+
 // 進入指定關卡
 function startCountryBattle(countryId, substageIndex) {
   activeCountryStageId = countryId;
@@ -314,12 +344,15 @@ function startCountryBattle(countryId, substageIndex) {
   player.hp = player.maxHp;
   player.baseBonusDamage = (player.level - 1) * 5;
   player.equipment = { ...userSave.equipped };
+  player.x = canvas.width / 2;
+  player.y = canvas.height / 2;
 
   enemies = [];
   bullets = [];
   bossBullets = [];
   gems = [];
   dashGhosts = [];
+  battlePickups = [];
   kills = 0;
   boss.active = false;
   chest.active = false;
@@ -331,6 +364,9 @@ function startCountryBattle(countryId, substageIndex) {
   txtCurrentCountry.innerText = `${activeCountryData.flag} ${activeCountryData.name.split(' ')[0]} - 哨站 ${substageIndex}/10`;
   txtLevel.innerText = `階級: Lv.${player.level}`;
   updateHUD();
+
+  // 生成該大洲特色實體建物
+  generateStageObstacles(activeCountryData.continent);
 
   initGame();
 }
@@ -513,7 +549,6 @@ function checkAndSpawnStageBoss() {
   boss.x = canvas.width / 2;
   boss.y = -60;
 
-  // 大幅下調初期 Boss 數值，讓新手通關更加順暢
   const stageScaling = Math.max(0, activeCountryStageId - 1) * 80;
   const baseHp = isApex ? 650 : 350;
   boss.hp = baseHp + stageScaling;
@@ -639,7 +674,6 @@ function showVictoryModal() {
   playTone(880, 'triangle', 0.5, 0.2);
 }
 
-// 死亡結算觸發 (專用乾淨彈窗，徹底防範 alert 重複跳死)
 function triggerPlayerDefeat() {
   if (isPaused) return;
   isPaused = true;
@@ -660,6 +694,37 @@ function returnToWorldMap() {
   victoryModal.style.display = 'none';
   document.getElementById('game-container').style.display = 'none';
   openWorldMapScreen();
+}
+
+/* ==================== 拾取磁鐵與炸彈功能 ==================== */
+// 拾取磁鐵：全圖經驗水晶瞬間朝玩家吸附
+function activateSuperMagnet() {
+  playTone(950, 'sine', 0.35, 0.15);
+  for (const g of gems) {
+    g.magnetPull = true;
+  }
+}
+
+// 拾取炸彈：引發全屏 EMP 爆震，清空所有一般怪物
+function activateEmpBomb() {
+  playTone(150, 'sawtooth', 0.6, 0.3);
+
+  // 白光閃爍爆震
+  empFlashOverlay.style.display = 'block';
+  empFlashOverlay.style.opacity = '1';
+  setTimeout(() => {
+    empFlashOverlay.style.opacity = '0';
+    setTimeout(() => { empFlashOverlay.style.display = 'none'; }, 400);
+  }, 100);
+
+  // 炸毀當前場上所有小怪並產出經驗水晶
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const e = enemies[i];
+    gems.push({ x: e.x, y: e.y, radius: 4, magnetPull: true });
+    kills++;
+  }
+  enemies = [];
+  txtKills.innerText = `擊退海嗣: ${kills}`;
 }
 
 /* ==================== 背包面板 ==================== */
@@ -745,7 +810,7 @@ function startPreviewLoop() {
   loop();
 }
 
-/* ==================== 物理直線反彈小怪生成 ==================== */
+/* ==================== 物理碰撞、反彈小怪與戰地道具 ==================== */
 let enemies = [];
 let bullets = [];
 let gems = [];
@@ -766,9 +831,7 @@ function updateHUD() {
   hpBar.style.width = `${Math.max(0, (player.hp / player.maxHp) * 100)}%`;
 }
 
-// 根據國家與小關生成「直線前進、牆壁彈跳」的怪物
 function spawnContinentEnemy() {
-  // 初期關卡大幅放寬怪物生成頻率 (第一國每 2.5 秒才出一隻)
   const isEarlyStage = (activeCountryStageId === 1);
   const maxCap = isEarlyStage ? 6 : (12 + activeSubstage * 2);
   if (enemies.length >= maxCap) return;
@@ -777,26 +840,24 @@ function spawnContinentEnemy() {
   let x, y;
   let angle = 0;
 
-  // 從邊緣生成並朝螢幕內部隨機夾角直線射出
-  if (edge === 0) { // 上邊
+  if (edge === 0) {
     x = Math.random() * canvas.width; y = 15;
-    angle = (Math.PI * 0.2) + Math.random() * (Math.PI * 0.6); // 朝下
-  } else if (edge === 1) { // 右邊
+    angle = (Math.PI * 0.2) + Math.random() * (Math.PI * 0.6);
+  } else if (edge === 1) {
     x = canvas.width - 15; y = Math.random() * canvas.height;
-    angle = (Math.PI * 0.7) + Math.random() * (Math.PI * 0.6); // 朝左
-  } else if (edge === 2) { // 下邊
+    angle = (Math.PI * 0.7) + Math.random() * (Math.PI * 0.6);
+  } else if (edge === 2) {
     x = Math.random() * canvas.width; y = canvas.height - 15;
-    angle = -(Math.PI * 0.2) - Math.random() * (Math.PI * 0.6); // 朝上
-  } else { // 左邊
+    angle = -(Math.PI * 0.2) - Math.random() * (Math.PI * 0.6);
+  } else {
     x = 15; y = Math.random() * canvas.height;
-    angle = -(Math.PI * 0.3) + Math.random() * (Math.PI * 0.6); // 朝右
+    angle = -(Math.PI * 0.3) + Math.random() * (Math.PI * 0.6);
   }
 
   const cont = activeCountryData ? activeCountryData.continent : 'EU';
   let kind = 'default';
   let baseSpeed = isEarlyStage ? 1.0 : 1.4;
   let radius = 10;
-  // 初期小怪極其脆弱 (12 HP，玩家普攻一下 30+ 即可秒殺)
   let hp = isEarlyStage ? (12 + activeSubstage) : (25 + activeCountryStageId * 3);
 
   if (cont === 'OC' || cont === 'AM') {
@@ -814,9 +875,7 @@ function spawnContinentEnemy() {
     x, y,
     vx: Math.cos(angle) * baseSpeed,
     vy: Math.sin(angle) * baseSpeed,
-    kind,
-    radius,
-    hp,
+    kind, radius, hp,
     pulse: Math.random() * 10
   });
 }
@@ -839,8 +898,6 @@ function executeAttack() {
 
   const angle = Math.atan2(target.y - player.y, target.x - player.x);
   const w = player.equipment.weapon;
-
-  // 傷害直接附加上玩家升級後的永久基礎加成
   const totalDamage = w.damage + player.baseBonusDamage;
 
   bullets.push({
@@ -879,6 +936,10 @@ function updateGame() {
     dashCooldownOverlay.style.height = `0%`;
   }
 
+  // 玩家移動與障礙物碰撞檢測
+  let nextPx = player.x;
+  let nextPy = player.y;
+
   if (player.isDashing) {
     player.dashTimer--;
     player.vx = player.dashDirX * player.speed * player.dashSpeedMulti;
@@ -895,8 +956,21 @@ function updateGame() {
     player.vy = dy * player.speed;
   }
 
-  player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x + player.vx));
-  player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y + player.vy));
+  nextPx = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x + player.vx));
+  nextPy = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y + player.vy));
+
+  // 玩家碰觸掩體建物阻止穿透
+  for (const obs of stageObstacles) {
+    const halfW = obs.width / 2 + player.radius;
+    const halfH = obs.height / 2 + player.radius;
+    if (Math.abs(nextPx - obs.x) < halfW && Math.abs(nextPy - obs.y) < halfH) {
+      // 發生碰撞，阻擋向內移動
+      if (Math.abs(player.x - obs.x) >= halfW) nextPx = player.x;
+      if (Math.abs(player.y - obs.y) >= halfH) nextPy = player.y;
+    }
+  }
+  player.x = nextPx;
+  player.y = nextPy;
 
   for (let i = dashGhosts.length - 1; i >= 0; i--) {
     dashGhosts[i].alpha -= 0.12;
@@ -918,13 +992,34 @@ function updateGame() {
     }
   }
 
-  // 子彈命中判定
+  // 玩家拾取戰地掉落道具 (磁鐵 / 炸彈)
+  for (let i = battlePickups.length - 1; i >= 0; i--) {
+    const bp = battlePickups[i];
+    if (Math.hypot(player.x - bp.x, player.y - bp.y) < player.radius + 14) {
+      if (bp.type === 'magnet') activateSuperMagnet();
+      else if (bp.type === 'bomb') activateEmpBomb();
+      battlePickups.splice(i, 1);
+    }
+  }
+
+  // 子彈命中判定 (撞擊障礙物會被阻擋)
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i];
     b.x += b.vx; b.y += b.vy;
     if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) {
       bullets.splice(i, 1); continue;
     }
+
+    // 子彈撞擊建築物掩體阻擋
+    let hitObstacle = false;
+    for (const obs of stageObstacles) {
+      if (Math.abs(b.x - obs.x) < obs.width / 2 && Math.abs(b.y - obs.y) < obs.height / 2) {
+        bullets.splice(i, 1);
+        hitObstacle = true;
+        break;
+      }
+    }
+    if (hitObstacle) continue;
 
     if (boss.active && Math.hypot(b.x - boss.x, b.y - boss.y) < b.radius + boss.radius) {
       boss.hp -= b.damage;
@@ -945,7 +1040,6 @@ function updateGame() {
         chest.isApex = boss.isApex;
         chest.x = boss.x;
         chest.y = boss.y;
-
         playTone(950, 'triangle', 0.5, 0.2);
       }
       continue;
@@ -959,17 +1053,22 @@ function updateGame() {
         playTone(220, 'sawtooth', 0.04);
         if (e.hp <= 0) {
           gems.push({ x: e.x, y: e.y, radius: 4 });
+
+          // 擊殺時有 8% 機率掉落磁鐵或炸彈
+          const dropRand = Math.random();
+          if (dropRand < 0.05) {
+            battlePickups.push({ x: e.x, y: e.y, type: 'magnet' });
+          } else if (dropRand < 0.09) {
+            battlePickups.push({ x: e.x, y: e.y, type: 'bomb' });
+          }
+
           enemies.splice(j, 1);
           kills++;
           txtKills.innerText = `擊退海嗣: ${kills}`;
 
-          // 初期關卡擊殺門檻降低 (第 1 國前幾關只需殺 25 隻即可通關)
           const killThreshold = (activeCountryStageId === 1 && activeSubstage < 5) ? 25 : 50;
-
           if (activeSubstage !== 5 && activeSubstage !== 10) {
-            if (kills >= killThreshold) {
-              completeSubstage();
-            }
+            if (kills >= killThreshold) completeSubstage();
           } else {
             if (kills >= killThreshold && !boss.active && !chest.active) {
               checkAndSpawnStageBoss();
@@ -1004,13 +1103,25 @@ function updateGame() {
     }
   }
 
-  // Boss 彈幕
+  // Boss 彈幕 (撞擊掩體時被吸收)
   for (let i = bossBullets.length - 1; i >= 0; i--) {
     const bb = bossBullets[i];
     bb.x += bb.vx; bb.y += bb.vy;
+
     if (bb.x < 0 || bb.x > canvas.width || bb.y < 0 || bb.y > canvas.height) {
       bossBullets.splice(i, 1); continue;
     }
+
+    // 彈幕撞擊掩體直接消散
+    let hitObs = false;
+    for (const obs of stageObstacles) {
+      if (Math.abs(bb.x - obs.x) < obs.width / 2 && Math.abs(bb.y - obs.y) < obs.height / 2) {
+        bossBullets.splice(i, 1);
+        hitObs = true;
+        break;
+      }
+    }
+    if (hitObs) continue;
 
     if (!player.isDashing && Math.hypot(bb.x - player.x, bb.y - player.y) < bb.radius + player.radius) {
       player.hp -= bb.damage;
@@ -1024,7 +1135,7 @@ function updateGame() {
     }
   }
 
-  // 生成小怪計時 (初期關卡節奏大幅放緩)
+  // 生成小怪
   spawnTimer++;
   const currentInterval = (activeCountryStageId === 1) ? 90 : 35;
   if (spawnTimer >= currentInterval) {
@@ -1032,34 +1143,46 @@ function updateGame() {
     spawnTimer = 0;
   }
 
-  // 怪物直線移動與邊界完全彈性反射
+  // 怪物直線移動、邊界反彈與「特色建物幾何反彈」
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
     e.pulse += 0.08;
 
-    // 依據自身直線向量移動
     e.x += e.vx;
     e.y += e.vy;
 
-    // 碰撞左右牆壁：水平速度反向
+    // 邊界完全彈性反射
     if (e.x - e.radius <= 0) {
-      e.x = e.radius;
-      e.vx = -e.vx;
+      e.x = e.radius; e.vx = -e.vx;
     } else if (e.x + e.radius >= canvas.width) {
-      e.x = canvas.width - e.radius;
-      e.vx = -e.vx;
+      e.x = canvas.width - e.radius; e.vx = -e.vx;
     }
 
-    // 碰撞上下牆壁：垂直速度反向
     if (e.y - e.radius <= 0) {
-      e.y = e.radius;
-      e.vy = -e.vy;
+      e.y = e.radius; e.vy = -e.vy;
     } else if (e.y + e.radius >= canvas.height) {
-      e.y = canvas.height - e.radius;
-      e.vy = -e.vy;
+      e.y = canvas.height - e.radius; e.vy = -e.vy;
     }
 
-    // 碰觸玩家受傷判定 (初期關卡怪物傷害極低)
+    // 碰撞特色建物：計算左右面或上下面的物理入射反彈
+    for (const obs of stageObstacles) {
+      const halfW = obs.width / 2 + e.radius;
+      const halfH = obs.height / 2 + e.radius;
+
+      if (Math.abs(e.x - obs.x) < halfW && Math.abs(e.y - obs.y) < halfH) {
+        const overlapX = halfW - Math.abs(e.x - obs.x);
+        const overlapY = halfH - Math.abs(e.y - obs.y);
+
+        if (overlapX < overlapY) {
+          e.vx = -e.vx; // 水平反彈
+          e.x += (e.x > obs.x ? overlapX : -overlapX);
+        } else {
+          e.vy = -e.vy; // 垂直反彈
+          e.y += (e.y > obs.y ? overlapY : -overlapY);
+        }
+      }
+    }
+
     if (!player.isDashing && Math.hypot(player.x - e.x, player.y - e.y) < player.radius + e.radius) {
       const dmg = (activeCountryStageId === 1) ? 0.12 : 0.35;
       player.hp -= dmg;
@@ -1071,15 +1194,19 @@ function updateGame() {
     }
   }
 
-  // 寶石吸附
+  // 寶石吸附 (支援超導磁鐵全地圖高速牽引)
   for (let i = gems.length - 1; i >= 0; i--) {
     const g = gems[i];
     const dist = Math.hypot(player.x - g.x, player.y - g.y);
-    if (dist < 75) {
+
+    if (g.magnetPull || dist < 75) {
+      const pullSpeed = g.magnetPull ? 14 : 6;
       const angle = Math.atan2(player.y - g.y, player.x - g.x);
-      g.x += Math.cos(angle) * 6; g.y += Math.sin(angle) * 6;
+      g.x += Math.cos(angle) * pullSpeed;
+      g.y += Math.sin(angle) * pullSpeed;
     }
-    if (dist < player.radius + g.radius) {
+
+    if (dist < player.radius + g.radius + 4) {
       gems.splice(i, 1);
       player.exp++;
       playTone(1050, 'sine', 0.04);
@@ -1089,14 +1216,12 @@ function updateGame() {
   }
 }
 
-// 升級：自動提高基礎血量上限與基礎傷害
 function triggerLevelUp() {
   isPaused = true;
   player.level++;
   player.exp = 0;
   player.nextExp = Math.floor(player.nextExp * 1.35);
 
-  // 升級被動永久強化：基礎血量上限 +15 並瞬間補滿，基礎攻擊 +5
   player.maxHp += 15;
   player.hp = player.maxHp;
   player.baseBonusDamage += 5;
@@ -1124,13 +1249,23 @@ function renderGame() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   const cont = activeCountryData ? activeCountryData.continent : 'EU';
+
+  // 1. 繪製大洲專屬科技背景網格
   drawContinentBackground(ctx, cont, canvas.width, canvas.height);
 
+  // 2. 繪製大洲特色實體掩體建物
+  drawObstacles(ctx, stageObstacles, cont, globalTime);
+
+  // 3. 經驗寶石
   for (const g of gems) {
     ctx.fillStyle = '#38bdf8';
     ctx.beginPath(); ctx.arc(g.x, g.y, g.radius, 0, Math.PI * 2); ctx.fill();
   }
 
+  // 4. 戰地掉落道具 (磁鐵與炸彈)
+  drawBattlePickups(ctx, battlePickups, globalTime);
+
+  // 5. 子彈
   for (const b of bullets) {
     ctx.fillStyle = b.type === 'staff' ? '#c084fc' : (b.type === 'bow' ? '#38bdf8' : '#67e8f9');
     ctx.beginPath(); ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2); ctx.fill();
