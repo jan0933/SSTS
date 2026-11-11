@@ -127,7 +127,7 @@ const defaultSaveState = {
     meleeWeapon: { type: 'melee', name: '離子軍刀', damage: 45, speed: 9, color: '#38bdf8' },
     rangedWeapon: { type: 'bow', name: '電磁弩弓', damage: 35, speed: 11, color: '#0284c7' },
     artifact: { id: "art_nova", name: "等離子爆裂核", skillType: "nova" },
-    activeCombatMode: 'melee' // 'melee' 或 'ranged'
+    activeCombatMode: 'melee'
   }
 };
 
@@ -429,14 +429,13 @@ function openWorldMapScreen() {
 
 function continueGameFromSave() {
   initAudio();
-  requestLandscapeFullscreen();
   loadGameSave();
   openWorldMapScreen();
 }
 
-/* ==================== 人體工學紙娃娃裝備面板 (大地圖專用) ==================== */
+/* ==================== 人體工學紙娃娃裝備面板 ==================== */
 let isInventoryOpen = false;
-let currentSelectingSlot = null; // 'helmet', 'melee', 'ranged', 'armor', 'gloves', 'boots', 'talisman', 'artifact'
+let currentSelectingSlot = null;
 
 function toggleInventory() {
   isInventoryOpen = !isInventoryOpen;
@@ -445,7 +444,7 @@ function toggleInventory() {
   if (isInventoryOpen) {
     modal.style.display = 'flex';
     updatePaperdollSlotsDisplay();
-    selectSlotForEquip('melee'); // 預設打開近戰裝備庫存
+    selectSlotForEquip('melee');
     startDollPreviewLoop();
     playTone(520, 'sine', 0.1);
   } else {
@@ -467,7 +466,6 @@ function updatePaperdollSlotsDisplay() {
   document.getElementById('val-artifact').innerText = eq.artifact ? eq.artifact.name : "未裝備";
 }
 
-// 點擊左側人體槽位，右側展開對應庫存
 function selectSlotForEquip(slotKey) {
   currentSelectingSlot = slotKey;
   const title = document.getElementById('inv-panel-title');
@@ -486,12 +484,10 @@ function selectSlotForEquip(slotKey) {
   };
   title.innerText = slotTitles[slotKey] || "裝備庫存";
 
-  // 高亮選中槽位
   document.querySelectorAll('.gear-slot').forEach(el => el.classList.remove('active-selecting'));
   const activeEl = document.getElementById(`slot-${slotKey}`);
   if (activeEl) activeEl.classList.add('active-selecting');
 
-  // 篩選對應類型的玩家庫存
   const matchingItems = userSave.myInventory.filter(item => {
     if (slotKey === 'melee') return item.slot === 'weapon' && (item.data.type === 'melee' || item.data.type === 'bare');
     if (slotKey === 'ranged') return item.slot === 'weapon' && (item.data.type === 'bow' || item.data.type === 'staff');
