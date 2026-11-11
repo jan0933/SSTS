@@ -62,7 +62,6 @@ html, body {
   #rotate-device-overlay { display: flex; }
 }
 
-/* 視窗容器：支援行動端 dvh 與滿版等比約束 */
 .screen {
   width: 100vw;
   height: 100vh;
@@ -75,7 +74,7 @@ html, body {
   align-items: center;
 }
 
-/* 首頁容器與 Logo 穩定約束 */
+/* 首頁容器與 Logo */
 #title-screen {
   background: radial-gradient(circle at 50% 45%, #082f49 0%, #030712 85%);
   text-align: center;
@@ -207,7 +206,7 @@ html, body {
   z-index: 10;
 }
 
-/* 3D 地球選關 */
+/* ==================== 3D 地球選關 ==================== */
 #world-map-screen {
   background: radial-gradient(circle at 50% 50%, #0c1a30 0%, #020617 90%);
   display: none;
@@ -235,6 +234,15 @@ html, body {
   align-items: center;
   gap: 12px;
   margin-right: 90px;
+}
+.gold-display {
+  font-size: 12px;
+  font-weight: 900;
+  color: #facc15;
+  background: rgba(234, 179, 8, 0.15);
+  border: 1px solid #eab308;
+  padding: 4px 10px;
+  border-radius: 16px;
 }
 .btn-map-bag {
   background: rgba(14, 165, 233, 0.2);
@@ -385,9 +393,9 @@ html, body {
 .substage-btn.locked { background: #090d16; border-color: #1e293b; color: #475569; cursor: not-allowed; }
 .substage-badge { font-size: 9px; padding: 1px 4px; border-radius: 4px; }
 
-/* 紙娃娃面板 */
+/* ==================== 紙娃娃面板 (單一遠程武器 + 拆解/強化) ==================== */
 .paperdoll-inv-container {
-  width: 720px;
+  width: 740px;
   max-width: 95%;
   background: #0b1329;
   border: 2px solid #0284c7;
@@ -397,6 +405,11 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+.gold-badge {
+  font-size: 12px;
+  font-weight: bold;
+  color: #facc15;
 }
 .paperdoll-layout { display: flex; gap: 16px; align-items: center; }
 .gear-doll-wrapper {
@@ -422,7 +435,7 @@ html, body {
   border: 1.5px solid #334155;
   border-radius: 6px;
   padding: 5px 8px;
-  min-width: 75px;
+  min-width: 80px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -435,10 +448,11 @@ html, body {
   background: #162647;
   box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
 }
-.gear-slot.weapon-slot { min-width: 90px; min-height: 80px; }
+.gear-slot.weapon-slot { min-width: 95px; min-height: 80px; }
 .armor-slot { width: 100%; }
 .slot-label { font-size: 9.5px; color: #94a3b8; font-weight: 800; }
 .slot-val { font-size: 11px; color: #f8fafc; font-weight: bold; text-align: center; margin-top: 2px; }
+.slot-stars { font-size: 10px; color: #facc15; margin-top: 2px; }
 
 .gear-inventory-panel {
   flex: 1;
@@ -446,7 +460,7 @@ html, body {
   border: 1px solid #1e293b;
   border-radius: 8px;
   padding: 10px;
-  height: 280px;
+  height: 290px;
   display: flex;
   flex-direction: column;
 }
@@ -463,22 +477,54 @@ html, body {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 .inv-equip-card {
   background: #111e38;
-  border: 1px solid #334155;
+  border: 1.5px solid #334155;
   border-radius: 6px;
-  padding: 6px 10px;
-  cursor: pointer;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.card-header-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  transition: all 0.15s;
 }
-.inv-equip-card:hover { border-color: #38bdf8; background: #1e293b; }
+.card-tier-tag {
+  font-size: 10px;
+  font-weight: 900;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.card-actions-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 4px;
+}
+.btn-card-action {
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: bold;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.btn-equip { background: #0284c7; color: white; border-color: #38bdf8; }
+.btn-upgrade { background: #ca8a04; color: white; border-color: #eab308; }
+.btn-salvage { background: #1e293b; color: #f87171; border-color: #ef4444; }
 
-/* ==================== 戰鬥畫面：等比完美貼合 ==================== */
+/* 5 大裝備品階色票標籤 */
+.tier-common { color: #f1f5f9; border-color: #94a3b8; }
+.tier-rare { color: #38bdf8; border-color: #0284c7; }
+.tier-elite { color: #facc15; border-color: #ca8a04; }
+.tier-epic { color: #c084fc; border-color: #9333ea; }
+.tier-legendary { color: #fb923c; border-color: #ea580c; }
+
+/* ==================== 戰鬥畫面自適應貼合 ==================== */
 #game-container {
   display: none;
   background: #090d16;
@@ -486,8 +532,6 @@ html, body {
   height: 100vh;
   height: 100dvh;
 }
-
-/* 780x540 邏輯視窗容器：自動最大化貼合螢幕，絕不切邊 */
 .canvas-aspect-wrapper {
   position: relative;
   width: 100%;
@@ -499,7 +543,6 @@ html, body {
   justify-content: center;
   align-items: center;
 }
-
 canvas#game-canvas {
   width: 100%;
   height: 100%;
@@ -655,13 +698,13 @@ canvas#game-canvas {
   transition: transform 0.04s ease-out;
 }
 
-/* 右側四鍵動作群 */
+/* 右側三鍵動作群 (射擊、法器、衝刺) */
 #battle-action-cluster {
   position: absolute;
   bottom: max(15px, env(safe-area-inset-bottom));
   right: max(15px, env(safe-area-inset-right));
-  width: 220px;
-  height: 200px;
+  width: 190px;
+  height: 180px;
   pointer-events: none;
   z-index: 25;
 }
@@ -681,31 +724,21 @@ canvas#game-canvas {
 }
 .cluster-btn:active { transform: scale(0.9); }
 
-.btn-melee {
-  width: 68px;
-  height: 68px;
-  bottom: 60px;
-  right: 70px;
+.btn-shoot {
+  width: 66px;
+  height: 66px;
+  bottom: 50px;
+  left: 15px;
   background: radial-gradient(circle at 30% 30%, #0284c7, #082f49);
   border: 2px solid #38bdf8;
   box-shadow: 0 4px 16px rgba(56, 189, 248, 0.4);
   color: white;
 }
-.btn-ranged {
-  width: 56px;
-  height: 56px;
-  bottom: 80px;
-  left: 10px;
-  background: radial-gradient(circle at 30% 30%, #0d9488, #042f2e);
-  border: 1.5px solid #2dd4bf;
-  box-shadow: 0 3px 12px rgba(45, 212, 191, 0.35);
-  color: #ccfbf1;
-}
 .btn-artifact {
   width: 54px;
   height: 54px;
   top: 10px;
-  right: 40px;
+  right: 35px;
   background: radial-gradient(circle at 30% 30%, #7c3aed, #2e1065);
   border: 1.5px solid #c084fc;
   box-shadow: 0 3px 12px rgba(192, 132, 252, 0.35);
@@ -721,7 +754,6 @@ canvas#game-canvas {
   box-shadow: 0 4px 16px rgba(245, 158, 11, 0.4);
   color: #fffbeb;
 }
-
 .act-icon { font-size: 18px; line-height: 1; }
 .act-txt { font-size: 9.5px; font-weight: 900; margin-top: 1px; }
 
@@ -755,7 +787,7 @@ canvas#game-canvas {
   padding: 12px 20px;
   border-radius: 8px;
   cursor: pointer;
-  width: 320px;
+  width: 330px;
   text-align: left;
   margin-top: 10px;
   transition: transform 0.15s, background 0.2s;
@@ -815,7 +847,8 @@ canvas#game-canvas {
   text-align: center;
 }
 .victory-title { font-size: 22px; font-weight: 900; color: #34d399; letter-spacing: 2px; }
-.victory-country { font-size: 18px; font-weight: bold; color: #ffffff; margin: 12px 0 6px; }
+.victory-country { font-size: 18px; font-weight: bold; color: #ffffff; margin: 12px 0 4px; }
+.victory-gold-reward { font-size: 15px; font-weight: 900; color: #facc15; margin-bottom: 8px; }
 .victory-desc { font-size: 12px; color: #94a3b8; line-height: 1.6; margin-bottom: 20px; }
 .btn-return-map { width: 100%; padding: 12px 0; font-size: 15px; }
 
