@@ -23,7 +23,7 @@
   </div>
 </div>
 
-<!-- 2. 故事模式 (點擊任意處翻頁) -->
+<!-- 2. 故事模式 -->
 <div id="story-screen" class="screen" onclick="handleStoryScreenClick(event)">
   <div class="story-header">
     <div class="progress-dots" id="dots-container"></div>
@@ -39,39 +39,58 @@
 <!-- 3. 大地圖選關畫面 (3D 旋轉地球) -->
 <div id="world-map-screen" class="screen">
   <div class="map-header">
-    <div class="map-title">全球防衛陣線 · 領土收復行動</div>
+    <div class="map-title">全球防衛陣線 · 100國領土收復</div>
     <div class="map-save-info" id="map-save-status">進度已自動雲端存檔</div>
   </div>
 
   <div class="map-body">
-    <!-- 地球 Canvas 畫布 -->
     <div class="globe-viewport">
       <canvas id="globe-canvas" width="460" height="420"></canvas>
-      <div class="globe-hint">可使用滑鼠/手指水平滑動旋轉地球</div>
+      <div class="globe-hint">滑動旋轉地球 | 點選航點開啟國家作戰</div>
     </div>
 
-    <!-- 關卡詳細情報卡 -->
+    <!-- 國家總覽情報卡 -->
     <div class="stage-info-card">
-      <div class="stage-rank-tag" id="stage-rank-tag">STAGE 001 / 100</div>
-      <div class="stage-country-name" id="stage-country-name">梵蒂岡 (Vatican City)</div>
-      <div class="stage-area-data" id="stage-area-data">國土面積：約 0.49 km²</div>
-      
-      <div class="stage-brief-box" id="stage-brief-box">
-        全球最小微型聖城，受到突變海嗣最初波次圍困。擊退登陸潮並收復第一塊地表領土！
+      <div class="stage-card-top">
+        <span class="stage-flag" id="stage-flag">🇻🇦</span>
+        <div>
+          <div class="stage-rank-tag" id="stage-rank-tag">STAGE 001 / 100</div>
+          <div class="stage-country-name" id="stage-country-name">梵蒂岡 (Vatican City)</div>
+        </div>
       </div>
+      
+      <div class="stage-area-data" id="stage-area-data">國土面積：約 0.49 km² · 歐洲防線</div>
+      <div class="stage-brief-box" id="stage-brief-box">微型聖城，海嗣初次登陸點。</div>
 
       <div class="stage-meta-row">
-        <span>難度評級：<b id="stage-difficulty" style="color: #34d399;">★☆☆☆☆</b></span>
-        <span>預估敵群：<b id="stage-enemy-preview" style="color: #38bdf8;">弱化水母先遣隊</b></span>
+        <span>區域環境：<b id="stage-biome" style="color: #38bdf8;">寒霜歐陸裂隙</b></span>
+        <span>防線進度：<b id="stage-progress-text" style="color: #34d399;">0 / 10 哨站</b></span>
       </div>
 
       <div class="stage-action-row">
         <button class="map-nav-btn" onclick="prevStage()">◀ 上一國</button>
-        <button class="btn btn-enter-stage" id="btn-enter-stage" onclick="launchSelectedStage()">出擊作戰</button>
+        <button class="btn btn-enter-stage" id="btn-open-substages" onclick="openSubstagesModal()">展開戰術哨站</button>
         <button class="map-nav-btn" onclick="nextStage()">下一國 ▶</button>
       </div>
 
       <button class="btn-clear-save" onclick="resetSaveData()">重設所有存檔</button>
+    </div>
+  </div>
+
+  <!-- 國家 10 小關戰術彈窗 -->
+  <div id="substage-modal" class="modal-backdrop">
+    <div class="substage-container">
+      <div class="substage-header">
+        <div>
+          <span id="substage-modal-flag">🇻🇦</span>
+          <span id="substage-modal-country" style="font-weight: 900; margin-left: 6px;">梵蒂岡 防衛哨站</span>
+        </div>
+        <button class="close-btn" onclick="closeSubstagesModal()">✕</button>
+      </div>
+      <div class="substage-desc">每個國家分為 10 個作戰分區：第 5 關降臨中階精英 Boss，第 10 關降臨終極霸主 Boss！</div>
+      <div class="substage-grid" id="substage-grid">
+        <!-- 由 JS 動態注入 1~10 小關按鈕 -->
+      </div>
     </div>
   </div>
 </div>
@@ -80,15 +99,13 @@
 <div id="game-container" class="screen">
   <canvas id="game-canvas" width="780" height="540"></canvas>
   
-  <!-- 全螢幕 Boss 警報遮罩 -->
   <div id="boss-alarm-overlay">
-    <div class="alarm-text">⚠️ 警告：深海霸主先鋒接近 ⚠️</div>
+    <div class="alarm-text" id="alarm-text">⚠️ 警告：區域霸主現身 ⚠️</div>
   </div>
 
-  <!-- Boss 專屬血條 -->
   <div id="boss-bar-container">
     <div class="boss-label">
-      <span id="boss-name">【深海巨螯·狂暴先鋒】</span>
+      <span id="boss-name">【國家領土霸主】</span>
       <span id="boss-hp-text">100%</span>
     </div>
     <div class="boss-bar-bg"><div id="boss-bar-fill"></div></div>
@@ -114,16 +131,15 @@
 
     <div class="hud-stats">
       <span id="txt-level" class="stat-badge">階級: Lv.1</span>
-      <span id="txt-current-country" class="stat-badge" style="color: #f59e0b; border-color: #f59e0b;">梵蒂岡 (0.49 km²)</span>
+      <span id="txt-current-country" class="stat-badge" style="color: #f59e0b; border-color: #f59e0b;">🇻🇦 梵蒂岡 (0.49 km²) - 1/10</span>
       <span id="txt-kills" class="stat-badge">擊退海嗣: 0</span>
       <button id="btn-open-bag" onclick="toggleInventory()">🎒 整備裝備 [B]</button>
     </div>
   </div>
 
-  <!-- 動態浮動搖桿 -->
+  <!-- 搖桿與手機右側按鍵 -->
   <div id="joystick-base"><div id="joystick-thumb"></div></div>
 
-  <!-- 手機端右手快捷動作按鈕群 -->
   <div id="mobile-action-group">
     <button id="btn-touch-bag" class="touch-action-btn" onclick="toggleInventory()">
       <span class="btn-icon">🎒</span>
@@ -136,7 +152,7 @@
     </button>
   </div>
 
-  <!-- 升級彈窗 -->
+  <!-- 常規升級彈窗 -->
   <div id="upgrade-modal" class="modal-backdrop">
     <h3 style="color: #38bdf8; letter-spacing: 2px;">防衛系統進化升級</h3>
     <div class="upgrade-card" onclick="chooseUpgrade('firerate')">⚡ 聚焦脈衝冷卻加速 (-20%)</div>
@@ -147,23 +163,23 @@
   <!-- Boss 戰利品自選寶箱視窗 -->
   <div id="chest-modal" class="modal-backdrop">
     <div class="chest-box-container">
-      <div class="chest-title">👑 擊破霸主先鋒 · 戰利品自選</div>
-      <div class="chest-subtitle" id="chest-stage-info">目前關卡裝備階級：普通 (STAGE 1)</div>
+      <div class="chest-title" id="chest-title">👑 擊破區域 Boss · 頂級裝備自選</div>
+      <div class="chest-subtitle" id="chest-stage-info">品質階級：稀有戰利品</div>
       <div class="chest-cards-grid" id="chest-options-container"></div>
     </div>
   </div>
 
-  <!-- 關卡勝利結算彈窗 -->
+  <!-- 小關/國家通關結算彈窗 -->
   <div id="victory-modal" class="modal-backdrop">
     <div class="victory-container">
-      <div class="victory-title">★ 領土收復成功 ★</div>
-      <div class="victory-country" id="victory-country-name">梵蒂岡 已全面肅清！</div>
-      <div class="victory-desc">海嗣狂潮退卻，戰利品與戰甲數據已同步寫入存檔核心。</div>
-      <button class="btn btn-return-map" onclick="returnToWorldMap()">返回全球地圖</button>
+      <div class="victory-title">★ 哨站肅清完畢 ★</div>
+      <div class="victory-country" id="victory-country-name">梵蒂岡 - 哨站 1 肅清！</div>
+      <div class="victory-desc" id="victory-desc-text">戰利品已全數入庫，作戰紀錄已自動寫入核心。</div>
+      <button class="btn btn-return-map" onclick="returnToWorldMap()">返回防衛地圖</button>
     </div>
   </div>
 
-  <!-- 九宮格裝備背包 -->
+  <!-- 九宮格背包 -->
   <div id="inventory-modal" class="modal-backdrop">
     <div class="inv-container">
       <div class="inv-header">
@@ -190,7 +206,6 @@
   </div>
 </div>
 
-<!-- 5 模組載入順序：美術 -> 地圖資料與儲存 -> 戰鬥核心 -->
 <script src="render_art.js"></script>
 <script src="map.js"></script>
 <script src="game.js"></script>
