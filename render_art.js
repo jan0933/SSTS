@@ -2,7 +2,6 @@
  * SSTS - 美術渲染、紙娃娃、5大品階光環、1~5星粒子反饋與戰鬥特效模組 (render_art.js)
  */
 
-// 5 大品質色彩與光階特效配置表
 const TIER_VISUALS = {
   common: { glow: "rgba(241, 245, 249, 0.4)", text: "#f1f5f9", shadow: "#94a3b8", blur: 4 },
   rare: { glow: "rgba(56, 189, 248, 0.65)", text: "#38bdf8", shadow: "#0284c7", blur: 10 },
@@ -11,7 +10,6 @@ const TIER_VISUALS = {
   legendary: { glow: "rgba(251, 146, 60, 0.95)", text: "#fb923c", shadow: "#ea580c", blur: 24 }
 };
 
-// 基礎部件外型風格表 (相容字串與物件結構)
 const EQUIPMENT_REGISTRY = {
   helmets: {
     scout: { color: "#38bdf8", visor: "#0284c7", horn: false },
@@ -36,9 +34,6 @@ const EQUIPMENT_REGISTRY = {
   }
 };
 
-/**
- * 輔助函式：自裝備物件或字串中解析鍵值與品階
- */
 function parseGearMeta(gearSlot, defaultTier = "common") {
   if (!gearSlot) return { val: null, tier: defaultTier, stars: 1 };
   if (typeof gearSlot === "string") return { val: gearSlot, tier: defaultTier, stars: 1 };
@@ -46,13 +41,11 @@ function parseGearMeta(gearSlot, defaultTier = "common") {
     val: gearSlot.val || gearSlot.id || null,
     tier: gearSlot.tier || defaultTier,
     stars: gearSlot.stars || 1,
+    affix: gearSlot.affix || null,
     raw: gearSlot
   };
 }
 
-/**
- * 繪製紙娃娃玩家本體 (支援全遠程武器、5品質光暈、1~5星升星粒子)
- */
 function drawPlayerPaperdoll(ctx, p) {
   ctx.save();
   ctx.translate(p.x, p.y);
@@ -66,7 +59,6 @@ function drawPlayerPaperdoll(ctx, p) {
     bobbing = Math.abs(Math.cos(p.animTimer * 12)) * 2;
   }
 
-  // 解析各裝備槽位
   const eq = p.equipment || {};
   const helm = parseGearMeta(eq.helmet);
   const armor = parseGearMeta(eq.armor);
@@ -81,22 +73,21 @@ function drawPlayerPaperdoll(ctx, p) {
   const gloveColor = gloves.val ? (EQUIPMENT_REGISTRY.gloves[gloves.val] || "#475569") : "#475569";
   const bootColor = boots.val ? (EQUIPMENT_REGISTRY.boots[boots.val] || "#334155") : "#334155";
 
-  // 高階裝備自帶全身傳奇光環 (史詩/傳說 裝備達到 3★ 以上時散發能量氣場)
-  if (wepObj.tier === 'legendary' || armor.tier === 'legendary' || wepObj.stars >= 4) {
+  // 滿星覺醒或傳說裝備散發神話氣場
+  if (wepObj.tier === 'legendary' || armor.tier === 'legendary' || wepObj.stars === 5) {
     ctx.save();
     const auraPulse = Math.sin(p.animTimer * 6) * 3;
     const tierMeta = TIER_VISUALS[wepObj.tier] || TIER_VISUALS.legendary;
     ctx.strokeStyle = tierMeta.glow;
     ctx.shadowColor = tierMeta.shadow;
-    ctx.shadowBlur = tierMeta.blur + (wepObj.stars * 2);
-    ctx.lineWidth = 1.5;
+    ctx.shadowBlur = tierMeta.blur + (wepObj.stars * 2.5);
+    ctx.lineWidth = 1.8;
     ctx.beginPath();
     ctx.ellipse(0, -2 - bobbing, 16 + auraPulse, 22 + auraPulse, 0, 0, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
   }
 
-  // 衝刺時高亮過載護盾
   if (p.isDashing) {
     ctx.save();
     ctx.strokeStyle = "rgba(103, 232, 249, 0.9)";
@@ -122,7 +113,7 @@ function drawPlayerPaperdoll(ctx, p) {
     ctx.fill();
   }
 
-  // 2. 腿部與鞋子
+  // 2. 雙腿與鞋子
   const leftLegAngle = walkCycle * 0.45;
   const rightLegAngle = -walkCycle * 0.45;
 
@@ -147,7 +138,6 @@ function drawPlayerPaperdoll(ctx, p) {
     ctx.fillStyle = armorConfig.plate;
     ctx.shadowColor = armorTierMeta.shadow;
     ctx.shadowBlur = armor.stars >= 3 ? armorTierMeta.blur : 0;
-
     ctx.beginPath();
     ctx.moveTo(-5, -6); ctx.lineTo(5, -6); ctx.lineTo(3, 4); ctx.lineTo(-3, 4);
     ctx.closePath(); ctx.fill();
@@ -174,15 +164,12 @@ function drawPlayerPaperdoll(ctx, p) {
   }
   ctx.restore();
 
-  // 5. 單一遠程武器與星級射擊姿態
+  // 5. 單一遠程武器
   drawSingleRangedWeapon(ctx, p, wepObj, gloveColor, bobbing);
 
   ctx.restore();
 }
 
-/**
- * 繪製單一遠程武器 (支援弓弩、法杖、脈衝銃，並即時渲染星級與品階光彩)
- */
 function drawSingleRangedWeapon(ctx, p, wep, gloveColor, bobbing) {
   const isAttacking = p.attackTimer > 0;
   const attackProgress = 1 - (p.attackTimer / p.attackDuration);
@@ -192,20 +179,16 @@ function drawSingleRangedWeapon(ctx, p, wep, gloveColor, bobbing) {
   ctx.save();
   ctx.translate(3, -2 - bobbing);
 
-  // 手套手臂
   ctx.fillStyle = gloveColor;
   ctx.fillRect(0, -2, 7, 4);
 
-  // 武器發光陰影 (隨星級增強)
   ctx.shadowColor = tierMeta.shadow;
   ctx.shadowBlur = tierMeta.blur + (stars * 2);
 
   if (wep.type === 'staff') {
-    // 【遠程法杖型態】：充能法珠 + 星階微型環
     let staffTilt = 0.2;
     if (isAttacking) {
       staffTilt = -0.5 + Math.sin(attackProgress * Math.PI) * 0.4;
-      // 攻擊充能星芒陣
       ctx.save();
       ctx.translate(20, -14);
       ctx.strokeStyle = tierMeta.glow;
@@ -217,32 +200,27 @@ function drawSingleRangedWeapon(ctx, p, wep, gloveColor, bobbing) {
     }
     ctx.rotate(staffTilt);
 
-    // 杖身
     ctx.fillStyle = "#475569";
     ctx.fillRect(4, -1.5, 20, 3);
 
-    // 核心寶珠 (隨品質變色)
     ctx.fillStyle = tierMeta.text;
     ctx.beginPath();
     ctx.arc(24, 0, 4 + (stars * 0.7), 0, Math.PI * 2);
     ctx.fill();
 
   } else {
-    // 【遠程電磁弩弓型態】：拉弦蓄力 + 散射光軌
     let drawPull = 0;
     if (isAttacking) drawPull = Math.sin(attackProgress * Math.PI) * 5;
 
     ctx.save();
     ctx.translate(8, 0);
 
-    // 弓身
     ctx.strokeStyle = tierMeta.text;
     ctx.lineWidth = 2 + (stars * 0.4);
     ctx.beginPath();
     ctx.arc(0, 0, 11 + stars, -Math.PI / 2.3, Math.PI / 2.3);
     ctx.stroke();
 
-    // 能量弓弦
     ctx.strokeStyle = "#cbd5e1";
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -251,7 +229,6 @@ function drawSingleRangedWeapon(ctx, p, wep, gloveColor, bobbing) {
     ctx.lineTo(4, 10 + stars);
     ctx.stroke();
 
-    // 射出瞬間之蓄能電磁箭
     if (isAttacking) {
       ctx.fillStyle = tierMeta.text;
       ctx.fillRect(-drawPull, -1.5, 16 + (stars * 2), 3);
@@ -259,7 +236,7 @@ function drawSingleRangedWeapon(ctx, p, wep, gloveColor, bobbing) {
     ctx.restore();
   }
 
-  // 4★、5★ 頂級武器在持握端環繞旋轉微型星芒粒子
+  // 滿星 5★ 附加旋轉星芒光點
   if (stars >= 4) {
     const starAngle = (p.animTimer * 5);
     ctx.fillStyle = "#facc15";
@@ -271,9 +248,6 @@ function drawSingleRangedWeapon(ctx, p, wep, gloveColor, bobbing) {
   ctx.restore();
 }
 
-/**
- * 繪製四大法器專屬動態法術粒子特效
- */
 function drawArtifactSkillEffects(ctx, fxList, time) {
   for (let i = fxList.length - 1; i >= 0; i--) {
     const fx = fxList[i];
@@ -385,9 +359,6 @@ function drawArtifactSkillEffects(ctx, fxList, time) {
   }
 }
 
-/**
- * 繪製各大洲特色實體掩體建物
- */
 function drawObstacles(ctx, obstacles, continent, time) {
   for (const obs of obstacles) {
     ctx.save();
@@ -446,9 +417,6 @@ function drawObstacles(ctx, obstacles, continent, time) {
   }
 }
 
-/**
- * 繪製掉落在戰場上的磁鐵與炸彈道具
- */
 function drawBattlePickups(ctx, pickups, time) {
   for (const p of pickups) {
     ctx.save();
@@ -550,7 +518,8 @@ function drawPet(ctx, pet, p, time) {
     ctx.strokeStyle = "#a7f3d0"; ctx.lineWidth = 1;
     for (let t = -2; t <= 2; t += 2) {
       ctx.beginPath();
-      ctx.moveTo(t * 2, -2); ctx.lineTo(t * 2 + Math.sin(time * 3 + t) * 3, 8);
+      ctx.moveTo(t * 2, -2);
+      ctx.lineTo(t * 2 + Math.sin(time * 3 + t) * 3, 8);
       ctx.stroke();
     }
   } else if (pet.type === 'pull') {
