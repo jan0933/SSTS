@@ -36,11 +36,14 @@
   <button class="story-skip-btn" onclick="skipStory(event)">略過劇情 (SKIP)</button>
 </div>
 
-<!-- 3. 大地圖選關畫面 (3D 旋轉地球) -->
+<!-- 3. 大地圖選關畫面 (3D 旋轉地球 + 背包按鈕) -->
 <div id="world-map-screen" class="screen">
   <div class="map-header">
     <div class="map-title">全球防衛陣線 · 100國領土收復</div>
-    <div class="map-save-info" id="map-save-status">進度已自動雲端存檔</div>
+    <div class="map-header-right">
+      <button id="btn-map-inventory" class="btn-map-bag" onclick="toggleInventory()">🎒 機甲整裝 (INVENTORY)</button>
+      <div class="map-save-info" id="map-save-status">進度已自動雲端存檔</div>
+    </div>
   </div>
 
   <div class="map-body">
@@ -91,13 +94,91 @@
       <div class="substage-grid" id="substage-grid"></div>
     </div>
   </div>
+
+  <!-- 人體工學紙娃娃裝備視窗 (只在大地圖中打開) -->
+  <div id="inventory-modal" class="modal-backdrop">
+    <div class="paperdoll-inv-container">
+      <div class="inv-header">
+        <span>機甲整備系統 (INVENTORY)</span>
+        <button class="close-btn" onclick="toggleInventory()">✕</button>
+      </div>
+      
+      <div class="paperdoll-layout">
+        <!-- 裝備槽位核心區 (人體工學佈局) -->
+        <div class="gear-doll-wrapper">
+          <!-- 上方：頭盔 -->
+          <div class="doll-row top-row">
+            <div class="gear-slot" id="slot-helmet" onclick="selectSlotForEquip('helmet')">
+              <span class="slot-label">頭盔</span>
+              <span class="slot-val" id="val-helmet">未裝備</span>
+            </div>
+          </div>
+
+          <!-- 中央：雙手武器 + 盔甲 + 紙娃娃預覽 -->
+          <div class="doll-row mid-row">
+            <!-- 左手：近戰武器 -->
+            <div class="gear-slot weapon-slot" id="slot-melee" onclick="selectSlotForEquip('melee')">
+              <span class="slot-label">近戰武器</span>
+              <span class="slot-val" id="val-melee">赤手空拳</span>
+            </div>
+
+            <!-- 中央核心預覽與盔甲 -->
+            <div class="doll-center-core">
+              <canvas id="preview-canvas" width="160" height="170"></canvas>
+              <div class="gear-slot armor-slot" id="slot-armor" onclick="selectSlotForEquip('armor')">
+                <span class="slot-label">胸部盔甲</span>
+                <span class="slot-val" id="val-armor">未裝備</span>
+              </div>
+            </div>
+
+            <!-- 右手：遠程武器 -->
+            <div class="gear-slot weapon-slot" id="slot-ranged" onclick="selectSlotForEquip('ranged')">
+              <span class="slot-label">遠程武器</span>
+              <span class="slot-val" id="val-ranged">未裝備</span>
+            </div>
+          </div>
+
+          <!-- 下方：手套、鞋子、護符、法器 -->
+          <div class="doll-row bottom-row">
+            <div class="gear-slot" id="slot-gloves" onclick="selectSlotForEquip('gloves')">
+              <span class="slot-label">手套</span>
+              <span class="slot-val" id="val-gloves">未裝備</span>
+            </div>
+            <div class="gear-slot" id="slot-boots" onclick="selectSlotForEquip('boots')">
+              <span class="slot-label">鞋子</span>
+              <span class="slot-val" id="val-boots">未裝備</span>
+            </div>
+            <div class="gear-slot" id="slot-talisman" onclick="selectSlotForEquip('talisman')">
+              <span class="slot-label">護符 (寵物)</span>
+              <span class="slot-val" id="val-talisman">未裝備</span>
+            </div>
+            <div class="gear-slot" id="slot-artifact" onclick="selectSlotForEquip('artifact')">
+              <span class="slot-label">戰術法器</span>
+              <span class="slot-val" id="val-artifact">未裝備</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右側：選中欄位的庫存裝備選單 -->
+        <div class="gear-inventory-panel">
+          <div class="inv-panel-title" id="inv-panel-title">點選左側槽位進行替換</div>
+          <div class="inv-items-scroll" id="inv-items-scroll">
+            <div style="color: #64748b; font-size: 11px; padding: 20px 0; text-align: center;">請點擊左側人形裝備欄位</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="inv-footer">
+        <span>在大地圖完成配裝後，點擊關卡即可攜帶全套裝備進入戰鬥</span>
+      </div>
+    </div>
+  </div>
 </div>
 
-<!-- 4. 戰鬥主畫面 -->
+<!-- 4. 戰鬥主畫面 (無背包，僅顯示戰鬥按鈕群) -->
 <div id="game-container" class="screen">
   <canvas id="game-canvas" width="780" height="540"></canvas>
   
-  <!-- 全屏白光爆震 (拾取炸彈時觸發) -->
   <div id="emp-flash-overlay"></div>
 
   <div id="boss-alarm-overlay">
@@ -112,7 +193,7 @@
     <div class="boss-bar-bg"><div id="boss-bar-fill"></div></div>
   </div>
 
-  <!-- HUD 介面 -->
+  <!-- HUD 介面 (禁止背包按鈕) -->
   <div id="hud">
     <div class="hud-bar-wrapper">
       <div class="hud-bar-info">
@@ -133,27 +214,41 @@
     <div class="hud-stats">
       <span id="txt-level" class="stat-badge">階級: Lv.1</span>
       <span id="txt-current-country" class="stat-badge" style="color: #f59e0b; border-color: #f59e0b;">🇻🇦 梵蒂岡 (0.49 km²) - 1/10</span>
+      <span id="txt-weapon-mode" class="stat-badge" style="color: #38bdf8;">模式: 近戰斬擊</span>
       <span id="txt-kills" class="stat-badge">擊退海嗣: 0</span>
-      <button id="btn-open-bag" onclick="toggleInventory()">🎒 整備裝備 [B]</button>
     </div>
   </div>
 
-  <!-- 搖桿與手機右側按鍵 -->
+  <!-- 搖桿 (左半屏限定) -->
   <div id="joystick-base"><div id="joystick-thumb"></div></div>
 
-  <div id="mobile-action-group">
-    <button id="btn-touch-bag" class="touch-action-btn" onclick="toggleInventory()">
-      <span class="btn-icon">🎒</span>
-      <span class="btn-text">裝備</span>
+  <!-- 手機端右半側專用動作按鈕叢集 (衝刺、近戰、遠程、法器) -->
+  <div id="battle-action-cluster">
+    <!-- 1. 近戰攻擊 (Melee) -->
+    <button id="btn-act-melee" class="cluster-btn btn-melee" onclick="triggerManualAttack('melee')">
+      <span class="act-icon">⚔️</span>
+      <span class="act-txt">近戰</span>
     </button>
-    <button id="btn-touch-dash" class="touch-action-btn" onclick="triggerDash()">
-      <span class="btn-icon">⚡</span>
-      <span class="btn-text">衝刺</span>
+    <!-- 2. 遠程切換攻擊 (Ranged) -->
+    <button id="btn-act-ranged" class="cluster-btn btn-ranged" onclick="triggerManualAttack('ranged')">
+      <span class="act-icon">🏹</span>
+      <span class="act-txt">遠程</span>
+    </button>
+    <!-- 3. 法器主動技能 (Artifact) -->
+    <button id="btn-act-artifact" class="cluster-btn btn-artifact" onclick="triggerArtifactSkill()">
+      <span class="act-icon">🔮</span>
+      <span class="act-txt">法器</span>
+      <div id="artifact-cooldown-overlay"></div>
+    </button>
+    <!-- 4. 衝刺閃避 (Dash) -->
+    <button id="btn-act-dash" class="cluster-btn btn-dash" onclick="triggerDash()">
+      <span class="act-icon">⚡</span>
+      <span class="act-txt">衝刺</span>
       <div id="dash-cooldown-overlay"></div>
     </button>
   </div>
 
-  <!-- 常規升級彈窗 -->
+  <!-- 升級彈窗 -->
   <div id="upgrade-modal" class="modal-backdrop">
     <h3 style="color: #38bdf8; letter-spacing: 2px;">防衛系統進化升級</h3>
     <div style="font-size: 12px; color: #34d399; margin: 4px 0 10px;">★ 被動已提升：基礎攻擊 +5、生命上限 +15 ★</div>
@@ -188,32 +283,6 @@
       <div class="defeat-country" id="defeat-country-info">哨站防衛失守</div>
       <div class="defeat-desc">機甲緊急傳送回地表基地，等級與裝備已安全封存。整裝後隨時能再次發起反攻！</div>
       <button class="btn btn-return-defeat" onclick="returnToWorldMapFromDefeat()">返回全球地圖</button>
-    </div>
-  </div>
-
-  <!-- 九宮格背包 -->
-  <div id="inventory-modal" class="modal-backdrop">
-    <div class="inv-container">
-      <div class="inv-header">
-        <span>機甲整備系統 (INVENTORY)</span>
-        <button class="close-btn" onclick="toggleInventory()">✕</button>
-      </div>
-      <div class="inv-body">
-        <div class="preview-box">
-          <canvas id="preview-canvas" width="200" height="230"></canvas>
-          <div class="preview-info" id="preview-info">目前武器：空手電磁衝擊</div>
-          <div class="preview-pet" id="preview-pet-info">護符寵物：未啟用</div>
-        </div>
-        <div class="grid-section">
-          <div class="slot-filter">
-            <span class="tag">點擊背包內裝備即可進行穿脫</span>
-          </div>
-          <div class="inv-grid" id="inv-grid"></div>
-        </div>
-      </div>
-      <div class="inv-footer">
-        <span>快捷操作：鍵盤 [Space] 衝刺、[B] 背包 | 支援手機觸控</span>
-      </div>
     </div>
   </div>
 </div>
