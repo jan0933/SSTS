@@ -17,10 +17,13 @@
 <!-- 1. 首頁畫面 -->
 <div id="title-screen" class="screen">
   <canvas id="logo-canvas" width="700" height="260"></canvas>
-  <button class="btn" onclick="startStory()">開始作戰 (START)</button>
+  <div class="title-btn-group">
+    <button class="btn" onclick="startStory()">開始作戰 (START)</button>
+    <button class="btn btn-secondary-home" id="btn-continue-game" onclick="continueGameFromSave()">延續進度 (CONTINUE)</button>
+  </div>
 </div>
 
-<!-- 2. 故事模式 (點擊全螢幕任意處翻頁) -->
+<!-- 2. 故事模式 (點擊任意處翻頁) -->
 <div id="story-screen" class="screen" onclick="handleStoryScreenClick(event)">
   <div class="story-header">
     <div class="progress-dots" id="dots-container"></div>
@@ -33,7 +36,47 @@
   <button class="story-skip-btn" onclick="skipStory(event)">略過劇情 (SKIP)</button>
 </div>
 
-<!-- 3. 戰鬥主畫面 -->
+<!-- 3. 大地圖選關畫面 (3D 旋轉地球) -->
+<div id="world-map-screen" class="screen">
+  <div class="map-header">
+    <div class="map-title">全球防衛陣線 · 領土收復行動</div>
+    <div class="map-save-info" id="map-save-status">進度已自動雲端存檔</div>
+  </div>
+
+  <div class="map-body">
+    <!-- 地球 Canvas 畫布 -->
+    <div class="globe-viewport">
+      <canvas id="globe-canvas" width="460" height="420"></canvas>
+      <div class="globe-hint">可使用滑鼠/手指水平滑動旋轉地球</div>
+    </div>
+
+    <!-- 關卡詳細情報卡 -->
+    <div class="stage-info-card">
+      <div class="stage-rank-tag" id="stage-rank-tag">STAGE 001 / 100</div>
+      <div class="stage-country-name" id="stage-country-name">梵蒂岡 (Vatican City)</div>
+      <div class="stage-area-data" id="stage-area-data">國土面積：約 0.49 km²</div>
+      
+      <div class="stage-brief-box" id="stage-brief-box">
+        全球最小微型聖城，受到突變海嗣最初波次圍困。擊退登陸潮並收復第一塊地表領土！
+      </div>
+
+      <div class="stage-meta-row">
+        <span>難度評級：<b id="stage-difficulty" style="color: #34d399;">★☆☆☆☆</b></span>
+        <span>預估敵群：<b id="stage-enemy-preview" style="color: #38bdf8;">弱化水母先遣隊</b></span>
+      </div>
+
+      <div class="stage-action-row">
+        <button class="map-nav-btn" onclick="prevStage()">◀ 上一國</button>
+        <button class="btn btn-enter-stage" id="btn-enter-stage" onclick="launchSelectedStage()">出擊作戰</button>
+        <button class="map-nav-btn" onclick="nextStage()">下一國 ▶</button>
+      </div>
+
+      <button class="btn-clear-save" onclick="resetSaveData()">重設所有存檔</button>
+    </div>
+  </div>
+</div>
+
+<!-- 4. 戰鬥主畫面 -->
 <div id="game-container" class="screen">
   <canvas id="game-canvas" width="780" height="540"></canvas>
   
@@ -48,14 +91,11 @@
       <span id="boss-name">【深海巨螯·狂暴先鋒】</span>
       <span id="boss-hp-text">100%</span>
     </div>
-    <div class="boss-bar-bg">
-      <div id="boss-bar-fill"></div>
-    </div>
+    <div class="boss-bar-bg"><div id="boss-bar-fill"></div></div>
   </div>
 
-  <!-- HUD 介面：經驗值與生命值清晰標示 -->
+  <!-- HUD 介面 -->
   <div id="hud">
-    <!-- 經驗值條 (黃金光芒) -->
     <div class="hud-bar-wrapper">
       <div class="hud-bar-info">
         <span class="bar-title">經驗進度 (EXP)</span>
@@ -64,7 +104,6 @@
       <div class="bar-bg exp-bg"><div class="bar-fill exp-fill" id="exp-bar"></div></div>
     </div>
 
-    <!-- 生命核心血條 (翠綠光芒) -->
     <div class="hud-bar-wrapper" style="margin-top: 5px;">
       <div class="hud-bar-info">
         <span class="bar-title">核心護甲 (HP)</span>
@@ -73,19 +112,16 @@
       <div class="bar-bg hp-bg"><div class="bar-fill hp-fill" id="hp-bar"></div></div>
     </div>
 
-    <!-- 底部數據資訊列 -->
     <div class="hud-stats">
       <span id="txt-level" class="stat-badge">階級: Lv.1</span>
-      <span id="txt-stage" class="stat-badge" style="color: #f59e0b; border-color: #f59e0b;">關卡: 1-1</span>
+      <span id="txt-current-country" class="stat-badge" style="color: #f59e0b; border-color: #f59e0b;">梵蒂岡 (0.49 km²)</span>
       <span id="txt-kills" class="stat-badge">擊退海嗣: 0</span>
       <button id="btn-open-bag" onclick="toggleInventory()">🎒 整備裝備 [B]</button>
     </div>
   </div>
 
-  <!-- 動態浮動觸控搖桿 -->
-  <div id="joystick-base">
-    <div id="joystick-thumb"></div>
-  </div>
+  <!-- 動態浮動搖桿 -->
+  <div id="joystick-base"><div id="joystick-thumb"></div></div>
 
   <!-- 手機端右手快捷動作按鈕群 -->
   <div id="mobile-action-group">
@@ -100,7 +136,7 @@
     </button>
   </div>
 
-  <!-- 升級彈窗 (常規升級) -->
+  <!-- 升級彈窗 -->
   <div id="upgrade-modal" class="modal-backdrop">
     <h3 style="color: #38bdf8; letter-spacing: 2px;">防衛系統進化升級</h3>
     <div class="upgrade-card" onclick="chooseUpgrade('firerate')">⚡ 聚焦脈衝冷卻加速 (-20%)</div>
@@ -108,14 +144,22 @@
     <div class="upgrade-card" onclick="chooseUpgrade('speed')">👟 地表突擊推進器 (+15% 移速)</div>
   </div>
 
-  <!-- Boss 戰利品自選寶箱視窗 (三選一裝備) -->
+  <!-- Boss 戰利品自選寶箱視窗 -->
   <div id="chest-modal" class="modal-backdrop">
     <div class="chest-box-container">
       <div class="chest-title">👑 擊破霸主先鋒 · 戰利品自選</div>
       <div class="chest-subtitle" id="chest-stage-info">目前關卡裝備階級：普通 (STAGE 1)</div>
-      <div class="chest-cards-grid" id="chest-options-container">
-        <!-- 由 JS 動態注入三選一裝備卡牌 -->
-      </div>
+      <div class="chest-cards-grid" id="chest-options-container"></div>
+    </div>
+  </div>
+
+  <!-- 關卡勝利結算彈窗 -->
+  <div id="victory-modal" class="modal-backdrop">
+    <div class="victory-container">
+      <div class="victory-title">★ 領土收復成功 ★</div>
+      <div class="victory-country" id="victory-country-name">梵蒂岡 已全面肅清！</div>
+      <div class="victory-desc">海嗣狂潮退卻，戰利品與戰甲數據已同步寫入存檔核心。</div>
+      <button class="btn btn-return-map" onclick="returnToWorldMap()">返回全球地圖</button>
     </div>
   </div>
 
@@ -146,7 +190,9 @@
   </div>
 </div>
 
+<!-- 5 模組載入順序：美術 -> 地圖資料與儲存 -> 戰鬥核心 -->
 <script src="render_art.js"></script>
+<script src="map.js"></script>
 <script src="game.js"></script>
 </body>
 </html>
