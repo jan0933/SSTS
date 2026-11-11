@@ -168,7 +168,7 @@ html, body {
   z-index: 10;
 }
 
-/* ==================== 3D 地球選關與國旗資訊卡 ==================== */
+/* 3D 地球選關 */
 #world-map-screen {
   background: radial-gradient(circle at 50% 50%, #0c1a30 0%, #020617 90%);
   display: none;
@@ -224,15 +224,8 @@ html, body {
   flex-direction: column;
   gap: 8px;
 }
-.stage-card-top {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.stage-flag {
-  font-size: 34px;
-  filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.5));
-}
+.stage-card-top { display: flex; align-items: center; gap: 12px; }
+.stage-flag { font-size: 34px; filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.5)); }
 .stage-rank-tag { font-size: 11px; font-weight: 800; color: #38bdf8; letter-spacing: 1.5px; }
 .stage-country-name { font-size: 18px; font-weight: 900; color: #ffffff; }
 .stage-area-data { font-size: 11.5px; color: #f59e0b; font-weight: bold; }
@@ -302,11 +295,7 @@ html, body {
   padding-bottom: 8px;
 }
 .substage-desc { font-size: 11.5px; color: #94a3b8; }
-.substage-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  grid-gap: 10px;
-}
+.substage-grid { display: grid; grid-template-columns: repeat(5, 1fr); grid-gap: 10px; }
 .substage-btn {
   background: #111e38;
   border: 1px solid #334155;
@@ -329,25 +318,10 @@ html, body {
   background: #0284c7;
   transform: translateY(-2px);
 }
-.substage-btn.cleared {
-  border-color: #34d399;
-  background: rgba(16, 185, 129, 0.15);
-}
-.substage-btn.boss-stage {
-  border-color: #f43f5e;
-  background: rgba(244, 63, 94, 0.15);
-}
-.substage-btn.locked {
-  background: #090d16;
-  border-color: #1e293b;
-  color: #475569;
-  cursor: not-allowed;
-}
-.substage-badge {
-  font-size: 9px;
-  padding: 1px 4px;
-  border-radius: 4px;
-}
+.substage-btn.cleared { border-color: #34d399; background: rgba(16, 185, 129, 0.15); }
+.substage-btn.boss-stage { border-color: #f43f5e; background: rgba(244, 63, 94, 0.15); }
+.substage-btn.locked { background: #090d16; border-color: #1e293b; color: #475569; cursor: not-allowed; }
+.substage-badge { font-size: 9px; padding: 1px 4px; border-radius: 4px; }
 
 /* 戰鬥 HUD */
 #game-container { display: none; background: #090d16; }
@@ -569,7 +543,7 @@ canvas#game-canvas {
   transition: height 0.05s linear;
 }
 
-/* 彈窗與通關面板 */
+/* 彈窗 */
 .modal-backdrop {
   position: absolute;
   inset: 0;
@@ -632,6 +606,7 @@ canvas#game-canvas {
 .chest-card-name { font-size: 14px; font-weight: 900; color: #ffffff; margin: 6px 0; }
 .chest-card-desc { font-size: 11px; color: #cbd5e1; line-height: 1.4; }
 
+/* 勝利結算彈窗 */
 .victory-container {
   width: 440px;
   max-width: 90%;
@@ -646,6 +621,32 @@ canvas#game-canvas {
 .victory-country { font-size: 18px; font-weight: bold; color: #ffffff; margin: 12px 0 6px; }
 .victory-desc { font-size: 12px; color: #94a3b8; line-height: 1.6; margin-bottom: 20px; }
 .btn-return-map { width: 100%; padding: 12px 0; font-size: 15px; }
+
+/* 死亡結算彈窗 (代替原先易卡死的 alert) */
+.defeat-container {
+  width: 440px;
+  max-width: 90%;
+  background: #18090e;
+  border: 2px solid #ef4444;
+  box-shadow: 0 0 35px rgba(239, 68, 68, 0.5);
+  border-radius: 12px;
+  padding: 24px;
+  text-align: center;
+}
+.defeat-title { font-size: 22px; font-weight: 900; color: #ef4444; letter-spacing: 2px; }
+.defeat-country { font-size: 18px; font-weight: bold; color: #ffffff; margin: 12px 0 6px; }
+.defeat-desc { font-size: 12px; color: #cbd5e1; line-height: 1.6; margin-bottom: 20px; }
+.btn-return-defeat {
+  width: 100%;
+  padding: 12px 0;
+  font-size: 15px;
+  background: linear-gradient(135deg, #b91c1c, #991b1b);
+  border-color: #ef4444;
+}
+.btn-return-defeat:hover {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  box-shadow: 0 6px 30px rgba(239, 68, 68, 0.7);
+}
 
 /* 背包視窗 */
 .inv-container {
