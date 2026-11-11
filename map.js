@@ -293,7 +293,8 @@ function drawGlobeScene() {
         gctx.beginPath(); gctx.arc(0, 0, 3.5, 0, Math.PI * 2); gctx.fill();
       } else if (isUnlocked) {
         gctx.fillStyle = "#facc15";
-        gctx.shadowColor = "#eab308"; gctx.shadowBlur = 8;
+        gctx.shadowColor = "#eab308";
+        gctx.shadowBlur = 8;
         gctx.beginPath(); gctx.arc(0, 0, 4, 0, Math.PI * 2); gctx.fill();
       } else {
         gctx.fillStyle = "rgba(239, 68, 68, 0.4)";
