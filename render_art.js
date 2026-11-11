@@ -34,7 +34,30 @@ const EQUIPMENT_REGISTRY = {
 };
 
 /**
- * 繪製紙娃娃玩家本體 (包含骨骼走路、姿態與呼吸)
+ * 繪製衝刺時留下的電磁等離子殘影
+ */
+function drawDashGhosts(ctx, ghosts) {
+  for (let i = 0; i < ghosts.length; i++) {
+    const g = ghosts[i];
+    ctx.save();
+    ctx.translate(g.x, g.y);
+    if (g.facing < 0) ctx.scale(-1, 1);
+
+    ctx.fillStyle = `rgba(56, 189, 248, ${g.alpha * 0.45})`;
+    ctx.shadowColor = "#38bdf8";
+    ctx.shadowBlur = 10 * g.alpha;
+
+    // 簡化機甲剪影
+    ctx.beginPath();
+    ctx.arc(0, -10, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillRect(-6, -6, 12, 16);
+    ctx.restore();
+  }
+}
+
+/**
+ * 繪製紙娃娃玩家本體 (包含骨骼走路、衝刺無敵光暈與呼吸)
  */
 function drawPlayerPaperdoll(ctx, p) {
   ctx.save();
@@ -51,6 +74,19 @@ function drawPlayerPaperdoll(ctx, p) {
     bobbing = Math.abs(Math.cos(p.animTimer * 12)) * 2;
   }
 
+  // 衝刺中的高亮過載護盾光環
+  if (p.isDashing) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(103, 232, 249, 0.8)";
+    ctx.lineWidth = 2;
+    ctx.shadowColor = "#38bdf8";
+    ctx.shadowBlur = 14;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 18, 22, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   const eq = p.equipment;
   const helmConfig = EQUIPMENT_REGISTRY.helmets[eq.helmet];
   const armorConfig = EQUIPMENT_REGISTRY.armors[eq.armor];
@@ -58,7 +94,7 @@ function drawPlayerPaperdoll(ctx, p) {
   const bootColor = EQUIPMENT_REGISTRY.boots[eq.boots];
   const talisman = EQUIPMENT_REGISTRY.talismans[eq.talisman];
 
-  // 1. 懸浮法器 (背後動態飄浮旋轉)
+  // 1. 懸浮法器
   const orbY = -18 + Math.sin(p.animTimer * 4) * 4;
   const orbX = -18 + Math.cos(p.animTimer * 4) * 3;
   ctx.fillStyle = talisman.glow;
@@ -80,7 +116,7 @@ function drawPlayerPaperdoll(ctx, p) {
   ctx.closePath();
   ctx.fill();
 
-  // 3. 雙腿與鞋子 (前後逆向擺動)
+  // 3. 雙腿與鞋子
   const leftLegAngle = walkCycle * 0.45;
   const rightLegAngle = -walkCycle * 0.45;
 
@@ -135,7 +171,7 @@ function drawPlayerPaperdoll(ctx, p) {
   }
   ctx.restore();
 
-  // 6. 手臂與三種武器型態
+  // 6. 手臂與武器
   drawWeaponSystem(ctx, p, gloveColor, bobbing);
 
   ctx.restore();
@@ -305,6 +341,7 @@ function drawInventoryPreview(ctx, p, animTime) {
     vy: 0,
     isMoving: false,
     attackTimer: 0,
+    isDashing: false,
     facing: 1,
     animTimer: animTime
   };
