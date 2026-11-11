@@ -1,5 +1,5 @@
 /**
- * SSTS - 全球選關、金幣升星、5★覺醒專屬詞條與拆解系統 (map.js)
+ * SSTS - 全球選關、金幣升星、5★覺醒專屬詞條、升星金光粒子爆發與拆解系統 (map.js)
  */
 
 const COUNTRIES_STAGE_DATA = [
@@ -316,7 +316,8 @@ function drawGlobeScene() {
         gctx.beginPath(); gctx.arc(0, 0, 3.5, 0, Math.PI * 2); gctx.fill();
       } else if (isUnlocked) {
         gctx.fillStyle = "#facc15";
-        gctx.shadowColor = "#eab308"; gctx.shadowBlur = 8;
+        gctx.shadowColor = "#eab308";
+        gctx.shadowBlur = 8;
         gctx.beginPath(); gctx.arc(0, 0, 4, 0, Math.PI * 2); gctx.fill();
       } else {
         gctx.fillStyle = "rgba(239, 68, 68, 0.4)";
@@ -457,7 +458,7 @@ function continueGameFromSave() {
   openWorldMapScreen();
 }
 
-/* ==================== 人體工學紙娃娃裝備面板 ==================== */
+/* ==================== 人體工學紙娃娃裝備面板 (含 5★詞條覺醒與升星特效) ==================== */
 let isInventoryOpen = false;
 let currentSelectingSlot = null;
 
@@ -636,6 +637,7 @@ function equipItemToSlot(slotKey, itemId) {
   playTone(700, 'triangle', 0.1);
 }
 
+// 播放升星專用音效 (三段至五段連續高音水晶琶音)
 function playStarUpgradeSound(isMaxStar) {
   if (!audioCtx) return;
   try {
@@ -661,6 +663,7 @@ function playStarUpgradeSound(isMaxStar) {
   } catch(e) {}
 }
 
+// 在卡片上爆發 12~18 顆星芒粒子
 function spawnStarBurstParticles(targetElement, isMaxStar) {
   if (!targetElement) return;
 
@@ -698,6 +701,7 @@ function spawnStarBurstParticles(targetElement, isMaxStar) {
   }
 }
 
+// 升星強化 (升至 5★ 時解鎖隨機附魔詞條)
 function upgradeItemStar(itemId, clickedButtonElem) {
   let item = userSave.myInventory.find(i => i.id === itemId);
   if (!item) {
@@ -729,6 +733,7 @@ function upgradeItemStar(itemId, clickedButtonElem) {
 
   const isMaxStar = (item.stars === 5);
 
+  // 升至 5★ 時自動覺醒專屬詞條
   if (isMaxStar && !item.affix) {
     item.affix = getRandomAffix();
   }
@@ -748,6 +753,7 @@ function upgradeItemStar(itemId, clickedButtonElem) {
   }, 160);
 }
 
+// 拆解裝備
 function salvageItem(itemId) {
   const index = userSave.myInventory.findIndex(i => i.id === itemId);
   if (index === -1) return;
