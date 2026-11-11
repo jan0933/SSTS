@@ -1,5 +1,5 @@
 /**
- * SSTS - 美術渲染、紙娃娃、大洲特色實體建物與戰地道具 (render_art.js)
+ * SSTS - 美術渲染、紙娃娃、大洲建物、戰地道具與四大法器華麗粒子特效 (render_art.js)
  */
 
 const EQUIPMENT_REGISTRY = {
@@ -27,57 +27,165 @@ const EQUIPMENT_REGISTRY = {
 };
 
 /**
- * 繪製各大洲特色實體掩體建物 (具備硬碰撞阻隔能力)
+ * 繪製四大法器專屬動態法術粒子特效
  */
+function drawArtifactSkillEffects(ctx, fxList, time) {
+  for (let i = fxList.length - 1; i >= 0; i--) {
+    const fx = fxList[i];
+    fx.timer--;
+    const progress = 1 - (fx.timer / fx.maxDuration); // 0 -> 1
+
+    ctx.save();
+
+    if (fx.type === 'freeze') {
+      // 1. 極寒霜環：全螢幕向外擴散六角冰霜星、碎冰與冰霧環
+      const ringRadius = progress * (ctx.canvas.width * 0.7);
+      ctx.strokeStyle = `rgba(186, 230, 253, ${1 - progress})`;
+      ctx.shadowColor = "#38bdf8";
+      ctx.shadowBlur = 18;
+      ctx.lineWidth = 3 * (1 - progress);
+      ctx.beginPath();
+      ctx.arc(fx.x, fx.y, ringRadius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // 飛散冰晶粒子
+      for (const p of fx.particles) {
+        p.x += Math.cos(p.angle) * p.speed;
+        p.y += Math.sin(p.angle) * p.speed;
+        ctx.fillStyle = `rgba(224, 242, 254, ${1 - progress})`;
+        ctx.beginPath();
+        // 繪製微型菱形六角碎冰
+        ctx.moveTo(p.x, p.y - 4);
+        ctx.lineTo(p.x + 4, p.y);
+        ctx.lineTo(p.x, p.y + 4);
+        ctx.lineTo(p.x - 4, p.y);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+    } else if (fx.type === 'thunder') {
+      // 2. 天罰雷霆：頂部直劈地面的白紫電弧與裂地光斑
+      for (const strike of fx.strikes) {
+        ctx.strokeStyle = "#ffffff";
+        ctx.shadowColor = "#c084fc";
+        ctx.shadowBlur = 16;
+        ctx.lineWidth = 3.5 * (1 - progress);
+
+        ctx.beginPath();
+        ctx.moveTo(strike.x, 0);
+        let curX = strike.x;
+        let curY = 0;
+        for (const pt of strike.points) {
+          ctx.lineTo(pt.x, pt.y);
+        }
+        ctx.lineTo(strike.targetX, strike.targetY);
+        ctx.stroke();
+
+        // 地面雷擊爆裂環
+        ctx.fillStyle = `rgba(192, 132, 252, ${0.8 * (1 - progress)})`;
+        ctx.beginPath();
+        ctx.arc(strike.targetX, strike.targetY, (progress * 25), 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+    } else if (fx.type === 'nova') {
+      // 3. 等離子爆裂：周圍 360 度烈焰衝擊波
+      const r = progress * 190;
+      ctx.strokeStyle = `rgba(244, 63, 94, ${1 - progress})`;
+      ctx.shadowColor = "#ef4444";
+      ctx.shadowBlur = 20;
+      ctx.lineWidth = 5 * (1 - progress);
+      ctx.beginPath();
+      ctx.arc(fx.x, fx.y, r, 0, Math.PI * 2);
+      ctx.stroke();
+
+      for (const p of fx.particles) {
+        p.x += Math.cos(p.angle) * p.speed;
+        p.y += Math.sin(p.angle) * p.speed;
+        ctx.fillStyle = `rgba(253, 224, 71, ${1 - progress})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * (1 - progress), 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+    } else if (fx.type === 'blackhole') {
+      // 4. 深淵黑洞：向心引力漩渦與紫色重力光圈
+      const cx = fx.x;
+      const cy = fx.y;
+
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(time * 6);
+      ctx.strokeStyle = `rgba(168, 85, 247, ${1 - progress * 0.4})`;
+      ctx.shadowColor = "#a855f7";
+      ctx.shadowBlur = 24;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(0, 0, 32 + Math.sin(time * 10) * 4, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // 黑洞核心
+      ctx.fillStyle = "#090514";
+      ctx.beginPath();
+      ctx.arc(0, 0, 24, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // 向心吸附暗紫引力流
+      for (const p of fx.particles) {
+        const d = Math.hypot(cx - p.x, cy - p.y);
+        const ang = Math.atan2(cy - p.y, cx - p.x);
+        p.x += Math.cos(ang) * 5;
+        p.y += Math.sin(ang) * 5;
+        ctx.fillStyle = `rgba(216, 180, 254, ${1 - progress})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    ctx.restore();
+
+    if (fx.timer <= 0) {
+      fxList.splice(i, 1);
+    }
+  }
+}
+
 function drawObstacles(ctx, obstacles, continent, time) {
   for (const obs of obstacles) {
     ctx.save();
     ctx.translate(obs.x, obs.y);
 
     if (continent === 'EU') {
-      // 歐洲：古代羅馬神廟石柱基石 (冷灰藍金屬石柱)
       ctx.fillStyle = '#1e293b';
       ctx.fillRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height);
       ctx.strokeStyle = '#38bdf8';
       ctx.lineWidth = 2;
       ctx.strokeRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height);
-
-      // 石柱紋路
       ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
       ctx.beginPath();
-      ctx.moveTo(-obs.width / 4, -obs.height / 2);
-      ctx.lineTo(-obs.width / 4, obs.height / 2);
-      ctx.moveTo(obs.width / 4, -obs.height / 2);
-      ctx.lineTo(obs.width / 4, obs.height / 2);
+      ctx.moveTo(-obs.width / 4, -obs.height / 2); ctx.lineTo(-obs.width / 4, obs.height / 2);
+      ctx.moveTo(obs.width / 4, -obs.height / 2); ctx.lineTo(obs.width / 4, obs.height / 2);
       ctx.stroke();
-
     } else if (continent === 'AM') {
-      // 美洲：黑曜石金字塔祭壇 (暗紅線條冷卻石)
       ctx.fillStyle = '#261118';
       ctx.fillRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height);
       ctx.strokeStyle = '#ef4444';
       ctx.lineWidth = 2;
       ctx.strokeRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height);
-
       ctx.fillStyle = '#b91c1c';
-      ctx.beginPath();
-      ctx.arc(0, 0, 6, 0, Math.PI * 2);
-      ctx.fill();
-
+      ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
     } else if (continent === 'AS') {
-      // 亞洲：高科技石燈籠要塞塔 (翡翠發光核心)
       ctx.fillStyle = '#06261c';
       ctx.fillRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height);
       ctx.strokeStyle = '#10b981';
       ctx.lineWidth = 2;
       ctx.strokeRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height);
-
       ctx.fillStyle = '#34d399';
       ctx.shadowColor = '#10b981'; ctx.shadowBlur = 8;
       ctx.fillRect(-6, -6, 12, 12);
-
     } else if (continent === 'OC') {
-      // 大洋洲：堅硬巨型珊瑚礁岩 (青藍外凸岩體)
       ctx.fillStyle = '#083344';
       ctx.beginPath();
       ctx.roundRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height, 8);
@@ -85,38 +193,29 @@ function drawObstacles(ctx, obstacles, continent, time) {
       ctx.strokeStyle = '#06b6d4';
       ctx.lineWidth = 2;
       ctx.stroke();
-
     } else if (continent === 'AF') {
-      // 非洲：古巨石陣日晷碑 (金黃色防禦方尖碑)
       ctx.fillStyle = '#27170a';
       ctx.fillRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height);
       ctx.strokeStyle = '#f59e0b';
       ctx.lineWidth = 2;
       ctx.strokeRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height);
-
     } else {
-      // 全球極地：遠古冰晶方柱
       ctx.fillStyle = '#1e1b4b';
       ctx.fillRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height);
       ctx.strokeStyle = '#c084fc';
       ctx.lineWidth = 2;
       ctx.strokeRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height);
     }
-
     ctx.restore();
   }
 }
 
-/**
- * 繪製掉落在戰場上的磁鐵與炸彈道具
- */
 function drawBattlePickups(ctx, pickups, time) {
   for (const p of pickups) {
     ctx.save();
     ctx.translate(p.x, p.y + Math.sin(time * 5) * 3);
 
     if (p.type === 'magnet') {
-      // 超導磁鐵 (青藍發光 U 型)
       ctx.shadowColor = "#38bdf8"; ctx.shadowBlur = 12;
       ctx.strokeStyle = "#38bdf8"; ctx.lineWidth = 3.5;
       ctx.beginPath();
@@ -125,32 +224,18 @@ function drawBattlePickups(ctx, pickups, time) {
       ctx.moveTo(-7, -2);
       ctx.lineTo(-7, 6);
       ctx.stroke();
-
-      // 磁極紅銀標記
       ctx.fillStyle = "#ef4444";
       ctx.fillRect(-9, 4, 4, 4);
       ctx.fillRect(5, 4, 4, 4);
-
     } else if (p.type === 'bomb') {
-      // 等離子核能脈衝彈 (赤紅定時雷)
       ctx.shadowColor = "#ef4444"; ctx.shadowBlur = 14;
       ctx.fillStyle = "#b91c1c";
-      ctx.beginPath();
-      ctx.arc(0, 2, 8, 0, Math.PI * 2);
-      ctx.fill();
-
-      // 引線微光
+      ctx.beginPath(); ctx.arc(0, 2, 8, 0, Math.PI * 2); ctx.fill();
       ctx.strokeStyle = "#fde047"; ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(0, -6); ctx.lineTo(3, -11);
-      ctx.stroke();
-
+      ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(3, -11); ctx.stroke();
       ctx.fillStyle = "#fde047";
-      ctx.beginPath();
-      ctx.arc(3, -11, 2.5, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.beginPath(); ctx.arc(3, -11, 2.5, 0, Math.PI * 2); ctx.fill();
     }
-
     ctx.restore();
   }
 }
@@ -187,15 +272,11 @@ function drawChestItem(ctx, chest, time) {
   ctx.closePath();
   ctx.fill();
 
-  ctx.shadowColor = "#eab308";
-  ctx.shadowBlur = 14;
+  ctx.shadowColor = "#eab308"; ctx.shadowBlur = 14;
   ctx.fillStyle = "#854d0e";
   ctx.fillRect(-12, -8, 24, 16);
-
-  ctx.strokeStyle = "#fde047";
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = "#fde047"; ctx.lineWidth = 1.5;
   ctx.strokeRect(-12, -8, 24, 16);
-
   ctx.fillStyle = "#facc15";
   ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI * 2); ctx.fill();
 
@@ -230,8 +311,7 @@ function drawPet(ctx, pet, p, time) {
     ctx.strokeStyle = "#a7f3d0"; ctx.lineWidth = 1;
     for (let t = -2; t <= 2; t += 2) {
       ctx.beginPath();
-      ctx.moveTo(t * 2, -2);
-      ctx.lineTo(t * 2 + Math.sin(time * 3 + t) * 3, 8);
+      ctx.moveTo(t * 2, -2); ctx.lineTo(t * 2 + Math.sin(time * 3 + t) * 3, 8);
       ctx.stroke();
     }
   } else if (pet.type === 'pull') {
@@ -427,7 +507,6 @@ function drawEnemies(ctx, enemies, boss) {
   if (boss && boss.active) {
     ctx.save();
     ctx.translate(boss.x, boss.y);
-
     const isApex = boss.isApex;
     ctx.shadowColor = isApex ? '#ef4444' : '#f59e0b';
     ctx.shadowBlur = isApex ? 28 : 16;
