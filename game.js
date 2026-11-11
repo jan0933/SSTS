@@ -107,7 +107,7 @@ const player = {
     boots: null,
     accessory: null,
     talisman: null,
-    weapon: { type: 'bare', name: '空手' }
+    weapon: { type: 'bare', name: '空手電磁衝擊', damage: 30, speed: 8, color: '#38bdf8' }
   }
 };
 
@@ -476,7 +476,6 @@ function checkAndSpawnStageBoss() {
   boss.y = -60;
 
   const stageScaling = Math.max(0, activeCountryStageId - 1) * 80;
-  // 若第 10 關則血量對應翻倍強化
   const baseHp = isApex ? 900 : 400;
   boss.hp = baseHp + stageScaling;
   boss.maxHp = boss.hp;
@@ -672,13 +671,10 @@ function updateHUD() {
   hpBar.style.width = `${Math.max(0, (player.hp / player.maxHp) * 100)}%`;
 }
 
-// 依據「1~5 關數量越來越多，6~10 關數量對應 1~5 關但血量加倍」生成怪物
 function spawnContinentEnemy() {
-  // 1. 計算等效對照階梯 (1~5: index 1~5; 6~10: index 1~5)
   const normSubstage = (activeSubstage > 5) ? (activeSubstage - 5) : activeSubstage;
   const isHpDoubled = (activeSubstage > 5);
 
-  // 2. 數量上限計算：normSubstage (1~5) 數量越來越多 (從 6 隻逐關遞增到 14 隻)
   const isEarlyCountry = (activeCountryStageId === 1);
   const maxCap = isEarlyCountry ? (4 + normSubstage * 2) : (7 + normSubstage * 3);
   if (enemies.length >= maxCap) return;
@@ -704,11 +700,8 @@ function spawnContinentEnemy() {
   let kind = 'default';
   let baseSpeed = isEarlyCountry ? 1.0 : 1.35;
   let radius = 10;
-
-  // 3. 基礎血量計算：依國家基礎值 + 哨站成長
   let baseHp = isEarlyCountry ? (12 + normSubstage * 2) : (25 + activeCountryStageId * 3);
 
-  // 4. 若處於第 6~10 關，怪物血量直接加倍！
   if (isHpDoubled) {
     baseHp *= 2;
   }
@@ -859,7 +852,6 @@ function updateGame() {
     }
   }
 
-  // 子彈碰撞
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i];
     b.x += b.vx; b.y += b.vy;
@@ -985,8 +977,6 @@ function updateGame() {
     }
   }
 
-  // 生成怪物間隔：1~5 關間隔逐關縮短 (出怪越來越快)；6~10 關對應 1~5 關的頻率
-  const normSubstage = (activeSubstage > 5) ? (activeSubstage - 5) : activeSubstage;
   spawnTimer++;
   const currentInterval = Math.max(25, 75 - (normSubstage * 9));
   if (spawnTimer >= currentInterval) {
@@ -994,7 +984,6 @@ function updateGame() {
     spawnTimer = 0;
   }
 
-  // 小怪直線移動與彈射
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
     e.pulse += 0.08;
@@ -1034,7 +1023,6 @@ function updateGame() {
     }
   }
 
-  // 寶石吸附
   for (let i = gems.length - 1; i >= 0; i--) {
     const g = gems[i];
     const dist = Math.hypot(player.x - g.x, player.y - g.y);
@@ -1056,24 +1044,20 @@ function updateGame() {
   }
 }
 
-// 升級時動態更新三選一卡片的當前數值與預覽加成
 function triggerLevelUp() {
   isPaused = true;
   player.level++;
   player.exp = 0;
   player.nextExp = Math.floor(player.nextExp * 1.35);
 
-  // 1. 計算攻擊力顯示
   const curMelee = player.meleeWeapon.damage + player.baseBonusDamage;
   const curRanged = player.rangedWeapon.damage + player.baseBonusDamage;
   document.getElementById('up-stat-damage').innerText = 
     `目前: 近戰 ${curMelee} / 遠程 ${curRanged} ➜ 各 +15`;
 
-  // 2. 計算血量顯示
   document.getElementById('up-stat-hp').innerText = 
     `目前: ${Math.floor(player.hp)} / ${player.maxHp} ➜ 上限: ${player.maxHp + 25} (並補滿)`;
 
-  // 3. 計算移動速度顯示
   const nextSpeed = (player.speed * 1.12).toFixed(2);
   document.getElementById('up-stat-speed').innerText = 
     `目前: ${player.speed.toFixed(2)} ➜ 升級後: ${nextSpeed}`;
@@ -1085,17 +1069,13 @@ function triggerLevelUp() {
   syncPlayerSaveState();
 }
 
-// 選擇三選一具體機能
 function chooseUpgrade(type) {
   if (type === 'damage') {
-    // 基礎攻擊力 +15 (永久疊加到所有武器)
     player.baseBonusDamage += 15;
   } else if (type === 'hp') {
-    // 生命上限 +25 並自動補滿生命值
     player.maxHp += 25;
     player.hp = player.maxHp;
   } else if (type === 'speed') {
-    // 移動速度 +12%
     player.speed = parseFloat((player.speed * 1.12).toFixed(2));
   }
 
