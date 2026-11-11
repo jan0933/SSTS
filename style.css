@@ -168,7 +168,7 @@ html, body {
   z-index: 10;
 }
 
-/* 3D 地球選關 */
+/* ==================== 3D 地球選關畫面 ==================== */
 #world-map-screen {
   background: radial-gradient(circle at 50% 50%, #0c1a30 0%, #020617 90%);
   display: none;
@@ -191,7 +191,29 @@ html, body {
   letter-spacing: 2px;
   text-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
 }
+.map-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.btn-map-bag {
+  background: rgba(14, 165, 233, 0.2);
+  border: 1.5px solid #38bdf8;
+  color: #38bdf8;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 800;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-map-bag:hover {
+  background: #0284c7;
+  color: white;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.6);
+}
 .map-save-info { font-size: 11px; color: #34d399; font-weight: bold; }
+
 .map-body {
   width: 100%;
   flex: 1;
@@ -323,7 +345,122 @@ html, body {
 .substage-btn.locked { background: #090d16; border-color: #1e293b; color: #475569; cursor: not-allowed; }
 .substage-badge { font-size: 9px; padding: 1px 4px; border-radius: 4px; }
 
-/* 戰鬥 HUD */
+/* ==================== 人體工學紙娃娃裝備面板 ==================== */
+.paperdoll-inv-container {
+  width: 720px;
+  max-width: 95%;
+  background: #0b1329;
+  border: 2px solid #0284c7;
+  box-shadow: 0 0 35px rgba(14, 165, 233, 0.35);
+  border-radius: 12px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.paperdoll-layout {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+.gear-doll-wrapper {
+  width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  background: #060d1f;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  padding: 10px;
+}
+.doll-row {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+}
+.doll-center-core {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+#preview-canvas {
+  background: radial-gradient(circle, #0c214d 0%, #060d1f 80%);
+  border-radius: 6px;
+  border: 1px solid #1e3a8a;
+}
+.gear-slot {
+  background: #111e38;
+  border: 1.5px solid #334155;
+  border-radius: 6px;
+  padding: 5px 8px;
+  min-width: 75px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+.gear-slot:hover, .gear-slot.active-selecting {
+  border-color: #38bdf8;
+  background: #162647;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+}
+.gear-slot.weapon-slot {
+  min-width: 90px;
+  min-height: 80px;
+}
+.armor-slot {
+  width: 100%;
+}
+.slot-label { font-size: 9.5px; color: #94a3b8; font-weight: 800; }
+.slot-val { font-size: 11px; color: #f8fafc; font-weight: bold; text-align: center; margin-top: 2px; }
+
+.gear-inventory-panel {
+  flex: 1;
+  background: #060d1f;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  padding: 10px;
+  height: 280px;
+  display: flex;
+  flex-direction: column;
+}
+.inv-panel-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: #38bdf8;
+  border-bottom: 1px solid #1e293b;
+  padding-bottom: 6px;
+  margin-bottom: 8px;
+}
+.inv-items-scroll {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.inv-equip-card {
+  background: #111e38;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.15s;
+}
+.inv-equip-card:hover {
+  border-color: #38bdf8;
+  background: #1e293b;
+}
+
+/* ==================== 戰鬥 HUD 與右半側四鍵動作群 ==================== */
 #game-container { display: none; background: #090d16; }
 canvas#game-canvas {
   background: #060913;
@@ -387,23 +524,6 @@ canvas#game-canvas {
   border-radius: 4px;
   border: 1px solid rgba(56, 189, 248, 0.3);
   text-shadow: 1px 1px 2px black;
-}
-#btn-open-bag {
-  background: rgba(14, 165, 233, 0.25);
-  border: 1px solid #38bdf8;
-  color: #38bdf8;
-  padding: 3px 12px;
-  font-size: 12px;
-  font-weight: bold;
-  border-radius: 6px;
-  cursor: pointer;
-  pointer-events: auto;
-  transition: all 0.2s;
-}
-#btn-open-bag:hover {
-  background: #0284c7;
-  color: #ffffff;
-  box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
 }
 
 /* 全屏 EMP 白光爆震遮罩 */
@@ -471,7 +591,7 @@ canvas#game-canvas {
   transition: width 0.15s ease-out;
 }
 
-/* 搖桿與按鈕 */
+/* 搖桿 */
 #joystick-base {
   position: absolute;
   width: 120px;
@@ -497,19 +617,20 @@ canvas#game-canvas {
   transform: translate(-50%, -50%);
   transition: transform 0.04s ease-out;
 }
-#mobile-action-group {
+
+/* ==================== 右半側動作按鈕叢集 (四鍵) ==================== */
+#battle-action-cluster {
   position: absolute;
-  bottom: 24px;
-  right: 24px;
-  display: flex;
-  align-items: flex-end;
-  gap: 16px;
-  z-index: 25;
+  bottom: 20px;
+  right: 20px;
+  width: 220px;
+  height: 200px;
   pointer-events: none;
+  z-index: 25;
 }
-.touch-action-btn {
+.cluster-btn {
   pointer-events: auto;
-  position: relative;
+  position: absolute;
   border-radius: 50%;
   display: flex;
   flex-direction: column;
@@ -521,32 +642,60 @@ canvas#game-canvas {
   overflow: hidden;
   -webkit-tap-highlight-color: transparent;
 }
-.touch-action-btn:active { transform: scale(0.92); }
-#btn-touch-dash {
+.cluster-btn:active { transform: scale(0.9); }
+
+/* 近戰按鈕 (大鍵，右側中位) */
+.btn-melee {
   width: 68px;
   height: 68px;
-  background: radial-gradient(circle at 30% 30%, #0284c7, #0f172a 85%);
+  bottom: 60px;
+  right: 70px;
+  background: radial-gradient(circle at 30% 30%, #0284c7, #082f49);
   border: 2px solid #38bdf8;
-  box-shadow: 0 4px 18px rgba(56, 189, 248, 0.4);
-  color: #ffffff;
+  box-shadow: 0 4px 16px rgba(56, 189, 248, 0.4);
+  color: white;
 }
-#btn-touch-bag {
-  width: 50px;
-  height: 50px;
-  margin-bottom: 24px;
-  background: radial-gradient(circle at 30% 30%, #1e293b, #090d16 85%);
-  border: 1.5px solid #64748b;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
-  color: #cbd5e1;
+/* 遠程切換攻擊 (左側中位) */
+.btn-ranged {
+  width: 56px;
+  height: 56px;
+  bottom: 80px;
+  left: 10px;
+  background: radial-gradient(circle at 30% 30%, #0d9488, #042f2e);
+  border: 1.5px solid #2dd4bf;
+  box-shadow: 0 3px 12px rgba(45, 212, 191, 0.35);
+  color: #ccfbf1;
 }
-.btn-icon { font-size: 19px; line-height: 1; }
-#btn-touch-bag .btn-icon { font-size: 15px; }
-.btn-text { font-size: 10px; font-weight: 800; margin-top: 2px; }
-#btn-touch-bag .btn-text { font-size: 8.5px; }
-#dash-cooldown-overlay {
+/* 法器主動技 (頂部) */
+.btn-artifact {
+  width: 54px;
+  height: 54px;
+  top: 10px;
+  right: 40px;
+  background: radial-gradient(circle at 30% 30%, #7c3aed, #2e1065);
+  border: 1.5px solid #c084fc;
+  box-shadow: 0 3px 12px rgba(192, 132, 252, 0.35);
+  color: #f3e8ff;
+}
+/* 衝刺閃避 (底部主鍵) */
+.btn-dash {
+  width: 62px;
+  height: 62px;
+  bottom: 5px;
+  right: 5px;
+  background: radial-gradient(circle at 30% 30%, #f59e0b, #451a03);
+  border: 2px solid #fbbf24;
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.4);
+  color: #fffbeb;
+}
+
+.act-icon { font-size: 18px; line-height: 1; }
+.act-txt { font-size: 9.5px; font-weight: 900; margin-top: 1px; }
+
+#dash-cooldown-overlay, #artifact-cooldown-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(3, 7, 18, 0.65);
+  background: rgba(3, 7, 18, 0.7);
   height: 0%;
   bottom: 0;
   top: auto;
@@ -617,7 +766,6 @@ canvas#game-canvas {
 .chest-card-name { font-size: 14px; font-weight: 900; color: #ffffff; margin: 6px 0; }
 .chest-card-desc { font-size: 11px; color: #cbd5e1; line-height: 1.4; }
 
-/* 勝利結算彈窗 */
 .victory-container {
   width: 440px;
   max-width: 90%;
@@ -633,7 +781,6 @@ canvas#game-canvas {
 .victory-desc { font-size: 12px; color: #94a3b8; line-height: 1.6; margin-bottom: 20px; }
 .btn-return-map { width: 100%; padding: 12px 0; font-size: 15px; }
 
-/* 死亡結算彈窗 */
 .defeat-container {
   width: 440px;
   max-width: 90%;
@@ -658,83 +805,3 @@ canvas#game-canvas {
   background: linear-gradient(135deg, #dc2626, #b91c1c);
   box-shadow: 0 6px 30px rgba(239, 68, 68, 0.7);
 }
-
-/* 背包視窗 */
-.inv-container {
-  width: 620px;
-  max-width: 95%;
-  background: #0b1329;
-  border: 1.5px solid #0284c7;
-  box-shadow: 0 0 30px rgba(14, 165, 233, 0.35);
-  border-radius: 12px;
-  padding: 14px 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.inv-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 15px;
-  font-weight: 800;
-  color: #38bdf8;
-  letter-spacing: 1.5px;
-  border-bottom: 1px solid #1e293b;
-  padding-bottom: 6px;
-}
-.close-btn { background: transparent; border: none; color: #94a3b8; font-size: 18px; cursor: pointer; padding: 2px 8px; }
-.close-btn:hover { color: #f43f5e; }
-.inv-body { display: flex; gap: 16px; }
-.preview-box {
-  width: 190px;
-  background: #060d1f;
-  border: 1px solid #1e293b;
-  border-radius: 8px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 8px;
-}
-#preview-canvas {
-  background: radial-gradient(circle, #0c214d 0%, #060d1f 80%);
-  border-radius: 6px;
-  border: 1px solid #1e3a8a;
-}
-.preview-info { margin-top: 6px; font-size: 11px; color: #cbd5e1; text-align: center; font-weight: bold; }
-.preview-pet { font-size: 10px; color: #34d399; margin-top: 2px; }
-.grid-section { flex: 1; display: flex; flex-direction: column; }
-.slot-filter .tag { font-size: 11px; color: #94a3b8; }
-.inv-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-gap: 8px;
-  margin-top: 8px;
-}
-.item-slot {
-  background: #111e38;
-  border: 1px solid #334155;
-  border-radius: 6px;
-  padding: 6px 8px;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  transition: all 0.15s ease;
-  position: relative;
-}
-.item-slot:hover { border-color: #38bdf8; transform: translateY(-2px); background: #162647; }
-.item-slot.equipped { border-color: #34d399; background: rgba(16, 185, 129, 0.12); }
-.item-slot.equipped::after {
-  content: "已配備";
-  position: absolute;
-  top: 4px;
-  right: 5px;
-  font-size: 8.5px;
-  color: #34d399;
-  font-weight: 800;
-}
-.item-name { font-size: 12px; font-weight: bold; color: #f8fafc; }
-.item-type { font-size: 10px; color: #38bdf8; }
-.item-desc { font-size: 9.5px; color: #94a3b8; }
-.inv-footer { font-size: 10.5px; color: #64748b; text-align: center; border-top: 1px solid #1e293b; padding-top: 5px; }
