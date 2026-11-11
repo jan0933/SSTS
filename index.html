@@ -88,9 +88,7 @@
         <button class="close-btn" onclick="closeSubstagesModal()">✕</button>
       </div>
       <div class="substage-desc">每個國家分為 10 個作戰分區：第 5 關降臨中階精英 Boss，第 10 關降臨終極霸主 Boss！</div>
-      <div class="substage-grid" id="substage-grid">
-        <!-- 由 JS 動態注入 1~10 小關按鈕 -->
-      </div>
+      <div class="substage-grid" id="substage-grid"></div>
     </div>
   </div>
 </div>
@@ -155,6 +153,7 @@
   <!-- 常規升級彈窗 -->
   <div id="upgrade-modal" class="modal-backdrop">
     <h3 style="color: #38bdf8; letter-spacing: 2px;">防衛系統進化升級</h3>
+    <div style="font-size: 12px; color: #34d399; margin: 4px 0 10px;">★ 被動已提升：基礎攻擊 +5、生命上限 +15 ★</div>
     <div class="upgrade-card" onclick="chooseUpgrade('firerate')">⚡ 聚焦脈衝冷卻加速 (-20%)</div>
     <div class="upgrade-card" onclick="chooseUpgrade('damage')">💥 電磁等離子增幅 (+40% 傷害)</div>
     <div class="upgrade-card" onclick="chooseUpgrade('speed')">👟 地表突擊推進器 (+15% 移速)</div>
@@ -169,13 +168,23 @@
     </div>
   </div>
 
-  <!-- 小關/國家通關結算彈窗 -->
+  <!-- 關卡勝利結算彈窗 -->
   <div id="victory-modal" class="modal-backdrop">
     <div class="victory-container">
       <div class="victory-title">★ 哨站肅清完畢 ★</div>
       <div class="victory-country" id="victory-country-name">梵蒂岡 - 哨站 1 肅清！</div>
       <div class="victory-desc" id="victory-desc-text">戰利品已全數入庫，作戰紀錄已自動寫入核心。</div>
-      <button class="btn btn-return-map" onclick="returnToWorldMap()">返回防衛地圖</button>
+      <button class="btn btn-return-map" onclick="returnToWorldMap()">返回全球地圖</button>
+    </div>
+  </div>
+
+  <!-- 專屬自製死亡結算彈窗 (徹底杜絕原生 alert 阻塞卡死) -->
+  <div id="defeat-modal" class="modal-backdrop">
+    <div class="defeat-container">
+      <div class="defeat-title">💀 核心護甲耗盡 💀</div>
+      <div class="defeat-country" id="defeat-country-info">哨站防衛失守</div>
+      <div class="defeat-desc">機甲緊急傳送回地表基地，等級與裝備已安全封存。整裝後隨時能再次發起反攻！</div>
+      <button class="btn btn-return-defeat" onclick="returnToWorldMapFromDefeat()">返回全球地圖</button>
     </div>
   </div>
 
