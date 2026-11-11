@@ -1,5 +1,5 @@
 /**
- * SSTS - 戰鬥引擎、單一遠距武器、5★附魔詞條戰鬥實裝 (game.js)
+ * SSTS - 戰鬥引擎、等比自適應座標映射、5★附魔詞條戰鬥實裝 (game.js)
  */
 
 let audioCtx = null;
@@ -87,7 +87,7 @@ function drawLogo() {
   lctx.fillStyle = "rgba(56, 189, 248, 0.9)";
   lctx.shadowColor = "#0284c7";
   lctx.shadowBlur = 8 + pulse * 4;
-  lctx.fillText("— SSTS · 100 NATIONS SIEGE —", cx, 35);
+  lctx.fillText("— SSTS · TACTICAL SURVIVAL —", cx, 35);
   lctx.restore();
 
   lctx.save();
@@ -254,7 +254,6 @@ let activeCountryData = null;
 let gameRunning = false;
 let globalTime = 0;
 
-// 活躍的 5★ 詞條狀態集
 let activeAffixes = {};
 
 const player = {
@@ -346,7 +345,6 @@ function generateStageObstacles(continent) {
   }
 }
 
-// 彙整目前穿戴裝備中的所有 5★ 專屬詞條
 function compileActiveAffixes() {
   activeAffixes = {};
   for (const key in userSave.equipped) {
@@ -356,7 +354,6 @@ function compileActiveAffixes() {
     }
   }
 
-  // 若覺醒了【急行幽影】，永久縮短衝刺 CD
   if (activeAffixes.rush) {
     player.dashCooldown = 60;
   } else {
@@ -389,7 +386,6 @@ function startCountryBattle(countryId, substageIndex) {
     weapon: player.weapon
   };
 
-  // 啟用所有 5★ 詞條
   compileActiveAffixes();
 
   player.x = canvas.width / 2;
@@ -545,28 +541,39 @@ function triggerArtifactSkill() {
   }
 }
 
-/* ==================== 浮動搖桿 ==================== */
+/* ==================== 浮動搖桿 (支援等比縮放座標換算) ==================== */
 const joyBase = document.getElementById('joystick-base');
 const joyThumb = document.getElementById('joystick-thumb');
 const joystick = { active: false, touchId: null, startX: 0, startY: 0, vectorX: 0, vectorY: 0, maxRadius: 50 };
 
+function getTouchPosInCanvas(touch, canvasElem) {
+  const rect = canvasElem.getBoundingClientRect();
+  const scale = canvasElem.width / rect.width;
+  return {
+    x: (touch.clientX - rect.left) * scale,
+    y: (touch.clientY - rect.top) * scale,
+    uiX: touch.clientX - rect.left,
+    uiY: touch.clientY - rect.top
+  };
+}
+
 canvas.addEventListener('touchstart', (e) => {
   if (isPaused || !gameRunning || joystick.active) return;
-  const rect = canvas.getBoundingClientRect();
+
   for (let i = 0; i < e.changedTouches.length; i++) {
     const touch = e.changedTouches[i];
-    const touchX = touch.clientX - rect.left;
-    const touchY = touch.clientY - rect.top;
+    const pos = getTouchPosInCanvas(touch, canvas);
 
-    if (touchX < rect.width * 0.5) {
+    if (pos.x < canvas.width * 0.5) {
       joystick.active = true;
       joystick.touchId = touch.identifier;
-      joystick.startX = touchX;
-      joystick.startY = touchY;
+      joystick.startX = pos.uiX;
+      joystick.startY = pos.uiY;
       joystick.vectorX = 0;
       joystick.vectorY = 0;
-      joyBase.style.left = `${touchX}px`;
-      joyBase.style.top = `${touchY}px`;
+
+      joyBase.style.left = `${pos.uiX}px`;
+      joyBase.style.top = `${pos.uiY}px`;
       joyBase.style.display = 'block';
       joyThumb.style.transform = `translate(-50%, -50%)`;
       break;
@@ -579,12 +586,10 @@ window.addEventListener('touchmove', (e) => {
   for (let i = 0; i < e.changedTouches.length; i++) {
     const touch = e.changedTouches[i];
     if (touch.identifier === joystick.touchId) {
-      const rect = canvas.getBoundingClientRect();
-      const touchX = touch.clientX - rect.left;
-      const touchY = touch.clientY - rect.top;
+      const pos = getTouchPosInCanvas(touch, canvas);
 
-      const deltaX = touchX - joystick.startX;
-      const deltaY = touchY - joystick.startY;
+      const deltaX = pos.uiX - joystick.startX;
+      const deltaY = pos.uiY - joystick.startY;
       const dist = Math.hypot(deltaX, deltaY);
 
       if (dist === 0) {
@@ -620,6 +625,13 @@ function resetJoystick(e) {
 }
 window.addEventListener('touchend', resetJoystick, { passive: false });
 window.addEventListener('touchcancel', resetJoystick, { passive: false });
+
+// 視窗尺寸改變時重設搖桿防錯
+window.addEventListener('resize', () => {
+  joystick.active = false;
+  joystick.touchId = null;
+  joyBase.style.display = 'none';
+});
 
 function triggerDash() {
   if (isPaused || !gameRunning || player.dashCooldownTimer > 0 || player.isDashing) return;
@@ -935,7 +947,6 @@ function executeAttack() {
   const w = player.weapon || { damage: 30, speed: 10, type: 'bow' };
   let totalDamage = w.damage + player.baseBonusDamage;
 
-  // 5★【精準獵殺】詞條：15% 觸發雙倍爆擊
   let isCrit = false;
   if (activeAffixes.crit && Math.random() < 0.15) {
     totalDamage *= 2.0;
@@ -1032,7 +1043,7 @@ function updateGame() {
     player.fireTimer = 0;
   }
 
-  // 護符寵物邏輯
+  // 護符寵物
   if (player.equipment && player.equipment.talisman) {
     pet.active = true;
     pet.type = player.equipment.talisman === 'atk_pet' ? 'atk' : (player.equipment.talisman === 'heal_pet' ? 'heal' : 'pull');
@@ -1090,7 +1101,7 @@ function updateGame() {
     }
   }
 
-  // 子彈碰撞與詞條觸發 (冰凍減速、連鎖電弧、殺敵嗜血)
+  // 子彈碰撞
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i];
     b.x += b.vx; b.y += b.vy;
@@ -1113,7 +1124,6 @@ function updateGame() {
       bullets.splice(i, 1);
       playTone(180, 'sawtooth', 0.04);
 
-      // 5★【極寒凝霜】：命中減速 Boss
       if (activeAffixes.slow) {
         boss.speed *= 0.85;
         setTimeout(() => { boss.speed = boss.isApex ? 1.0 : 0.75; }, 1500);
@@ -1144,12 +1154,8 @@ function updateGame() {
         bullets.splice(i, 1);
         playTone(220, 'sawtooth', 0.04);
 
-        // 5★【極寒凝霜】：命中減速小怪
-        if (activeAffixes.slow) {
-          e.speed *= 0.55;
-        }
+        if (activeAffixes.slow) e.speed *= 0.55;
 
-        // 5★【超導連鎖】：25% 機率電弧彈跳傷害周邊怪
         if (activeAffixes.chain && Math.random() < 0.25) {
           for (const other of enemies) {
             if (other !== e && Math.hypot(other.x - e.x, other.y - e.y) < 95) {
@@ -1162,7 +1168,6 @@ function updateGame() {
         if (e.hp <= 0) {
           gems.push({ x: e.x, y: e.y, radius: 4 });
 
-          // 5★【逆鱗嗜血】：12% 殺敵回血 +8
           if (activeAffixes.vamp && Math.random() < 0.12) {
             player.hp = Math.min(player.maxHp, player.hp + 8);
             updateHUD();
@@ -1205,7 +1210,7 @@ function updateGame() {
 
     if (!player.isDashing && Math.hypot(player.x - boss.x, player.y - boss.y) < player.radius + boss.radius) {
       let dmg = boss.isApex ? 0.6 : 0.35;
-      if (activeAffixes.armor) dmg *= 0.75; // 5★【深淵磐石】減傷 25%
+      if (activeAffixes.armor) dmg *= 0.75;
       player.hp -= dmg;
       updateHUD();
       if (player.hp <= 0) {
