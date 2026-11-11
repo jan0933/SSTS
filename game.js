@@ -1100,6 +1100,7 @@ function updateGame() {
     }
   }
 
+  // 子彈碰撞
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i];
     b.x += b.vx; b.y += b.vy;
