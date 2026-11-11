@@ -1,8 +1,7 @@
 /**
- * SSTS - 美術渲染與紙娃娃動畫引擎
+ * SSTS - 美術渲染與紙娃娃動畫模組
  */
 
-// 裝備色彩與樣式配置表
 const EQUIPMENT_REGISTRY = {
   helmets: {
     scout: { color: "#38bdf8", visor: "#0284c7", horn: false },
@@ -25,28 +24,26 @@ const EQUIPMENT_REGISTRY = {
     archmage: "#5b21b6"
   },
   accessories: {
-    mantle: { color: "rgba(56, 189, 248, 0.4)" }, // 能量披風
-    relic: { color: "#f59e0b" } // 懸浮配件
+    mantle: { color: "rgba(56, 189, 248, 0.4)" },
+    relic: { color: "#f59e0b" }
   },
   talismans: {
-    orb: { glow: "#06b6d4" },    // 旋轉守護法器
+    orb: { glow: "#06b6d4" },
     totem: { glow: "#e11d48" }
   }
 };
 
 /**
- * 繪製具備走路與攻擊動作的紙娃娃玩家
+ * 繪製紙娃娃玩家本體 (包含骨骼走路、姿態與呼吸)
  */
 function drawPlayerPaperdoll(ctx, p) {
   ctx.save();
   ctx.translate(p.x, p.y);
 
-  // 面朝向翻轉 (Facing Left/Right)
   if (p.facing < 0) {
     ctx.scale(-1, 1);
   }
 
-  // 1. 動畫姿態參數計算
   let walkCycle = 0;
   let bobbing = 0;
   if (p.isMoving) {
@@ -61,7 +58,7 @@ function drawPlayerPaperdoll(ctx, p) {
   const bootColor = EQUIPMENT_REGISTRY.boots[eq.boots];
   const talisman = EQUIPMENT_REGISTRY.talismans[eq.talisman];
 
-  // 2. 懸浮法器 (浮遊於背後旋轉)
+  // 1. 懸浮法器 (背後動態飄浮旋轉)
   const orbY = -18 + Math.sin(p.animTimer * 4) * 4;
   const orbX = -18 + Math.cos(p.animTimer * 4) * 3;
   ctx.fillStyle = talisman.glow;
@@ -72,7 +69,7 @@ function drawPlayerPaperdoll(ctx, p) {
   ctx.fill();
   ctx.shadowBlur = 0;
 
-  // 3. 配件：能量披風 (隨走動與風力擺盪)
+  // 2. 披風配件
   const capeSway = (walkCycle * 6) + (p.vx * -2);
   ctx.fillStyle = EQUIPMENT_REGISTRY.accessories[eq.accessory].color;
   ctx.beginPath();
@@ -83,11 +80,10 @@ function drawPlayerPaperdoll(ctx, p) {
   ctx.closePath();
   ctx.fill();
 
-  // 4. 下肢：鞋子與腿部動作
+  // 3. 雙腿與鞋子 (前後逆向擺動)
   const leftLegAngle = walkCycle * 0.45;
   const rightLegAngle = -walkCycle * 0.45;
 
-  // 左腳 (後)
   ctx.save();
   ctx.translate(-4, 6 - bobbing);
   ctx.rotate(leftLegAngle);
@@ -95,7 +91,6 @@ function drawPlayerPaperdoll(ctx, p) {
   ctx.fillRect(-2, 0, 4, 8);
   ctx.restore();
 
-  // 右腳 (前)
   ctx.save();
   ctx.translate(4, 6 - bobbing);
   ctx.rotate(rightLegAngle);
@@ -103,12 +98,11 @@ function drawPlayerPaperdoll(ctx, p) {
   ctx.fillRect(-2, 0, 4, 8);
   ctx.restore();
 
-  // 5. 軀幹：盔甲
+  // 4. 軀幹與盔甲
   ctx.save();
   ctx.translate(0, -bobbing);
   ctx.fillStyle = armorConfig.base;
   ctx.fillRect(-7, -8, 14, 14);
-  // 胸甲外凸護片
   ctx.fillStyle = armorConfig.plate;
   ctx.beginPath();
   ctx.moveTo(-5, -6);
@@ -119,7 +113,7 @@ function drawPlayerPaperdoll(ctx, p) {
   ctx.fill();
   ctx.restore();
 
-  // 6. 頭部：頭盔與面罩
+  // 5. 頭盔與目鏡
   ctx.save();
   ctx.translate(0, -12 - bobbing);
   ctx.fillStyle = helmConfig.color;
@@ -127,14 +121,12 @@ function drawPlayerPaperdoll(ctx, p) {
   ctx.arc(0, 0, 8, 0, Math.PI * 2);
   ctx.fill();
 
-  // 戰術目鏡 / 護目鏡
   ctx.fillStyle = helmConfig.visor;
   ctx.shadowColor = helmConfig.visor;
   ctx.shadowBlur = 6;
   ctx.fillRect(1, -2, 7, 4);
   ctx.shadowBlur = 0;
 
-  // 重裝頭盔角狀護角
   if (helmConfig.horn) {
     ctx.fillStyle = "#94a3b8";
     ctx.beginPath();
@@ -143,31 +135,28 @@ function drawPlayerPaperdoll(ctx, p) {
   }
   ctx.restore();
 
-  // 7. 手臂與三種武器型態 (近戰、弓箭、法杖)
+  // 6. 手臂與三種武器型態
   drawWeaponSystem(ctx, p, gloveColor, bobbing);
 
   ctx.restore();
 }
 
 /**
- * 繪製手臂與武器攻擊姿態
+ * 繪製武器與各異的攻擊動作姿態
  */
 function drawWeaponSystem(ctx, p, gloveColor, bobbing) {
-  const w = p.equipment.weapon; // { type: 'melee' | 'bow' | 'staff', name: '...' }
+  const w = p.equipment.weapon;
   const isAttacking = p.attackTimer > 0;
-  const attackProgress = 1 - (p.attackTimer / p.attackDuration); // 0 -> 1
+  const attackProgress = 1 - (p.attackTimer / p.attackDuration);
 
   ctx.save();
   ctx.translate(2, -2 - bobbing);
 
   if (w.type === 'melee') {
-    // 【近戰軍刀】：未攻擊時持械待機，攻擊時 120 度大範圍揮擊
     let swingAngle = -0.4;
     if (isAttacking) {
-      // 揮刀弧度由後方甩至前方
       swingAngle = -1.2 + attackProgress * 2.8;
-      // 揮刀軌跡劍氣殘影
-      ctx.strokeStyle = "rgba(56, 189, 248, 0.4)";
+      ctx.strokeStyle = "rgba(56, 189, 248, 0.45)";
       ctx.lineWidth = 2.5;
       ctx.beginPath();
       ctx.arc(0, 0, 22, -1.2, swingAngle);
@@ -175,11 +164,9 @@ function drawWeaponSystem(ctx, p, gloveColor, bobbing) {
     }
     ctx.rotate(swingAngle);
 
-    // 手套
     ctx.fillStyle = gloveColor;
     ctx.fillRect(0, -2, 5, 4);
 
-    // 刀柄與等離子光刃
     ctx.fillStyle = "#334155";
     ctx.fillRect(4, -1.5, 4, 3);
     ctx.fillStyle = "#38bdf8";
@@ -188,17 +175,14 @@ function drawWeaponSystem(ctx, p, gloveColor, bobbing) {
     ctx.fillRect(8, -1, 16, 2);
 
   } else if (w.type === 'bow') {
-    // 【電磁弓弩】：攻擊時有拉弦蓄力動作
     let drawPull = 0;
     if (isAttacking) {
       drawPull = Math.sin(attackProgress * Math.PI) * 4;
     }
 
-    // 手臂前伸
     ctx.fillStyle = gloveColor;
     ctx.fillRect(0, -2, 7, 4);
 
-    // 弓身 (弧形)
     ctx.save();
     ctx.translate(8, 0);
     ctx.strokeStyle = "#0284c7";
@@ -207,7 +191,6 @@ function drawWeaponSystem(ctx, p, gloveColor, bobbing) {
     ctx.arc(0, 0, 12, -Math.PI / 2.3, Math.PI / 2.3);
     ctx.stroke();
 
-    // 弓弦
     ctx.strokeStyle = "#cbd5e1";
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -216,7 +199,6 @@ function drawWeaponSystem(ctx, p, gloveColor, bobbing) {
     ctx.lineTo(4, 11);
     ctx.stroke();
 
-    // 箭矢 (攻擊時裝填)
     if (isAttacking) {
       ctx.fillStyle = "#67e8f9";
       ctx.shadowColor = "#38bdf8";
@@ -226,11 +208,9 @@ function drawWeaponSystem(ctx, p, gloveColor, bobbing) {
     ctx.restore();
 
   } else if (w.type === 'staff') {
-    // 【元素法杖】：攻擊時舉杖前指，頂部充能聚光
     let staffTilt = 0.2;
     if (isAttacking) {
       staffTilt = -0.5 + Math.sin(attackProgress * Math.PI) * 0.4;
-      // 法杖法陣光環
       ctx.save();
       ctx.translate(18, -14);
       ctx.strokeStyle = `rgba(168, 85, 247, ${0.5 + Math.sin(p.animTimer * 10) * 0.3})`;
@@ -242,15 +222,12 @@ function drawWeaponSystem(ctx, p, gloveColor, bobbing) {
     }
     ctx.rotate(staffTilt);
 
-    // 手臂
     ctx.fillStyle = gloveColor;
     ctx.fillRect(0, -2, 5, 4);
 
-    // 木質/合金杖身
     ctx.fillStyle = "#64748b";
     ctx.fillRect(4, -1.5, 20, 3);
 
-    // 頂部法器寶珠
     ctx.fillStyle = "#c084fc";
     ctx.shadowColor = "#a855f7";
     ctx.shadowBlur = 12;
@@ -263,7 +240,7 @@ function drawWeaponSystem(ctx, p, gloveColor, bobbing) {
 }
 
 /**
- * 繪製海嗣突變敵人
+ * 繪製海嗣敵群
  */
 function drawEnemies(ctx, enemies) {
   for (const e of enemies) {
@@ -271,7 +248,6 @@ function drawEnemies(ctx, enemies) {
     ctx.translate(e.x, e.y);
 
     if (e.type === 'jelly') {
-      // 幽浮水母：半透明發光傘蓋 + 4 條飄逸正弦波觸鬚
       ctx.fillStyle = 'rgba(236, 72, 153, 0.85)';
       ctx.shadowColor = '#ec4899';
       ctx.shadowBlur = 10;
@@ -280,7 +256,6 @@ function drawEnemies(ctx, enemies) {
       ctx.closePath();
       ctx.fill();
 
-      // 觸鬚
       ctx.strokeStyle = '#f472b6';
       ctx.lineWidth = 1.5;
       for (let t = -3; t <= 3; t += 2) {
@@ -290,18 +265,14 @@ function drawEnemies(ctx, enemies) {
         ctx.quadraticCurveTo(t * 2.5 + wave, 6, t * 2.5 - wave, 12);
         ctx.stroke();
       }
-
     } else {
-      // 突變寄生魚：梭狀身形 + 快速甩尾鰭
       ctx.fillStyle = '#ef4444';
       ctx.shadowColor = '#ef4444';
       ctx.shadowBlur = 8;
-      // 身體
       ctx.beginPath();
       ctx.ellipse(0, 0, e.radius * 1.2, e.radius * 0.7, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // 擺動尾鰭
       const tailWiggle = Math.sin(e.pulse * 2) * 5;
       ctx.beginPath();
       ctx.moveTo(-e.radius * 0.8, 0);
@@ -310,7 +281,6 @@ function drawEnemies(ctx, enemies) {
       ctx.closePath();
       ctx.fill();
 
-      // 凶暴眼珠
       ctx.fillStyle = '#fef08a';
       ctx.beginPath();
       ctx.arc(e.radius * 0.6, -2, 2, 0, Math.PI * 2);
@@ -319,4 +289,29 @@ function drawEnemies(ctx, enemies) {
 
     ctx.restore();
   }
+}
+
+/**
+ * 背包視窗專用的特寫放大預覽 (2.2x)
+ */
+function drawInventoryPreview(ctx, p, animTime) {
+  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+
+  const mockPlayer = {
+    ...p,
+    x: 0,
+    y: 0,
+    vx: 0,
+    vy: 0,
+    isMoving: false,
+    attackTimer: 0,
+    facing: 1,
+    animTimer: animTime
+  };
+
+  ctx.save();
+  ctx.translate(ctx.canvas.width / 2, ctx.canvas.height / 2 + 10);
+  ctx.scale(2.2, 2.2);
+  drawPlayerPaperdoll(ctx, mockPlayer);
+  ctx.restore();
 }
