@@ -1,5 +1,5 @@
 /**
- * SSTS - 全球選關、大洲環境濾鏡、國旗與 10 小關戰術地圖 (map.js)
+ * SSTS - 全球選關、大洲環境濾鏡、國旗與大地圖人形背包系統 (map.js)
  */
 
 const COUNTRIES_STAGE_DATA = [
@@ -106,7 +106,7 @@ const COUNTRIES_STAGE_DATA = [
 ];
 
 /* ==================== 存檔系統 ==================== */
-const SAVE_KEY = "SSTS_SURFACE_SURVIVORS_SAVE_V3";
+const SAVE_KEY = "SSTS_SURFACE_SURVIVORS_SAVE_V4";
 
 const defaultSaveState = {
   unlockedCountryStage: 1,
@@ -124,7 +124,10 @@ const defaultSaveState = {
     boots: null,
     accessory: null,
     talisman: null,
-    weapon: { type: 'bare', name: '空手電磁衝擊', damage: 30, speed: 8, color: '#38bdf8' }
+    meleeWeapon: { type: 'melee', name: '離子軍刀', damage: 45, speed: 9, color: '#38bdf8' },
+    rangedWeapon: { type: 'bow', name: '電磁弩弓', damage: 35, speed: 11, color: '#0284c7' },
+    artifact: { id: "art_nova", name: "等離子爆裂核", skillType: "nova" },
+    activeCombatMode: 'melee' // 'melee' 或 'ranged'
   }
 };
 
@@ -429,4 +432,143 @@ function continueGameFromSave() {
   requestLandscapeFullscreen();
   loadGameSave();
   openWorldMapScreen();
+}
+
+/* ==================== 人體工學紙娃娃裝備面板 (大地圖專用) ==================== */
+let isInventoryOpen = false;
+let currentSelectingSlot = null; // 'helmet', 'melee', 'ranged', 'armor', 'gloves', 'boots', 'talisman', 'artifact'
+
+function toggleInventory() {
+  isInventoryOpen = !isInventoryOpen;
+  const modal = document.getElementById('inventory-modal');
+
+  if (isInventoryOpen) {
+    modal.style.display = 'flex';
+    updatePaperdollSlotsDisplay();
+    selectSlotForEquip('melee'); // 預設打開近戰裝備庫存
+    startDollPreviewLoop();
+    playTone(520, 'sine', 0.1);
+  } else {
+    modal.style.display = 'none';
+    if (dollPreviewAnimId) cancelAnimationFrame(dollPreviewAnimId);
+    playTone(380, 'sine', 0.1);
+  }
+}
+
+function updatePaperdollSlotsDisplay() {
+  const eq = userSave.equipped;
+  document.getElementById('val-helmet').innerText = eq.helmet ? EQUIPMENT_REGISTRY.helmets[eq.helmet].name || eq.helmet : "未裝備";
+  document.getElementById('val-melee').innerText = eq.meleeWeapon ? eq.meleeWeapon.name : "赤手空拳";
+  document.getElementById('val-ranged').innerText = eq.rangedWeapon ? eq.rangedWeapon.name : "未裝備";
+  document.getElementById('val-armor').innerText = eq.armor ? eq.armor : "未裝備";
+  document.getElementById('val-gloves').innerText = eq.gloves ? eq.gloves : "未裝備";
+  document.getElementById('val-boots').innerText = eq.boots ? eq.boots : "未裝備";
+  document.getElementById('val-talisman').innerText = eq.talisman ? EQUIPMENT_REGISTRY.talismans[eq.talisman].name : "未裝備";
+  document.getElementById('val-artifact').innerText = eq.artifact ? eq.artifact.name : "未裝備";
+}
+
+// 點擊左側人體槽位，右側展開對應庫存
+function selectSlotForEquip(slotKey) {
+  currentSelectingSlot = slotKey;
+  const title = document.getElementById('inv-panel-title');
+  const scrollBox = document.getElementById('inv-items-scroll');
+  scrollBox.innerHTML = '';
+
+  const slotTitles = {
+    helmet: "頭盔防具庫存",
+    melee: "近戰武器庫存",
+    ranged: "遠程武器庫存",
+    armor: "胸甲防具庫存",
+    gloves: "戰術手套庫存",
+    boots: "推進戰靴庫存",
+    talisman: "護符 (寵物) 庫存",
+    artifact: "戰術法器庫存"
+  };
+  title.innerText = slotTitles[slotKey] || "裝備庫存";
+
+  // 高亮選中槽位
+  document.querySelectorAll('.gear-slot').forEach(el => el.classList.remove('active-selecting'));
+  const activeEl = document.getElementById(`slot-${slotKey}`);
+  if (activeEl) activeEl.classList.add('active-selecting');
+
+  // 篩選對應類型的玩家庫存
+  const matchingItems = userSave.myInventory.filter(item => {
+    if (slotKey === 'melee') return item.slot === 'weapon' && (item.data.type === 'melee' || item.data.type === 'bare');
+    if (slotKey === 'ranged') return item.slot === 'weapon' && (item.data.type === 'bow' || item.data.type === 'staff');
+    if (slotKey === 'artifact') return item.slot === 'artifact';
+    return item.slot === slotKey;
+  });
+
+  if (matchingItems.length === 0) {
+    scrollBox.innerHTML = `<div style="color: #64748b; font-size: 11px; padding: 20px 0; text-align: center;">此欄位尚無可用備用裝備<br>請在關卡中擊敗 Boss 獲取！</div>`;
+    return;
+  }
+
+  matchingItems.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'inv-equip-card';
+    card.innerHTML = `
+      <div>
+        <div style="font-size: 12px; font-weight: bold; color: #fff;">${item.name}</div>
+        <div style="font-size: 10px; color: #94a3b8;">${item.desc}</div>
+      </div>
+      <button class="btn" style="padding: 4px 10px; font-size: 11px;">裝備</button>
+    `;
+    card.onclick = () => {
+      equipItemToSlot(slotKey, item);
+    };
+    scrollBox.appendChild(card);
+  });
+}
+
+function equipItemToSlot(slotKey, item) {
+  if (slotKey === 'melee') userSave.equipped.meleeWeapon = { ...item.data };
+  else if (slotKey === 'ranged') userSave.equipped.rangedWeapon = { ...item.data };
+  else if (slotKey === 'artifact') userSave.equipped.artifact = { ...item };
+  else if (slotKey === 'helmet') userSave.equipped.helmet = item.val;
+  else if (slotKey === 'armor') userSave.equipped.armor = item.val;
+  else if (slotKey === 'gloves') userSave.equipped.gloves = item.val;
+  else if (slotKey === 'boots') userSave.equipped.boots = item.val;
+  else if (slotKey === 'talisman') userSave.equipped.talisman = item.val;
+
+  saveGameProgress();
+  updatePaperdollSlotsDisplay();
+  playTone(700, 'triangle', 0.1);
+}
+
+let dollPreviewAnimId = null;
+let dollPreviewTime = 0;
+function startDollPreviewLoop() {
+  const pcanvas = document.getElementById('preview-canvas');
+  const pctx = pcanvas.getContext('2d');
+
+  function loop() {
+    if (!isInventoryOpen) return;
+    dollPreviewTime += 0.04;
+    pctx.clearRect(0, 0, pcanvas.width, pcanvas.height);
+
+    const mockPlayer = {
+      x: 0, y: 0, vx: 0, vy: 0, radius: 14,
+      isMoving: false, attackTimer: 0, isDashing: false, facing: 1,
+      animTimer: dollPreviewTime,
+      equipment: {
+        helmet: userSave.equipped.helmet,
+        armor: userSave.equipped.armor,
+        gloves: userSave.equipped.gloves,
+        boots: userSave.equipped.boots,
+        accessory: userSave.equipped.accessory,
+        talisman: userSave.equipped.talisman,
+        weapon: userSave.equipped.meleeWeapon || { type: 'bare', name: '空手' }
+      }
+    };
+
+    pctx.save();
+    pctx.translate(pcanvas.width / 2, pcanvas.height / 2 + 10);
+    pctx.scale(2.2, 2.2);
+    drawPlayerPaperdoll(pctx, mockPlayer);
+    pctx.restore();
+
+    dollPreviewAnimId = requestAnimationFrame(loop);
+  }
+  loop();
 }
