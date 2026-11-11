@@ -2,7 +2,6 @@
  * SSTS - 全球選關、大洲環境濾鏡、國旗與 10 小關戰術地圖 (map.js)
  */
 
-/* ==================== 100 國完整名單 (含國旗、大洲、面積) ==================== */
 const COUNTRIES_STAGE_DATA = [
   { id: 1, flag: "🇻🇦", name: "梵蒂岡 (Vatican City)", area: "0.49 km²", continent: "EU", lat: 41.9, lon: 12.4, diff: 1, desc: "微型聖城，受到突變海嗣最初圍困。擊退登陸潮並收復第一塊地表領土！" },
   { id: 2, flag: "🇲🇨", name: "摩納哥 (Monaco)", area: "2.02 km²", continent: "EU", lat: 43.7, lon: 7.4, diff: 1, desc: "濱海懸崖港灣，突變寄生魚自地中海深處上岸！" },
@@ -106,17 +105,16 @@ const COUNTRIES_STAGE_DATA = [
   { id: 100, flag: "🌐", name: "加拿大與全球終局 (Global Core)", area: "10,000,000+ km²", continent: "GL", lat: 56.1, lon: -106.3, diff: 10, desc: "【世界終局決戰】北極冰蓋與全球海溝同步崩裂，深海王者本體降臨！" }
 ];
 
-/* ==================== 存檔系統 (LocalStorage) ==================== */
-const SAVE_KEY = "SSTS_SURFACE_SURVIVORS_SAVE_V2";
+/* ==================== 存檔系統 ==================== */
+const SAVE_KEY = "SSTS_SURFACE_SURVIVORS_SAVE_V3";
 
 const defaultSaveState = {
-  unlockedCountryStage: 1, // 最高解鎖的國家 ID (1~100)
+  unlockedCountryStage: 1,
   currentSelectedStage: 1,
-  // 記錄每個國家已完成的小關 (stageProgress[countryId] = 0~10)
   stageProgress: { 1: 0 },
   playerLevel: 1,
   playerExp: 0,
-  playerNextExp: 6,
+  playerNextExp: 5,
   playerMaxHp: 100,
   myInventory: [],
   equipped: {
@@ -126,7 +124,7 @@ const defaultSaveState = {
     boots: null,
     accessory: null,
     talisman: null,
-    weapon: { type: 'bare', name: '空手電磁衝擊', damage: 22, speed: 7, color: '#38bdf8' }
+    weapon: { type: 'bare', name: '空手電磁衝擊', damage: 30, speed: 8, color: '#38bdf8' }
   }
 };
 
@@ -167,7 +165,7 @@ function resetSaveData() {
   }
 }
 
-/* ==================== 3D 旋轉科技地球渲染 ==================== */
+/* ==================== 3D 地球渲染 ==================== */
 const globeCanvas = document.getElementById('globe-canvas');
 const gctx = globeCanvas.getContext('2d');
 
@@ -232,27 +230,20 @@ function drawGlobeScene() {
   const cy = globeCanvas.height / 2;
   const radius = 140;
 
-  // 大氣層發光
   const atmosGrad = gctx.createRadialGradient(cx, cy, radius * 0.85, cx, cy, radius * 1.25);
   atmosGrad.addColorStop(0, "rgba(56, 189, 248, 0.2)");
   atmosGrad.addColorStop(0.7, "rgba(14, 165, 233, 0.08)");
   atmosGrad.addColorStop(1, "rgba(2, 6, 23, 0)");
   gctx.fillStyle = atmosGrad;
-  gctx.beginPath();
-  gctx.arc(cx, cy, radius * 1.25, 0, Math.PI * 2);
-  gctx.fill();
+  gctx.beginPath(); gctx.arc(cx, cy, radius * 1.25, 0, Math.PI * 2); gctx.fill();
 
-  // 球體基底
   const globeGrad = gctx.createRadialGradient(cx - 30, cy - 30, 20, cx, cy, radius);
   globeGrad.addColorStop(0, "#083344");
   globeGrad.addColorStop(0.7, "#0c1a30");
   globeGrad.addColorStop(1, "#020617");
   gctx.fillStyle = globeGrad;
-  gctx.beginPath();
-  gctx.arc(cx, cy, radius, 0, Math.PI * 2);
-  gctx.fill();
+  gctx.beginPath(); gctx.arc(cx, cy, radius, 0, Math.PI * 2); gctx.fill();
 
-  // 經緯網格
   gctx.strokeStyle = "rgba(56, 189, 248, 0.12)";
   gctx.lineWidth = 1;
   for (let lat = -60; lat <= 60; lat += 30) {
@@ -268,7 +259,6 @@ function drawGlobeScene() {
     gctx.stroke();
   }
 
-  // 100 國節點
   const currentSel = userSave.currentSelectedStage;
   const maxUnlocked = userSave.unlockedCountryStage || 1;
 
@@ -285,16 +275,11 @@ function drawGlobeScene() {
       if (isSelected) {
         gctx.strokeStyle = "#38bdf8";
         gctx.lineWidth = 2;
-        gctx.beginPath();
-        gctx.arc(0, 0, 9 + Math.sin(Date.now() * 0.008) * 3, 0, Math.PI * 2);
-        gctx.stroke();
+        gctx.beginPath(); gctx.arc(0, 0, 9 + Math.sin(Date.now() * 0.008) * 3, 0, Math.PI * 2); gctx.stroke();
 
         gctx.fillStyle = "#ffffff";
-        gctx.shadowColor = "#38bdf8";
-        gctx.shadowBlur = 12;
-        gctx.beginPath();
-        gctx.arc(0, 0, 5, 0, Math.PI * 2);
-        gctx.fill();
+        gctx.shadowColor = "#38bdf8"; gctx.shadowBlur = 12;
+        gctx.beginPath(); gctx.arc(0, 0, 5, 0, Math.PI * 2); gctx.fill();
 
         gctx.font = "bold 11px sans-serif";
         gctx.fillStyle = "#38bdf8";
@@ -302,21 +287,14 @@ function drawGlobeScene() {
         gctx.fillText(`${stage.flag} ${stage.name.split(' ')[0]}`, 0, -14);
       } else if (isCleared) {
         gctx.fillStyle = "#10b981";
-        gctx.beginPath();
-        gctx.arc(0, 0, 3.5, 0, Math.PI * 2);
-        gctx.fill();
+        gctx.beginPath(); gctx.arc(0, 0, 3.5, 0, Math.PI * 2); gctx.fill();
       } else if (isUnlocked) {
         gctx.fillStyle = "#facc15";
-        gctx.shadowColor = "#eab308";
-        gctx.shadowBlur = 8;
-        gctx.beginPath();
-        gctx.arc(0, 0, 4, 0, Math.PI * 2);
-        gctx.fill();
+        gctx.shadowColor = "#eab308"; gctx.shadowBlur = 8;
+        gctx.beginPath(); gctx.arc(0, 0, 4, 0, Math.PI * 2); gctx.fill();
       } else {
         gctx.fillStyle = "rgba(239, 68, 68, 0.4)";
-        gctx.beginPath();
-        gctx.arc(0, 0, 2.5, 0, Math.PI * 2);
-        gctx.fill();
+        gctx.beginPath(); gctx.arc(0, 0, 2.5, 0, Math.PI * 2); gctx.fill();
       }
       gctx.restore();
     }
@@ -325,9 +303,9 @@ function drawGlobeScene() {
   globeAnimId = requestAnimationFrame(drawGlobeScene);
 }
 
-/* ==================== 國家選單與 10 小關戰術彈窗 ==================== */
+/* ==================== 國家選單與 10 小關 ==================== */
 const continentNames = {
-  EU: "歐洲裂隙防線",
+  EU: "歐洲寒霜裂隙",
   OC: "大洋洲沸騰海疆",
   AM: "美洲火山前哨",
   AS: "亞洲毒沼島鏈",
@@ -377,7 +355,6 @@ function prevStage() {
   }
 }
 
-// 點開該國家的 10 小關彈窗
 function openSubstagesModal() {
   if (userSave.currentSelectedStage > (userSave.unlockedCountryStage || 1)) {
     alert("此國家防線尚未解鎖！必須先收復前面的國家。");
@@ -390,7 +367,6 @@ function openSubstagesModal() {
 
   const grid = document.getElementById('substage-grid');
   grid.innerHTML = '';
-
   const clearedCount = userSave.stageProgress[stage.id] || 0;
 
   for (let sub = 1; sub <= 10; sub++) {
@@ -412,16 +388,8 @@ function openSubstagesModal() {
     if (isApexBoss) badge = `<span class="substage-badge" style="background: #b91c1c; color: #ffd700;">領土 霸主</span>`;
     if (isCleared) badge = `<span class="substage-badge" style="background: #059669; color: #fff;">✓ 已肅清</span>`;
 
-    btn.innerHTML = `
-      <div style="font-size: 14px;">哨站 ${sub}</div>
-      ${badge}
-    `;
-
-    btn.onclick = () => {
-      if (isUnlocked) {
-        launchSubstage(stage, sub);
-      }
-    };
+    btn.innerHTML = `<div style="font-size: 14px;">哨站 ${sub}</div>${badge}`;
+    btn.onclick = () => { if (isUnlocked) launchSubstage(stage, sub); };
     grid.appendChild(btn);
   }
 
@@ -441,7 +409,6 @@ function launchSubstage(stage, subStageIndex) {
   document.getElementById('world-map-screen').style.display = 'none';
   document.getElementById('game-container').style.display = 'flex';
 
-  // 傳入國家與該小關 index (1~10)
   startCountryBattle(stage.id, subStageIndex);
 }
 
