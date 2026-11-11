@@ -1,5 +1,5 @@
 /**
- * SSTS - 美術渲染與紙娃娃動畫模組
+ * SSTS - 美術渲染、紙娃娃、衝刺殘影、敵人與 Boss 繪製模組
  */
 
 const EQUIPMENT_REGISTRY = {
@@ -34,7 +34,7 @@ const EQUIPMENT_REGISTRY = {
 };
 
 /**
- * 繪製衝刺時留下的電磁等離子殘影
+ * 繪製電磁衝刺殘影
  */
 function drawDashGhosts(ctx, ghosts) {
   for (let i = 0; i < ghosts.length; i++) {
@@ -47,7 +47,6 @@ function drawDashGhosts(ctx, ghosts) {
     ctx.shadowColor = "#38bdf8";
     ctx.shadowBlur = 10 * g.alpha;
 
-    // 簡化機甲剪影
     ctx.beginPath();
     ctx.arc(0, -10, 7, 0, Math.PI * 2);
     ctx.fill();
@@ -57,15 +56,13 @@ function drawDashGhosts(ctx, ghosts) {
 }
 
 /**
- * 繪製紙娃娃玩家本體 (包含骨骼走路、衝刺無敵光暈與呼吸)
+ * 繪製紙娃娃玩家本體
  */
 function drawPlayerPaperdoll(ctx, p) {
   ctx.save();
   ctx.translate(p.x, p.y);
 
-  if (p.facing < 0) {
-    ctx.scale(-1, 1);
-  }
+  if (p.facing < 0) ctx.scale(-1, 1);
 
   let walkCycle = 0;
   let bobbing = 0;
@@ -74,7 +71,6 @@ function drawPlayerPaperdoll(ctx, p) {
     bobbing = Math.abs(Math.cos(p.animTimer * 12)) * 2;
   }
 
-  // 衝刺中的高亮過載護盾光環
   if (p.isDashing) {
     ctx.save();
     ctx.strokeStyle = "rgba(103, 232, 249, 0.8)";
@@ -177,9 +173,6 @@ function drawPlayerPaperdoll(ctx, p) {
   ctx.restore();
 }
 
-/**
- * 繪製武器與各異的攻擊動作姿態
- */
 function drawWeaponSystem(ctx, p, gloveColor, bobbing) {
   const w = p.equipment.weapon;
   const isAttacking = p.attackTimer > 0;
@@ -202,7 +195,6 @@ function drawWeaponSystem(ctx, p, gloveColor, bobbing) {
 
     ctx.fillStyle = gloveColor;
     ctx.fillRect(0, -2, 5, 4);
-
     ctx.fillStyle = "#334155";
     ctx.fillRect(4, -1.5, 4, 3);
     ctx.fillStyle = "#38bdf8";
@@ -212,9 +204,7 @@ function drawWeaponSystem(ctx, p, gloveColor, bobbing) {
 
   } else if (w.type === 'bow') {
     let drawPull = 0;
-    if (isAttacking) {
-      drawPull = Math.sin(attackProgress * Math.PI) * 4;
-    }
+    if (isAttacking) drawPull = Math.sin(attackProgress * Math.PI) * 4;
 
     ctx.fillStyle = gloveColor;
     ctx.fillRect(0, -2, 7, 4);
@@ -260,10 +250,8 @@ function drawWeaponSystem(ctx, p, gloveColor, bobbing) {
 
     ctx.fillStyle = gloveColor;
     ctx.fillRect(0, -2, 5, 4);
-
     ctx.fillStyle = "#64748b";
     ctx.fillRect(4, -1.5, 20, 3);
-
     ctx.fillStyle = "#c084fc";
     ctx.shadowColor = "#a855f7";
     ctx.shadowBlur = 12;
@@ -276,9 +264,10 @@ function drawWeaponSystem(ctx, p, gloveColor, bobbing) {
 }
 
 /**
- * 繪製海嗣敵群
+ * 繪製海嗣一般敵群與巨大 Boss
  */
-function drawEnemies(ctx, enemies) {
+function drawEnemies(ctx, enemies, boss) {
+  // 1. 一般小怪
   for (const e of enemies) {
     ctx.save();
     ctx.translate(e.x, e.y);
@@ -322,13 +311,71 @@ function drawEnemies(ctx, enemies) {
       ctx.arc(e.radius * 0.6, -2, 2, 0, Math.PI * 2);
       ctx.fill();
     }
+    ctx.restore();
+  }
+
+  // 2. 深海霸主先鋒 Boss
+  if (boss && boss.active) {
+    ctx.save();
+    ctx.translate(boss.x, boss.y);
+
+    // 巨大外甲陰影與發光
+    ctx.shadowColor = '#ef4444';
+    ctx.shadowBlur = 25;
+    ctx.fillStyle = '#7f1d1d';
+    ctx.beginPath();
+    ctx.arc(0, 0, boss.radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 內層旋轉重型甲殼
+    ctx.save();
+    ctx.rotate(boss.pulse * 0.5);
+    ctx.strokeStyle = '#f87171';
+    ctx.lineWidth = 4;
+    for (let a = 0; a < Math.PI * 2; a += Math.PI / 3) {
+      ctx.beginPath();
+      ctx.arc(Math.cos(a) * 20, Math.sin(a) * 20, 10, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // 核心等離子核 (狂暴呼吸)
+    const corePulse = Math.sin(boss.pulse * 3) * 4;
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath();
+    ctx.arc(0, 0, 16 + corePulse, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 雙螯暗影
+    const clawOffset = Math.sin(boss.pulse * 2) * 6;
+    ctx.fillStyle = '#991b1b';
+    ctx.beginPath();
+    ctx.arc(-boss.radius - 6, -10 + clawOffset, 12, 0, Math.PI * 2);
+    ctx.arc(boss.radius + 6, -10 - clawOffset, 12, 0, Math.PI * 2);
+    ctx.fill();
 
     ctx.restore();
   }
 }
 
 /**
- * 背包視窗專用的特寫放大預覽 (2.2x)
+ * 繪製 Boss 的環狀危險彈幕
+ */
+function drawBossBullets(ctx, bossBullets) {
+  for (const b of bossBullets) {
+    ctx.save();
+    ctx.fillStyle = '#f87171';
+    ctx.shadowColor = '#ef4444';
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+/**
+ * 背包特寫預覽
  */
 function drawInventoryPreview(ctx, p, animTime) {
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
