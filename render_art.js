@@ -236,6 +236,7 @@ function drawSingleRangedWeapon(ctx, p, wep, gloveColor, bobbing) {
     ctx.restore();
   }
 
+  // 滿星 5★ 附加旋轉星芒光點
   if (stars >= 4) {
     const starAngle = (p.animTimer * 5);
     ctx.fillStyle = "#facc15";
@@ -618,6 +619,6 @@ function drawInventoryPreview(ctx, p, animTime) {
   ctx.save();
   ctx.translate(ctx.canvas.width / 2, ctx.canvas.height / 2 + 10);
   ctx.scale(2.2, 2.2);
-  drawPlayerPaperdoll(pctx, mockPlayer);
+  drawPlayerPaperdoll(ctx, mockPlayer);
   ctx.restore();
 }
