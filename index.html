@@ -8,6 +8,9 @@
 </head>
 <body>
 
+<!-- 右上角通用全螢幕按鈕 (手機/電腦皆可自由切換) -->
+<button id="btn-global-fullscreen" onclick="toggleGlobalFullscreen()">⛶ 全螢幕</button>
+
 <!-- 直向持握提示遮罩 -->
 <div id="rotate-device-overlay">
   <div style="font-size: 32px; margin-bottom: 12px;">📱 ↻</div>
@@ -95,7 +98,7 @@
     </div>
   </div>
 
-  <!-- 人體工學紙娃娃裝備視窗 (只在大地圖中打開) -->
+  <!-- 人體工學紙娃娃裝備視窗 -->
   <div id="inventory-modal" class="modal-backdrop">
     <div class="paperdoll-inv-container">
       <div class="inv-header">
@@ -104,9 +107,7 @@
       </div>
       
       <div class="paperdoll-layout">
-        <!-- 裝備槽位核心區 (人體工學佈局) -->
         <div class="gear-doll-wrapper">
-          <!-- 上方：頭盔 -->
           <div class="doll-row top-row">
             <div class="gear-slot" id="slot-helmet" onclick="selectSlotForEquip('helmet')">
               <span class="slot-label">頭盔</span>
@@ -114,15 +115,12 @@
             </div>
           </div>
 
-          <!-- 中央：雙手武器 + 盔甲 + 紙娃娃預覽 -->
           <div class="doll-row mid-row">
-            <!-- 左手：近戰武器 -->
             <div class="gear-slot weapon-slot" id="slot-melee" onclick="selectSlotForEquip('melee')">
               <span class="slot-label">近戰武器</span>
               <span class="slot-val" id="val-melee">赤手空拳</span>
             </div>
 
-            <!-- 中央核心預覽與盔甲 -->
             <div class="doll-center-core">
               <canvas id="preview-canvas" width="160" height="170"></canvas>
               <div class="gear-slot armor-slot" id="slot-armor" onclick="selectSlotForEquip('armor')">
@@ -131,14 +129,12 @@
               </div>
             </div>
 
-            <!-- 右手：遠程武器 -->
             <div class="gear-slot weapon-slot" id="slot-ranged" onclick="selectSlotForEquip('ranged')">
               <span class="slot-label">遠程武器</span>
               <span class="slot-val" id="val-ranged">未裝備</span>
             </div>
           </div>
 
-          <!-- 下方：手套、鞋子、護符、法器 -->
           <div class="doll-row bottom-row">
             <div class="gear-slot" id="slot-gloves" onclick="selectSlotForEquip('gloves')">
               <span class="slot-label">手套</span>
@@ -159,7 +155,6 @@
           </div>
         </div>
 
-        <!-- 右側：選中欄位的庫存裝備選單 -->
         <div class="gear-inventory-panel">
           <div class="inv-panel-title" id="inv-panel-title">點選左側槽位進行替換</div>
           <div class="inv-items-scroll" id="inv-items-scroll">
@@ -175,7 +170,7 @@
   </div>
 </div>
 
-<!-- 4. 戰鬥主畫面 (無背包，僅顯示戰鬥按鈕群) -->
+<!-- 4. 戰鬥主畫面 -->
 <div id="game-container" class="screen">
   <canvas id="game-canvas" width="780" height="540"></canvas>
   
@@ -193,7 +188,7 @@
     <div class="boss-bar-bg"><div id="boss-bar-fill"></div></div>
   </div>
 
-  <!-- HUD 介面 (禁止背包按鈕) -->
+  <!-- HUD 介面 -->
   <div id="hud">
     <div class="hud-bar-wrapper">
       <div class="hud-bar-info">
@@ -222,25 +217,21 @@
   <!-- 搖桿 (左半屏限定) -->
   <div id="joystick-base"><div id="joystick-thumb"></div></div>
 
-  <!-- 手機端右半側專用動作按鈕叢集 (衝刺、近戰、遠程、法器) -->
+  <!-- 手機端右半側專用動作按鈕群 -->
   <div id="battle-action-cluster">
-    <!-- 1. 近戰攻擊 (Melee) -->
     <button id="btn-act-melee" class="cluster-btn btn-melee" onclick="triggerManualAttack('melee')">
       <span class="act-icon">⚔️</span>
       <span class="act-txt">近戰</span>
     </button>
-    <!-- 2. 遠程切換攻擊 (Ranged) -->
     <button id="btn-act-ranged" class="cluster-btn btn-ranged" onclick="triggerManualAttack('ranged')">
       <span class="act-icon">🏹</span>
       <span class="act-txt">遠程</span>
     </button>
-    <!-- 3. 法器主動技能 (Artifact) -->
     <button id="btn-act-artifact" class="cluster-btn btn-artifact" onclick="triggerArtifactSkill()">
       <span class="act-icon">🔮</span>
       <span class="act-txt">法器</span>
       <div id="artifact-cooldown-overlay"></div>
     </button>
-    <!-- 4. 衝刺閃避 (Dash) -->
     <button id="btn-act-dash" class="cluster-btn btn-dash" onclick="triggerDash()">
       <span class="act-icon">⚡</span>
       <span class="act-txt">衝刺</span>
