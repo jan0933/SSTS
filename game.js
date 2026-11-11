@@ -1,5 +1,5 @@
 /**
- * SSTS - 戰鬥引擎、升級數值卡片、1~5關數量遞增、6~10關血量翻倍 (game.js)
+ * SSTS - 戰鬥引擎、單一遠距武器、通關金幣結算、升級數值卡片 (game.js)
  */
 
 let audioCtx = null;
@@ -22,7 +22,199 @@ function playTone(freq, type, duration, gainLevel = 0.08) {
   } catch(e){}
 }
 
-/* ==================== 戰鬥狀態 ==================== */
+/* ==================== 手動全螢幕切換 ==================== */
+function toggleGlobalFullscreen() {
+  const btn = document.getElementById('btn-global-fullscreen');
+  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+    const elem = document.documentElement;
+    if (elem.requestFullscreen) {
+      elem.requestFullscreen().catch(() => {});
+    } else if (elem.webkitRequestFullscreen) {
+      elem.webkitRequestFullscreen();
+    }
+    if (screen.orientation && screen.orientation.lock) {
+      screen.orientation.lock('landscape').catch(() => {});
+    }
+    btn.innerText = "✖ 退出全螢幕";
+  } else {
+    if (document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+    } else if (document.webkitExitFullscreen) {
+      document.webkitExitFullscreen();
+    }
+    btn.innerText = "⛶ 全螢幕";
+  }
+}
+
+document.addEventListener('fullscreenchange', () => {
+  const btn = document.getElementById('btn-global-fullscreen');
+  if (btn) btn.innerText = document.fullscreenElement ? "✖ 退出全螢幕" : "⛶ 全螢幕";
+});
+
+/* ==================== 首頁動態發光 LOGO ==================== */
+const logoCanvas = document.getElementById('logo-canvas');
+const lctx = logoCanvas.getContext('2d');
+let logoTime = 0;
+let logoAnimId = null;
+
+const bubbles = Array.from({ length: 35 }, () => ({
+  x: Math.random() * logoCanvas.width,
+  y: Math.random() * logoCanvas.height,
+  r: 1 + Math.random() * 2.5,
+  speed: 0.3 + Math.random() * 0.7,
+  alpha: 0.15 + Math.random() * 0.4
+}));
+
+function drawLogo() {
+  logoTime += 0.035;
+  lctx.clearRect(0, 0, logoCanvas.width, logoCanvas.height);
+
+  for (const b of bubbles) {
+    b.y -= b.speed;
+    if (b.y < -10) { b.y = logoCanvas.height + 10; b.x = Math.random() * logoCanvas.width; }
+    lctx.fillStyle = `rgba(56, 189, 248, ${b.alpha})`;
+    lctx.beginPath();
+    lctx.arc(b.x + Math.sin(logoTime + b.y * 0.05) * 5, b.y, b.r, 0, Math.PI * 2);
+    lctx.fill();
+  }
+
+  const cx = logoCanvas.width / 2;
+  const pulse = Math.sin(logoTime);
+
+  lctx.save();
+  lctx.font = "900 15px 'Courier New', monospace";
+  lctx.textAlign = "center";
+  lctx.fillStyle = "rgba(56, 189, 248, 0.9)";
+  lctx.shadowColor = "#0284c7";
+  lctx.shadowBlur = 8 + pulse * 4;
+  lctx.fillText("— SSTS · TACTICAL SURVIVAL —", cx, 35);
+  lctx.restore();
+
+  lctx.save();
+  lctx.font = "900 39px -apple-system, BlinkMacSystemFont, 'Microsoft JhengHei', sans-serif";
+  lctx.textAlign = "center";
+  lctx.shadowColor = "rgba(14, 165, 233, 0.85)";
+  lctx.shadowBlur = 22 + pulse * 10;
+
+  const textGrad = lctx.createLinearGradient(cx - 200, 0, cx + 200, 0);
+  textGrad.addColorStop(0, "#34d399");
+  textGrad.addColorStop(0.45, "#38bdf8");
+  textGrad.addColorStop(1, "#06b6d4");
+  lctx.fillStyle = textGrad;
+  lctx.fillText("地表倖存者：深海逆鱗", cx, 102 + Math.sin(logoTime * 0.8) * 2);
+  lctx.restore();
+
+  lctx.save();
+  lctx.font = "800 15px 'Segoe UI', sans-serif";
+  lctx.textAlign = "center";
+  lctx.fillStyle = "#94a3b8";
+  lctx.shadowColor = "rgba(56, 189, 248, 0.4)";
+  lctx.shadowBlur = 6;
+  lctx.fillText("SURFACE SURVIVORS: TIDAL SIEGE", cx, 140);
+  lctx.restore();
+
+  logoAnimId = requestAnimationFrame(drawLogo);
+}
+
+// 立即繪製首頁 Logo
+drawLogo();
+
+/* ==================== 故事模式 ==================== */
+const storyCanvas = document.getElementById('story-canvas');
+const sctx = storyCanvas.getContext('2d');
+let storyTime = 0;
+let storyAnimId = null;
+
+const storyData = [
+  { chapter: "SSTS // ARCHIVE 01", title: "海淵巨響 · 沉眠者復甦", desc: "萬米海溝深處的海洋霸主睜開眼瞳。遠古逆鱗引發深海沸騰狂潮，全球海岸線全面告急！" },
+  { chapter: "SSTS // ARCHIVE 02", title: "逆鱗狂潮 · 百國淪陷", desc: "自最小的梵蒂岡到遼闊大陸，各國海岸皆被變異海嗣突破，地表文明退守各大洲的核心掩體。" },
+  { chapter: "SSTS // ARCHIVE 03", title: "地表同盟 · 哨站奪還戰", desc: "裝備皆為全遠距攻擊。戰鬥獲取金幣提升 1~5 星級，擊潰海嗣收復全球 100 國！" },
+  { chapter: "SSTS // MISSION START", title: "全球反擊 · 征途展開", desc: "出擊吧！擊敗 Boss 獲取自選裝備，閒置裝備可拆解為金幣，強化戰甲迎戰深淵！" }
+];
+
+let storyIndex = 0;
+
+function drawStoryScene() {
+  storyTime += 0.04;
+  sctx.clearRect(0, 0, storyCanvas.width, storyCanvas.height);
+  const w = storyCanvas.width;
+  const h = storyCanvas.height;
+  const cx = w / 2;
+  const cy = h / 2;
+
+  if (storyIndex === 0) {
+    const grad = sctx.createRadialGradient(cx, cy, 20, cx, cy, 140);
+    grad.addColorStop(0, '#0c4a6e'); grad.addColorStop(1, '#020617');
+    sctx.fillStyle = grad; sctx.fillRect(0, 0, w, h);
+    sctx.save();
+    sctx.translate(cx, cy);
+    sctx.scale(1, 0.65 + Math.sin(storyTime * 0.8) * 0.08);
+    sctx.strokeStyle = '#0284c7'; sctx.lineWidth = 3;
+    sctx.beginPath(); sctx.ellipse(0, 0, 100, 55, 0, 0, Math.PI * 2); sctx.stroke();
+
+    const iris = sctx.createRadialGradient(0, 0, 5, 0, 0, 50);
+    iris.addColorStop(0, '#f59e0b'); iris.addColorStop(1, '#082f49');
+    sctx.fillStyle = iris; sctx.beginPath(); sctx.arc(0, 0, 46, 0, Math.PI * 2); sctx.fill();
+    sctx.fillStyle = '#020617'; sctx.beginPath(); sctx.ellipse(0, 0, 7 + Math.sin(storyTime * 2) * 2, 40, 0, 0, Math.PI * 2); sctx.fill();
+    sctx.restore();
+  } else {
+    sctx.fillStyle = '#050c1a'; sctx.fillRect(0, 0, w, h);
+    sctx.fillStyle = 'rgba(56, 189, 248, 0.6)';
+    sctx.beginPath(); sctx.moveTo(0, h);
+    for (let x = 0; x <= w; x += 10) sctx.lineTo(x, 120 + Math.sin(x * 0.02 + storyTime * 2) * 25);
+    sctx.lineTo(w, h); sctx.closePath(); sctx.fill();
+  }
+  storyAnimId = requestAnimationFrame(drawStoryScene);
+}
+
+function startStory() {
+  initAudio();
+  loadGameSave();
+  playTone(440, 'triangle', 0.2);
+  if (logoAnimId) cancelAnimationFrame(logoAnimId);
+  document.getElementById('title-screen').style.display = 'none';
+  document.getElementById('story-screen').style.display = 'flex';
+  renderStory();
+  if (!storyAnimId) drawStoryScene();
+}
+
+function renderStory() {
+  const current = storyData[storyIndex];
+  document.getElementById('story-chapter').innerText = current.chapter;
+  document.getElementById('story-title').innerText = current.title;
+  document.getElementById('story-desc').innerText = current.desc;
+  const dotsContainer = document.getElementById('dots-container');
+  dotsContainer.innerHTML = '';
+  storyData.forEach((_, idx) => {
+    const dot = document.createElement('div');
+    dot.className = `dot ${idx === storyIndex ? 'active' : ''}`;
+    dotsContainer.appendChild(dot);
+  });
+}
+
+function handleStoryScreenClick(e) {
+  if (e.target.classList.contains('story-skip-btn')) return;
+  nextStory();
+}
+
+function nextStory() {
+  playTone(550, 'sine', 0.15);
+  storyIndex++;
+  if (storyIndex >= storyData.length) {
+    if (storyAnimId) { cancelAnimationFrame(storyAnimId); storyAnimId = null; }
+    openWorldMapScreen();
+  } else {
+    renderStory();
+  }
+}
+
+function skipStory(e) {
+  e.stopPropagation();
+  if (storyAnimId) { cancelAnimationFrame(storyAnimId); storyAnimId = null; }
+  openWorldMapScreen();
+}
+
+/* ==================== 戰鬥引擎與狀態 ==================== */
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
 const expBar = document.getElementById('exp-bar');
@@ -31,7 +223,7 @@ const txtExpVal = document.getElementById('txt-exp-val');
 const txtHpVal = document.getElementById('txt-hp-val');
 const txtLevel = document.getElementById('txt-level');
 const txtCurrentCountry = document.getElementById('txt-current-country');
-const txtWeaponMode = document.getElementById('txt-weapon-mode');
+const txtWeaponInfo = document.getElementById('txt-weapon-info');
 const txtKills = document.getElementById('txt-kills');
 
 const upgradeModal = document.getElementById('upgrade-modal');
@@ -41,6 +233,7 @@ const chestStageInfo = document.getElementById('chest-stage-info');
 const chestTitle = document.getElementById('chest-title');
 const victoryModal = document.getElementById('victory-modal');
 const victoryCountryName = document.getElementById('victory-country-name');
+const victoryGoldReward = document.getElementById('victory-gold-reward');
 const victoryDescText = document.getElementById('victory-desc-text');
 const defeatModal = document.getElementById('defeat-modal');
 const defeatCountryInfo = document.getElementById('defeat-country-info');
@@ -80,12 +273,11 @@ const player = {
   animTimer: 0,
   attackTimer: 0,
   attackDuration: 14,
-  fireInterval: 32,
+  fireInterval: 30,
   fireTimer: 0,
 
-  combatMode: 'melee',
-  meleeWeapon: { type: 'bare', name: '空手電磁衝擊', damage: 30, speed: 8, color: '#38bdf8' },
-  rangedWeapon: { type: 'bow', name: '電磁弩弓', damage: 35, speed: 11, color: '#0284c7' },
+  // 單一遠程武器與戰術法器
+  weapon: { id: "w_start", name: "斥候脈衝弓", type: "bow", tier: "common", stars: 1, damage: 32, speed: 11, color: '#38bdf8' },
   artifact: { id: "art_nova", name: "等離子爆裂核", skillType: "nova" },
 
   artifactCooldown: 240,
@@ -107,7 +299,7 @@ const player = {
     boots: null,
     accessory: null,
     talisman: null,
-    weapon: { type: 'bare', name: '空手電磁衝擊', damage: 30, speed: 8, color: '#38bdf8' }
+    weapon: null
   }
 };
 
@@ -118,30 +310,30 @@ let battlePickups = [];
 let stageObstacles = [];
 let artifactEffects = [];
 
-/* ==================== 裝備資料庫 ==================== */
+/* ==================== 5 品階戰利品裝備庫 ==================== */
 const EQUIPMENT_DATABASE = {
+  // 第 1 國 ~ 第 20 國 (普通 / 稀有)
   1: [
-    { id: "w_sword_1", slot: "weapon", name: "斥候合金刃", type: "近戰武器", tier: "普通", desc: "軍刀斬擊 (傷害 45)", data: { type: 'melee', name: '斥候合金刃', damage: 45, speed: 9, color: '#38bdf8' } },
-    { id: "w_bow_1", slot: "weapon", name: "輕型短弓", type: "遠程弓弩", tier: "普通", desc: "快速穿刺 (傷害 32)", data: { type: 'bow', name: '輕型短弓', damage: 32, speed: 11, color: '#0284c7' } },
-    { id: "art_freeze", slot: "artifact", name: "極寒風暴核", type: "戰術法器", tier: "普通", desc: "技能：冰凍全場並減速 60%", skillType: "freeze" },
-    { id: "h_scout", slot: "helmet", name: "斥候護目鏡", type: "頭盔", tier: "普通", desc: "提升 10% 視野與暴擊", val: "scout" },
-    { id: "a_scout", slot: "armor", name: "輕甲胸衣", type: "盔甲", tier: "普通", desc: "提升 30 點生命上限", val: "scout" },
-    { id: "t_atk", slot: "talisman", name: "雷光護符", type: "護符 (寵物)", tier: "普通", desc: "召喚【電漿浮游蟲】協助攻擊", val: "atk_pet" }
+    { id: "w_bow_1", slot: "weapon", name: "電磁穿甲弩", type: "bow", tier: "common", stars: 1, desc: "遠程穿透射擊 (傷害 35)", damage: 35, speed: 11, color: '#38bdf8' },
+    { id: "w_staff_1", slot: "weapon", name: "星芒脈衝杖", type: "staff", tier: "rare", stars: 1, desc: "遠程等離子法球 (傷害 48)", damage: 48, speed: 8.5, color: '#c084fc' },
+    { id: "h_scout_1", slot: "helmet", name: "斥候護目鏡", tier: "common", stars: 1, desc: "視野延伸，基礎暴擊提升", val: "scout" },
+    { id: "a_scout_1", slot: "armor", name: "輕甲合金胸衣", tier: "rare", stars: 1, desc: "提升 35 點生命上限", val: "scout" },
+    { id: "t_atk_1", slot: "talisman", name: "雷光護符", tier: "common", stars: 1, desc: "召喚【電漿浮游蟲】遠距雷射協攻", val: "atk_pet" }
   ],
+  // 第 21 國 ~ 第 60 國 (菁英 / 史詩)
   2: [
-    { id: "w_staff_2", slot: "weapon", name: "等離子星杖", type: "遠程法杖", tier: "稀有", desc: "貫穿光球 (傷害 75)", data: { type: 'staff', name: '等離子星杖', damage: 75, speed: 7, color: '#c084fc' } },
-    { id: "art_thunder", slot: "artifact", name: "天罰雷霆核", type: "戰術法器", tier: "稀有", desc: "技能：全屏召喚五道天雷轟殺強敵", skillType: "thunder" },
-    { id: "h_heavy_2", slot: "helmet", name: "重型合金角盔", type: "頭盔", tier: "稀有", desc: "減免 15% 所受傷害", val: "heavy" },
-    { id: "a_heavy_2", slot: "armor", name: "板塊覆甲重鎧", type: "盔甲", tier: "稀有", desc: "大幅提升防禦與抗擊退", val: "heavy" },
-    { id: "t_heal", slot: "talisman", name: "生命潮汐符", type: "護符 (寵物)", tier: "稀有", desc: "召喚【醫療水母】每 4 秒回血", val: "heal_pet" },
-    { id: "acc_mantle", slot: "accessory", name: "極光披風", type: "配件", tier: "稀有", desc: "提升 15% 移動速度", val: "mantle" }
+    { id: "w_bow_2", slot: "weapon", name: "暴風電磁巨弩", type: "bow", tier: "elite", stars: 1, desc: "超高速貫穿箭 (傷害 75)", damage: 75, speed: 13, color: '#facc15' },
+    { id: "w_staff_2", slot: "weapon", name: "虛空引力星杖", type: "staff", tier: "epic", stars: 1, desc: "雙重分裂暗能球 (傷害 95)", damage: 95, speed: 9.5, color: '#c084fc' },
+    { id: "h_heavy_2", slot: "helmet", name: "重型合金角盔", tier: "elite", stars: 1, desc: "減免 15% 承受傷害", val: "heavy" },
+    { id: "a_heavy_2", slot: "armor", name: "板塊重裝戰甲", tier: "epic", stars: 1, desc: "大幅提升護甲與生命上限", val: "heavy" },
+    { id: "t_heal_2", slot: "talisman", name: "潮汐精靈符", tier: "elite", stars: 1, desc: "召喚【醫療水母】每 4 秒回復生命", val: "heal_pet" }
   ],
+  // 第 61 國 ~ 第 100 國 (史詩 / 傳說神話)
   3: [
-    { id: "w_sword_3", slot: "weapon", name: "逆鱗弒神光刃", type: "近戰神話", tier: "史詩", desc: "大範圍真傷橫掃 (傷害 135)", data: { type: 'melee', name: '逆鱗弒神光刃', damage: 135, speed: 12, color: '#f43f5e' } },
-    { id: "w_bow_3", slot: "weapon", name: "虛空貫滅巨弩", type: "遠程神話", tier: "史詩", desc: "三重散射電磁箭 (傷害 98)", data: { type: 'bow', name: '虛空貫滅巨弩', damage: 98, speed: 14, color: '#38bdf8' } },
-    { id: "art_blackhole", slot: "artifact", name: "深淵重力核", type: "戰術法器", tier: "史詩", desc: "技能：全圖產生黑洞聚怪並引燃", skillType: "blackhole" },
-    { id: "a_archmage_3", slot: "armor", name: "星宿天災戰袍", type: "盔甲神話", tier: "史詩", desc: "護甲超載，全傷害提升 30%", val: "archmage" },
-    { id: "t_pull", slot: "talisman", name: "深淵重力核", type: "護符 (寵物)", tier: "史詩", desc: "召喚【磁暴黑洞核】定期強吸怪", val: "pull_pet" }
+    { id: "w_bow_3", slot: "weapon", name: "弒神天罰巨弩", type: "bow", tier: "legendary", stars: 1, desc: "三重散射電磁光束 (傷害 145)", damage: 145, speed: 15, color: '#fb923c' },
+    { id: "w_staff_3", slot: "weapon", name: "超新星天災杖", type: "staff", tier: "legendary", stars: 1, desc: "貫穿引爆核光球 (傷害 165)", damage: 165, speed: 11, color: '#fb923c' },
+    { id: "a_archmage_3", slot: "armor", name: "星宿天災戰袍", tier: "legendary", stars: 1, desc: "生命與護甲超載，傷害提升 30%", val: "archmage" },
+    { id: "t_pull_3", slot: "talisman", name: "深淵重力核", tier: "legendary", stars: 1, desc: "召喚【磁暴黑洞核】強力牽引群怪", val: "pull_pet" }
   ]
 };
 
@@ -168,19 +360,18 @@ function startCountryBattle(countryId, substageIndex) {
   player.hp = player.maxHp;
   player.baseBonusDamage = (player.level - 1) * 5;
 
-  player.meleeWeapon = userSave.equipped.meleeWeapon || { type: 'melee', name: '離子軍刀', damage: 45, speed: 9, color: '#38bdf8' };
-  player.rangedWeapon = userSave.equipped.rangedWeapon || { type: 'bow', name: '電磁弩弓', damage: 35, speed: 11, color: '#0284c7' };
+  // 讀取單一遠程武器與法器
+  player.weapon = userSave.equipped.weapon || { id: "w_start", name: "斥候脈衝弓", type: "bow", tier: "common", stars: 1, damage: 32, speed: 11, color: '#38bdf8' };
   player.artifact = userSave.equipped.artifact || { id: "art_nova", name: "等離子爆裂核", skillType: "nova" };
-  player.combatMode = 'melee';
 
   player.equipment = {
-    helmet: userSave.equipped.helmet,
-    armor: userSave.equipped.armor,
-    gloves: userSave.equipped.gloves,
-    boots: userSave.equipped.boots,
-    accessory: userSave.equipped.accessory,
-    talisman: userSave.equipped.talisman,
-    weapon: player.meleeWeapon
+    helmet: userSave.equipped.helmet ? userSave.equipped.helmet.val : null,
+    armor: userSave.equipped.armor ? userSave.equipped.armor.val : null,
+    gloves: userSave.equipped.gloves ? userSave.equipped.gloves.val : null,
+    boots: userSave.equipped.boots ? userSave.equipped.boots.val : null,
+    accessory: userSave.equipped.accessory ? userSave.equipped.accessory.val : null,
+    talisman: userSave.equipped.talisman ? userSave.equipped.talisman.val : null,
+    weapon: player.weapon
   };
 
   player.x = canvas.width / 2;
@@ -202,7 +393,7 @@ function startCountryBattle(countryId, substageIndex) {
   victoryModal.style.display = 'none';
 
   txtCurrentCountry.innerText = `${activeCountryData.flag} ${activeCountryData.name.split(' ')[0]} - 哨站 ${substageIndex}/10`;
-  txtWeaponMode.innerText = `模式: 近戰斬擊`;
+  txtWeaponInfo.innerText = `武器: ${player.weapon.name} ${renderStarsStr(player.weapon.stars || 1)}`;
   txtLevel.innerText = `階級: Lv.${player.level}`;
   updateHUD();
 
@@ -210,20 +401,9 @@ function startCountryBattle(countryId, substageIndex) {
   initGame();
 }
 
-function triggerManualAttack(mode) {
+/* ==================== 手動操作 (射擊 / 法器 / 衝刺) ==================== */
+function triggerManualShoot() {
   if (isPaused || !gameRunning) return;
-
-  player.combatMode = mode;
-  if (mode === 'melee') {
-    player.equipment.weapon = player.meleeWeapon;
-    txtWeaponMode.innerText = `模式: 近戰 (${player.meleeWeapon.name})`;
-    txtWeaponMode.style.color = "#38bdf8";
-  } else {
-    player.equipment.weapon = player.rangedWeapon;
-    txtWeaponMode.innerText = `模式: 遠程 (${player.rangedWeapon.name})`;
-    txtWeaponMode.style.color = "#2dd4bf";
-  }
-
   executeAttack();
 }
 
@@ -442,8 +622,7 @@ const keys = {};
 window.addEventListener('keydown', e => {
   keys[e.key.toLowerCase()] = true;
   if (e.code === 'Space') { e.preventDefault(); triggerDash(); }
-  if (e.key === 'j' || e.key === 'J') triggerManualAttack('melee');
-  if (e.key === 'k' || e.key === 'K') triggerManualAttack('ranged');
+  if (e.key === 'j' || e.key === 'J') triggerManualShoot();
   if (e.key === 'l' || e.key === 'L') triggerArtifactSkill();
 });
 window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
@@ -516,20 +695,21 @@ function openChestSelection(isApex) {
   chestModal.style.display = 'flex';
   chestOptionsContainer.innerHTML = '';
 
-  const tierKey = isApex ? 3 : 2;
-  const pool = EQUIPMENT_DATABASE[tierKey];
+  const poolKey = activeCountryStageId <= 20 ? 1 : (activeCountryStageId <= 60 ? 2 : 3);
+  const pool = EQUIPMENT_DATABASE[poolKey];
   const shuffled = [...pool].sort(() => 0.5 - Math.random());
   const options = shuffled.slice(0, 3);
 
-  chestTitle.innerText = isApex ? "👑 擊破領土霸主 · 頂級神裝自選" : "⚔️ 擊破先鋒 Boss · 稀有裝備自選";
-  chestStageInfo.innerText = isApex ? "品質階級：史詩 / 神話級戰利品" : "品質階級：稀有級戰利品";
+  chestTitle.innerText = isApex ? "👑 擊破領土霸主 · 頂級裝備自選" : "⚔️ 擊破先鋒 Boss · 稀有裝備自選";
+  chestStageInfo.innerText = isApex ? "品質階級：史詩 / 傳說級戰利品" : "品質階級：稀有 / 菁英級戰利品";
 
   options.forEach(item => {
     const card = document.createElement('div');
     card.className = 'chest-card';
+    const tierMeta = TIER_META[item.tier || 'common'] || TIER_META.common;
     card.innerHTML = `
-      <div class="chest-card-type" style="color: ${item.tier === '史詩' ? '#f43f5e' : '#c084fc'}">
-        [ ${item.tier} · ${item.type} ]
+      <div class="chest-card-type" style="color: ${tierMeta.color}">
+        [ ${tierMeta.name} · ${renderStarsStr(item.stars || 1)} ]
       </div>
       <div class="chest-card-name">${item.name}</div>
       <div class="chest-card-desc">${item.desc}</div>
@@ -543,9 +723,7 @@ function openChestSelection(isApex) {
 }
 
 function claimChestItem(item) {
-  if (!userSave.myInventory.some(i => i.id === item.id)) {
-    userSave.myInventory.push(item);
-  }
+  userSave.myInventory.push({ ...item });
   chest.active = false;
   chestModal.style.display = 'none';
   playTone(850, 'sine', 0.3, 0.1);
@@ -553,6 +731,7 @@ function claimChestItem(item) {
   completeSubstage();
 }
 
+// 結算通關 (發放關卡金幣)
 function completeSubstage() {
   const cId = activeCountryStageId;
   const currentProgress = userSave.stageProgress[cId] || 0;
@@ -568,6 +747,11 @@ function completeSubstage() {
     }
   }
 
+  // 金幣發放公式：越後面的關卡金幣越多
+  const earnedGold = 60 + (cId - 1) * 25 + activeSubstage * 8;
+  userSave.playerGold = (userSave.playerGold || 0) + earnedGold;
+  victoryGoldReward.innerText = `💰 作戰津貼：+${earnedGold} 金幣 (結餘: ${userSave.playerGold})`;
+
   syncPlayerSaveState();
   showVictoryModal();
 }
@@ -577,18 +761,6 @@ function syncPlayerSaveState() {
   userSave.playerExp = player.exp;
   userSave.playerNextExp = player.nextExp;
   userSave.playerMaxHp = player.maxHp;
-  userSave.equipped = {
-    helmet: player.equipment.helmet,
-    armor: player.equipment.armor,
-    gloves: player.equipment.gloves,
-    boots: player.equipment.boots,
-    accessory: player.equipment.accessory,
-    talisman: player.equipment.talisman,
-    meleeWeapon: player.meleeWeapon,
-    rangedWeapon: player.rangedWeapon,
-    artifact: player.artifact,
-    activeCombatMode: player.combatMode
-  };
   saveGameProgress();
 }
 
@@ -671,6 +843,7 @@ function updateHUD() {
   hpBar.style.width = `${Math.max(0, (player.hp / player.maxHp) * 100)}%`;
 }
 
+// 1~5關數量越來越多，6~10關對應1~5關但血量加倍
 function spawnContinentEnemy() {
   const normSubstage = (activeSubstage > 5) ? (activeSubstage - 5) : activeSubstage;
   const isHpDoubled = (activeSubstage > 5);
@@ -744,19 +917,18 @@ function executeAttack() {
   player.facing = target.x >= player.x ? 1 : -1;
 
   const angle = Math.atan2(target.y - player.y, target.x - player.x);
-  const w = player.equipment.weapon || player.meleeWeapon;
+  const w = player.weapon || { damage: 30, speed: 10, type: 'bow' };
   const totalDamage = w.damage + player.baseBonusDamage;
 
   bullets.push({
     x: player.x, y: player.y,
     vx: Math.cos(angle) * w.speed, vy: Math.sin(angle) * w.speed,
-    radius: w.type === 'staff' ? 6 : (w.type === 'bow' ? 3 : 4.5),
+    radius: w.type === 'staff' ? 6 : 4,
     damage: totalDamage, type: w.type
   });
 
-  if (w.type === 'melee' || w.type === 'bare') playTone(280, 'sawtooth', 0.1);
-  else if (w.type === 'bow') playTone(850, 'triangle', 0.08);
-  else playTone(650, 'sine', 0.16);
+  if (w.type === 'staff') playTone(650, 'sine', 0.16);
+  else playTone(850, 'triangle', 0.08);
 }
 
 function updateGame() {
@@ -828,6 +1000,7 @@ function updateGame() {
     if (dashGhosts[i].alpha <= 0) dashGhosts.splice(i, 1);
   }
 
+  // 遠距自動開火循環
   if (player.attackTimer > 0) player.attackTimer--;
   player.fireTimer++;
   if (player.fireTimer >= player.fireInterval) {
@@ -852,6 +1025,7 @@ function updateGame() {
     }
   }
 
+  // 子彈飛行與吸收
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i];
     b.x += b.vx; b.y += b.vy;
@@ -977,6 +1151,7 @@ function updateGame() {
     }
   }
 
+  // 生成小怪
   spawnTimer++;
   const currentInterval = Math.max(25, 75 - (normSubstage * 9));
   if (spawnTimer >= currentInterval) {
@@ -984,6 +1159,7 @@ function updateGame() {
     spawnTimer = 0;
   }
 
+  // 小怪直線移動與彈跳反射
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
     e.pulse += 0.08;
@@ -1023,6 +1199,7 @@ function updateGame() {
     }
   }
 
+  // 寶石吸附
   for (let i = gems.length - 1; i >= 0; i--) {
     const g = gems[i];
     const dist = Math.hypot(player.x - g.x, player.y - g.y);
@@ -1044,16 +1221,17 @@ function updateGame() {
   }
 }
 
+// 升級時動態計算三選一預覽數值
 function triggerLevelUp() {
   isPaused = true;
   player.level++;
   player.exp = 0;
   player.nextExp = Math.floor(player.nextExp * 1.35);
 
-  const curMelee = player.meleeWeapon.damage + player.baseBonusDamage;
-  const curRanged = player.rangedWeapon.damage + player.baseBonusDamage;
+  const curWep = player.weapon ? player.weapon.damage : 30;
+  const curAtk = curWep + player.baseBonusDamage;
   document.getElementById('up-stat-damage').innerText = 
-    `目前: 近戰 ${curMelee} / 遠程 ${curRanged} ➜ 各 +15`;
+    `目前: ${curAtk} ➜ 升級後: ${curAtk + 15}`;
 
   document.getElementById('up-stat-hp').innerText = 
     `目前: ${Math.floor(player.hp)} / ${player.maxHp} ➜ 上限: ${player.maxHp + 25} (並補滿)`;
@@ -1100,14 +1278,13 @@ function renderGame() {
   drawBattlePickups(ctx, battlePickups, globalTime);
 
   for (const b of bullets) {
-    ctx.fillStyle = b.type === 'staff' ? '#c084fc' : (b.type === 'bow' ? '#38bdf8' : '#67e8f9');
+    ctx.fillStyle = b.type === 'staff' ? '#c084fc' : '#38bdf8';
     ctx.beginPath(); ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2); ctx.fill();
   }
 
   drawEnemies(ctx, enemies, boss);
   drawBossBullets(ctx, bossBullets);
   drawArtifactSkillEffects(ctx, artifactEffects, globalTime);
-
   drawChestItem(ctx, chest, globalTime);
   drawDashGhosts(ctx, dashGhosts);
   drawPlayerPaperdoll(ctx, player);
