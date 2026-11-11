@@ -1,7 +1,17 @@
 /**
- * SSTS - 美術渲染、紙娃娃、大洲建物、戰地道具與四大法器華麗粒子特效 (render_art.js)
+ * SSTS - 美術渲染、紙娃娃、5大品階光環、1~5星粒子反饋與戰鬥特效模組 (render_art.js)
  */
 
+// 5 大品質色彩與光階特效配置表
+const TIER_VISUALS = {
+  common: { glow: "rgba(241, 245, 249, 0.4)", text: "#f1f5f9", shadow: "#94a3b8", blur: 4 },
+  rare: { glow: "rgba(56, 189, 248, 0.65)", text: "#38bdf8", shadow: "#0284c7", blur: 10 },
+  elite: { glow: "rgba(250, 204, 21, 0.75)", text: "#facc15", shadow: "#ca8a04", blur: 14 },
+  epic: { glow: "rgba(192, 132, 252, 0.85)", text: "#c084fc", shadow: "#9333ea", blur: 18 },
+  legendary: { glow: "rgba(251, 146, 60, 0.95)", text: "#fb923c", shadow: "#ea580c", blur: 24 }
+};
+
+// 基礎部件外型風格表 (相容字串與物件結構)
 const EQUIPMENT_REGISTRY = {
   helmets: {
     scout: { color: "#38bdf8", visor: "#0284c7", horn: false },
@@ -16,7 +26,7 @@ const EQUIPMENT_REGISTRY = {
   gloves: { scout: "#2dd4bf", heavy: "#94a3b8", archmage: "#a78bfa" },
   boots: { scout: "#0d9488", heavy: "#1e293b", archmage: "#5b21b6" },
   accessories: {
-    mantle: { color: "rgba(56, 189, 248, 0.4)" },
+    mantle: { color: "rgba(56, 189, 248, 0.45)" },
     relic: { color: "#f59e0b" }
   },
   talismans: {
@@ -26,6 +36,244 @@ const EQUIPMENT_REGISTRY = {
   }
 };
 
+/**
+ * 輔助函式：自裝備物件或字串中解析鍵值與品階
+ */
+function parseGearMeta(gearSlot, defaultTier = "common") {
+  if (!gearSlot) return { val: null, tier: defaultTier, stars: 1 };
+  if (typeof gearSlot === "string") return { val: gearSlot, tier: defaultTier, stars: 1 };
+  return {
+    val: gearSlot.val || gearSlot.id || null,
+    tier: gearSlot.tier || defaultTier,
+    stars: gearSlot.stars || 1,
+    raw: gearSlot
+  };
+}
+
+/**
+ * 繪製紙娃娃玩家本體 (支援全遠程武器、5品質光暈、1~5星升星粒子)
+ */
+function drawPlayerPaperdoll(ctx, p) {
+  ctx.save();
+  ctx.translate(p.x, p.y);
+
+  if (p.facing < 0) ctx.scale(-1, 1);
+
+  let walkCycle = 0;
+  let bobbing = 0;
+  if (p.isMoving) {
+    walkCycle = Math.sin(p.animTimer * 12);
+    bobbing = Math.abs(Math.cos(p.animTimer * 12)) * 2;
+  }
+
+  // 解析各裝備槽位
+  const eq = p.equipment || {};
+  const helm = parseGearMeta(eq.helmet);
+  const armor = parseGearMeta(eq.armor);
+  const gloves = parseGearMeta(eq.gloves);
+  const boots = parseGearMeta(eq.boots);
+  const talisman = parseGearMeta(eq.talisman);
+  const accessory = parseGearMeta(eq.accessory);
+  const wepObj = eq.weapon || p.weapon || { type: 'bow', tier: 'common', stars: 1, damage: 30 };
+
+  const helmConfig = helm.val ? EQUIPMENT_REGISTRY.helmets[helm.val] : null;
+  const armorConfig = armor.val ? EQUIPMENT_REGISTRY.armors[armor.val] : null;
+  const gloveColor = gloves.val ? (EQUIPMENT_REGISTRY.gloves[gloves.val] || "#475569") : "#475569";
+  const bootColor = boots.val ? (EQUIPMENT_REGISTRY.boots[boots.val] || "#334155") : "#334155";
+
+  // 高階裝備自帶全身傳奇光環 (史詩/傳說 裝備達到 3★ 以上時散發能量氣場)
+  if (wepObj.tier === 'legendary' || armor.tier === 'legendary' || wepObj.stars >= 4) {
+    ctx.save();
+    const auraPulse = Math.sin(p.animTimer * 6) * 3;
+    const tierMeta = TIER_VISUALS[wepObj.tier] || TIER_VISUALS.legendary;
+    ctx.strokeStyle = tierMeta.glow;
+    ctx.shadowColor = tierMeta.shadow;
+    ctx.shadowBlur = tierMeta.blur + (wepObj.stars * 2);
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(0, -2 - bobbing, 16 + auraPulse, 22 + auraPulse, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // 衝刺時高亮過載護盾
+  if (p.isDashing) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(103, 232, 249, 0.9)";
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = "#38bdf8";
+    ctx.shadowBlur = 16;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 18, 22, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // 1. 披風配件
+  if (accessory.val && EQUIPMENT_REGISTRY.accessories[accessory.val]) {
+    const capeSway = (walkCycle * 6) + (p.vx * -2);
+    ctx.fillStyle = EQUIPMENT_REGISTRY.accessories[accessory.val].color;
+    ctx.beginPath();
+    ctx.moveTo(-6, -4 - bobbing);
+    ctx.lineTo(-14 + capeSway, 14);
+    ctx.lineTo(-4 + capeSway, 16);
+    ctx.lineTo(2, -4 - bobbing);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // 2. 腿部與鞋子
+  const leftLegAngle = walkCycle * 0.45;
+  const rightLegAngle = -walkCycle * 0.45;
+
+  ctx.save();
+  ctx.translate(-4, 6 - bobbing); ctx.rotate(leftLegAngle);
+  ctx.fillStyle = bootColor; ctx.fillRect(-2, 0, 4, 8);
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(4, 6 - bobbing); ctx.rotate(rightLegAngle);
+  ctx.fillStyle = bootColor; ctx.fillRect(-2, 0, 4, 8);
+  ctx.restore();
+
+  // 3. 軀幹與胸甲
+  ctx.save();
+  ctx.translate(0, -bobbing);
+  ctx.fillStyle = armorConfig ? armorConfig.base : "#1e293b";
+  ctx.fillRect(-6, -8, 12, 14);
+
+  if (armorConfig) {
+    const armorTierMeta = TIER_VISUALS[armor.tier] || TIER_VISUALS.common;
+    ctx.fillStyle = armorConfig.plate;
+    ctx.shadowColor = armorTierMeta.shadow;
+    ctx.shadowBlur = armor.stars >= 3 ? armorTierMeta.blur : 0;
+
+    ctx.beginPath();
+    ctx.moveTo(-5, -6); ctx.lineTo(5, -6); ctx.lineTo(3, 4); ctx.lineTo(-3, 4);
+    ctx.closePath(); ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+  ctx.restore();
+
+  // 4. 頭部與頭盔
+  ctx.save();
+  ctx.translate(0, -12 - bobbing);
+  ctx.fillStyle = helmConfig ? helmConfig.color : "#334155";
+  ctx.beginPath(); ctx.arc(0, 0, 7.5, 0, Math.PI * 2); ctx.fill();
+
+  const helmTierMeta = TIER_VISUALS[helm.tier] || TIER_VISUALS.common;
+  ctx.fillStyle = helmConfig ? helmConfig.visor : "#38bdf8";
+  ctx.shadowColor = helmTierMeta.shadow;
+  ctx.shadowBlur = helm.stars >= 3 ? helmTierMeta.blur : 0;
+  ctx.fillRect(1, -2, 6, 3);
+  ctx.shadowBlur = 0;
+
+  if (helmConfig && helmConfig.horn) {
+    ctx.fillStyle = "#94a3b8";
+    ctx.beginPath(); ctx.moveTo(-4, -6); ctx.lineTo(-10, -12); ctx.lineTo(-2, -8); ctx.fill();
+  }
+  ctx.restore();
+
+  // 5. 單一遠程武器與星級射擊姿態
+  drawSingleRangedWeapon(ctx, p, wepObj, gloveColor, bobbing);
+
+  ctx.restore();
+}
+
+/**
+ * 繪製單一遠程武器 (支援弓弩、法杖、脈衝銃，並即時渲染星級與品階光彩)
+ */
+function drawSingleRangedWeapon(ctx, p, wep, gloveColor, bobbing) {
+  const isAttacking = p.attackTimer > 0;
+  const attackProgress = 1 - (p.attackTimer / p.attackDuration);
+  const tierMeta = TIER_VISUALS[wep.tier || 'common'] || TIER_VISUALS.common;
+  const stars = Math.min(5, Math.max(1, wep.stars || 1));
+
+  ctx.save();
+  ctx.translate(3, -2 - bobbing);
+
+  // 手套手臂
+  ctx.fillStyle = gloveColor;
+  ctx.fillRect(0, -2, 7, 4);
+
+  // 武器發光陰影 (隨星級增強)
+  ctx.shadowColor = tierMeta.shadow;
+  ctx.shadowBlur = tierMeta.blur + (stars * 2);
+
+  if (wep.type === 'staff') {
+    // 【遠程法杖型態】：充能法珠 + 星階微型環
+    let staffTilt = 0.2;
+    if (isAttacking) {
+      staffTilt = -0.5 + Math.sin(attackProgress * Math.PI) * 0.4;
+      // 攻擊充能星芒陣
+      ctx.save();
+      ctx.translate(20, -14);
+      ctx.strokeStyle = tierMeta.glow;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, 7 + stars, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+    ctx.rotate(staffTilt);
+
+    // 杖身
+    ctx.fillStyle = "#475569";
+    ctx.fillRect(4, -1.5, 20, 3);
+
+    // 核心寶珠 (隨品質變色)
+    ctx.fillStyle = tierMeta.text;
+    ctx.beginPath();
+    ctx.arc(24, 0, 4 + (stars * 0.7), 0, Math.PI * 2);
+    ctx.fill();
+
+  } else {
+    // 【遠程電磁弩弓型態】：拉弦蓄力 + 散射光軌
+    let drawPull = 0;
+    if (isAttacking) drawPull = Math.sin(attackProgress * Math.PI) * 5;
+
+    ctx.save();
+    ctx.translate(8, 0);
+
+    // 弓身
+    ctx.strokeStyle = tierMeta.text;
+    ctx.lineWidth = 2 + (stars * 0.4);
+    ctx.beginPath();
+    ctx.arc(0, 0, 11 + stars, -Math.PI / 2.3, Math.PI / 2.3);
+    ctx.stroke();
+
+    // 能量弓弦
+    ctx.strokeStyle = "#cbd5e1";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(4, -10 - stars);
+    ctx.lineTo(-drawPull, 0);
+    ctx.lineTo(4, 10 + stars);
+    ctx.stroke();
+
+    // 射出瞬間之蓄能電磁箭
+    if (isAttacking) {
+      ctx.fillStyle = tierMeta.text;
+      ctx.fillRect(-drawPull, -1.5, 16 + (stars * 2), 3);
+    }
+    ctx.restore();
+  }
+
+  // 4★、5★ 頂級武器在持握端環繞旋轉微型星芒粒子
+  if (stars >= 4) {
+    const starAngle = (p.animTimer * 5);
+    ctx.fillStyle = "#facc15";
+    ctx.beginPath();
+    ctx.arc(12 + Math.cos(starAngle) * 8, Math.sin(starAngle) * 8, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+/**
+ * 繪製四大法器專屬動態法術粒子特效
+ */
 function drawArtifactSkillEffects(ctx, fxList, time) {
   for (let i = fxList.length - 1; i >= 0; i--) {
     const fx = fxList[i];
@@ -39,7 +287,7 @@ function drawArtifactSkillEffects(ctx, fxList, time) {
       ctx.strokeStyle = `rgba(186, 230, 253, ${1 - progress})`;
       ctx.shadowColor = "#38bdf8";
       ctx.shadowBlur = 18;
-      ctx.lineWidth = 3 * (1 - progress);
+      ctx.lineWidth = 3.5 * (1 - progress);
       ctx.beginPath();
       ctx.arc(fx.x, fx.y, ringRadius, 0, Math.PI * 2);
       ctx.stroke();
@@ -137,6 +385,9 @@ function drawArtifactSkillEffects(ctx, fxList, time) {
   }
 }
 
+/**
+ * 繪製各大洲特色實體掩體建物
+ */
 function drawObstacles(ctx, obstacles, continent, time) {
   for (const obs of obstacles) {
     ctx.save();
@@ -195,6 +446,9 @@ function drawObstacles(ctx, obstacles, continent, time) {
   }
 }
 
+/**
+ * 繪製掉落在戰場上的磁鐵與炸彈道具
+ */
 function drawBattlePickups(ctx, pickups, time) {
   for (const p of pickups) {
     ctx.save();
@@ -304,154 +558,6 @@ function drawPet(ctx, pet, p, time) {
     ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = "#c084fc"; ctx.shadowColor = "#a855f7"; ctx.shadowBlur = 10; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(0, 0, 9 + Math.sin(time * 6) * 2, 0, Math.PI * 2); ctx.stroke();
-  }
-  ctx.restore();
-}
-
-function drawPlayerPaperdoll(ctx, p) {
-  ctx.save();
-  ctx.translate(p.x, p.y);
-  if (p.facing < 0) ctx.scale(-1, 1);
-
-  let walkCycle = 0;
-  let bobbing = 0;
-  if (p.isMoving) {
-    walkCycle = Math.sin(p.animTimer * 12);
-    bobbing = Math.abs(Math.cos(p.animTimer * 12)) * 2;
-  }
-
-  if (p.isDashing) {
-    ctx.save();
-    ctx.strokeStyle = "rgba(103, 232, 249, 0.8)";
-    ctx.lineWidth = 2;
-    ctx.shadowColor = "#38bdf8"; ctx.shadowBlur = 14;
-    ctx.beginPath(); ctx.ellipse(0, 0, 18, 22, 0, 0, Math.PI * 2); ctx.stroke();
-    ctx.restore();
-  }
-
-  const eq = p.equipment;
-  const helmConfig = eq.helmet ? EQUIPMENT_REGISTRY.helmets[eq.helmet] : null;
-  const armorConfig = eq.armor ? EQUIPMENT_REGISTRY.armors[eq.armor] : null;
-  const gloveColor = eq.gloves ? EQUIPMENT_REGISTRY.gloves[eq.gloves] : "#475569";
-  const bootColor = eq.boots ? EQUIPMENT_REGISTRY.boots[eq.boots] : "#334155";
-
-  if (eq.accessory && EQUIPMENT_REGISTRY.accessories[eq.accessory]) {
-    const capeSway = (walkCycle * 6) + (p.vx * -2);
-    ctx.fillStyle = EQUIPMENT_REGISTRY.accessories[eq.accessory].color;
-    ctx.beginPath();
-    ctx.moveTo(-6, -4 - bobbing);
-    ctx.lineTo(-14 + capeSway, 14);
-    ctx.lineTo(-4 + capeSway, 16);
-    ctx.lineTo(2, -4 - bobbing);
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  const leftLegAngle = walkCycle * 0.45;
-  const rightLegAngle = -walkCycle * 0.45;
-
-  ctx.save();
-  ctx.translate(-4, 6 - bobbing); ctx.rotate(leftLegAngle);
-  ctx.fillStyle = bootColor; ctx.fillRect(-2, 0, 4, 8);
-  ctx.restore();
-
-  ctx.save();
-  ctx.translate(4, 6 - bobbing); ctx.rotate(rightLegAngle);
-  ctx.fillStyle = bootColor; ctx.fillRect(-2, 0, 4, 8);
-  ctx.restore();
-
-  ctx.save();
-  ctx.translate(0, -bobbing);
-  ctx.fillStyle = armorConfig ? armorConfig.base : "#1e293b";
-  ctx.fillRect(-6, -8, 12, 14);
-  if (armorConfig) {
-    ctx.fillStyle = armorConfig.plate;
-    ctx.beginPath();
-    ctx.moveTo(-5, -6); ctx.lineTo(5, -6); ctx.lineTo(3, 4); ctx.lineTo(-3, 4);
-    ctx.closePath(); ctx.fill();
-  }
-  ctx.restore();
-
-  ctx.save();
-  ctx.translate(0, -12 - bobbing);
-  ctx.fillStyle = helmConfig ? helmConfig.color : "#334155";
-  ctx.beginPath(); ctx.arc(0, 0, 7.5, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = helmConfig ? helmConfig.visor : "#38bdf8";
-  ctx.fillRect(1, -2, 6, 3);
-  if (helmConfig && helmConfig.horn) {
-    ctx.fillStyle = "#94a3b8";
-    ctx.beginPath(); ctx.moveTo(-4, -6); ctx.lineTo(-10, -12); ctx.lineTo(-2, -8); ctx.fill();
-  }
-  ctx.restore();
-
-  drawWeaponSystem(ctx, p, gloveColor, bobbing);
-  ctx.restore();
-}
-
-function drawWeaponSystem(ctx, p, gloveColor, bobbing) {
-  const w = p.equipment.weapon;
-  const isAttacking = p.attackTimer > 0;
-  const attackProgress = 1 - (p.attackTimer / p.attackDuration);
-
-  ctx.save();
-  ctx.translate(2, -2 - bobbing);
-
-  if (!w || w.type === 'bare') {
-    let punchX = 0;
-    if (isAttacking) punchX = Math.sin(attackProgress * Math.PI) * 10;
-    ctx.fillStyle = gloveColor;
-    ctx.fillRect(punchX, -2, 6, 4);
-    if (isAttacking) {
-      ctx.fillStyle = "#38bdf8";
-      ctx.beginPath(); ctx.arc(punchX + 8, 0, 3, 0, Math.PI * 2); ctx.fill();
-    }
-  } else if (w.type === 'melee') {
-    let swingAngle = -0.4;
-    if (isAttacking) {
-      swingAngle = -1.2 + attackProgress * 2.8;
-      ctx.strokeStyle = "rgba(56, 189, 248, 0.45)";
-      ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.arc(0, 0, 22, -1.2, swingAngle); ctx.stroke();
-    }
-    ctx.rotate(swingAngle);
-    ctx.fillStyle = gloveColor; ctx.fillRect(0, -2, 5, 4);
-    ctx.fillStyle = "#334155"; ctx.fillRect(4, -1.5, 4, 3);
-    ctx.fillStyle = w.color || "#38bdf8";
-    ctx.shadowColor = w.color || "#38bdf8"; ctx.shadowBlur = 10;
-    ctx.fillRect(8, -1, 16, 2);
-  } else if (w.type === 'bow') {
-    let drawPull = 0;
-    if (isAttacking) drawPull = Math.sin(attackProgress * Math.PI) * 4;
-    ctx.fillStyle = gloveColor; ctx.fillRect(0, -2, 7, 4);
-    ctx.save();
-    ctx.translate(8, 0);
-    ctx.strokeStyle = w.color || "#0284c7";
-    ctx.lineWidth = 2.5;
-    ctx.beginPath(); ctx.arc(0, 0, 12, -Math.PI / 2.3, Math.PI / 2.3); ctx.stroke();
-    ctx.strokeStyle = "#cbd5e1"; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(4, -11); ctx.lineTo(-drawPull, 0); ctx.lineTo(4, 11); ctx.stroke();
-    if (isAttacking) {
-      ctx.fillStyle = "#67e8f9"; ctx.shadowColor = "#38bdf8"; ctx.shadowBlur = 6;
-      ctx.fillRect(-drawPull, -1, 16, 2);
-    }
-    ctx.restore();
-  } else if (w.type === 'staff') {
-    let staffTilt = 0.2;
-    if (isAttacking) {
-      staffTilt = -0.5 + Math.sin(attackProgress * Math.PI) * 0.4;
-      ctx.save();
-      ctx.translate(18, -14);
-      ctx.strokeStyle = `rgba(168, 85, 247, ${0.5 + Math.sin(p.animTimer * 10) * 0.3})`;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI * 2); ctx.stroke();
-      ctx.restore();
-    }
-    ctx.rotate(staffTilt);
-    ctx.fillStyle = gloveColor; ctx.fillRect(0, -2, 5, 4);
-    ctx.fillStyle = "#64748b"; ctx.fillRect(4, -1.5, 20, 3);
-    ctx.fillStyle = w.color || "#c084fc";
-    ctx.shadowColor = w.color || "#a855f7"; ctx.shadowBlur = 12;
-    ctx.beginPath(); ctx.arc(24, 0, 4.5, 0, Math.PI * 2); ctx.fill();
   }
   ctx.restore();
 }
