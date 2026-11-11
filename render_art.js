@@ -1,5 +1,5 @@
 /**
- * SSTS - 美術渲染、紙娃娃、衝刺殘影、敵人與 Boss 繪製模組
+ * SSTS - 美術渲染、紙娃娃、護符寵物、寶箱、殘影與 Boss 繪製模組
  */
 
 const EQUIPMENT_REGISTRY = {
@@ -28,35 +28,124 @@ const EQUIPMENT_REGISTRY = {
     relic: { color: "#f59e0b" }
   },
   talismans: {
-    orb: { glow: "#06b6d4" },
-    totem: { glow: "#e11d48" }
+    atk_pet: { glow: "#38bdf8", name: "電漿浮游蟲" },
+    heal_pet: { glow: "#34d399", name: "醫療水母" },
+    pull_pet: { glow: "#c084fc", name: "磁暴黑洞核" }
   }
 };
 
 /**
- * 繪製電磁衝刺殘影
+ * 繪製掉落在戰場上的古代戰利品寶箱
  */
-function drawDashGhosts(ctx, ghosts) {
-  for (let i = 0; i < ghosts.length; i++) {
-    const g = ghosts[i];
-    ctx.save();
-    ctx.translate(g.x, g.y);
-    if (g.facing < 0) ctx.scale(-1, 1);
+function drawChestItem(ctx, chest, time) {
+  if (!chest.active) return;
+  ctx.save();
+  ctx.translate(chest.x, chest.y);
 
-    ctx.fillStyle = `rgba(56, 189, 248, ${g.alpha * 0.45})`;
-    ctx.shadowColor = "#38bdf8";
-    ctx.shadowBlur = 10 * g.alpha;
+  const hoverY = Math.sin(time * 3) * 3;
+  ctx.translate(0, hoverY);
 
-    ctx.beginPath();
-    ctx.arc(0, -10, 7, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillRect(-6, -6, 12, 16);
-    ctx.restore();
-  }
+  // 金色光柱光芒
+  ctx.fillStyle = "rgba(234, 179, 8, 0.15)";
+  ctx.beginPath();
+  ctx.moveTo(-16, 12);
+  ctx.lineTo(16, 12);
+  ctx.lineTo(24, -30);
+  ctx.lineTo(-24, -30);
+  ctx.closePath();
+  ctx.fill();
+
+  // 寶箱主體
+  ctx.shadowColor = "#eab308";
+  ctx.shadowBlur = 14;
+  ctx.fillStyle = "#854d0e";
+  ctx.fillRect(-12, -8, 24, 16);
+
+  // 鑲金邊框與鎖孔
+  ctx.strokeStyle = "#fde047";
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(-12, -8, 24, 16);
+
+  ctx.fillStyle = "#facc15";
+  ctx.beginPath();
+  ctx.arc(0, 0, 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 提示文字
+  ctx.font = "800 10px monospace";
+  ctx.fillStyle = "#fde047";
+  ctx.textAlign = "center";
+  ctx.fillText("〔 碰觸開箱 〕", 0, -14);
+
+  ctx.restore();
 }
 
 /**
- * 繪製紙娃娃玩家本體
+ * 繪製護符產生的三種跟隨寵物 (攻擊、回血、吸怪)
+ */
+function drawPet(ctx, pet, p, time) {
+  if (!pet || !pet.active) return;
+  ctx.save();
+  ctx.translate(pet.x, pet.y);
+
+  if (pet.type === 'atk') {
+    // 1. 電漿浮游蟲 (青藍發光，射擊雷射)
+    ctx.fillStyle = "#38bdf8";
+    ctx.shadowColor = "#0284c7";
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.arc(0, 0, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 旋轉微型觸鬚
+    ctx.strokeStyle = "#7dd3fc";
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 3; i++) {
+      const a = time * 4 + i * (Math.PI * 2 / 3);
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * 4, Math.sin(a) * 4);
+      ctx.lineTo(Math.cos(a) * 10, Math.sin(a) * 10);
+      ctx.stroke();
+    }
+  } else if (pet.type === 'heal') {
+    // 2. 水母醫療精靈 (柔綠半透明，持續脈動治療)
+    ctx.fillStyle = "rgba(52, 211, 153, 0.85)";
+    ctx.shadowColor = "#10b981";
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.arc(0, -2, 7, Math.PI, 0);
+    ctx.fill();
+
+    // 飄動治癒觸角
+    ctx.strokeStyle = "#a7f3d0";
+    ctx.lineWidth = 1;
+    for (let t = -2; t <= 2; t += 2) {
+      ctx.beginPath();
+      ctx.moveTo(t * 2, -2);
+      ctx.lineTo(t * 2 + Math.sin(time * 3 + t) * 3, 8);
+      ctx.stroke();
+    }
+  } else if (pet.type === 'pull') {
+    // 3. 磁暴黑洞核 (紫光旋轉重力場)
+    ctx.fillStyle = "#1e1b4b";
+    ctx.beginPath();
+    ctx.arc(0, 0, 6, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = "#c084fc";
+    ctx.shadowColor = "#a855f7";
+    ctx.shadowBlur = 10;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, 0, 9 + Math.sin(time * 6) * 2, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+/**
+ * 繪製紙娃娃玩家本體 (支援全裸裝備狀態)
  */
 function drawPlayerPaperdoll(ctx, p) {
   ctx.save();
@@ -84,35 +173,25 @@ function drawPlayerPaperdoll(ctx, p) {
   }
 
   const eq = p.equipment;
-  const helmConfig = EQUIPMENT_REGISTRY.helmets[eq.helmet];
-  const armorConfig = EQUIPMENT_REGISTRY.armors[eq.armor];
-  const gloveColor = EQUIPMENT_REGISTRY.gloves[eq.gloves];
-  const bootColor = EQUIPMENT_REGISTRY.boots[eq.boots];
-  const talisman = EQUIPMENT_REGISTRY.talismans[eq.talisman];
+  const helmConfig = eq.helmet ? EQUIPMENT_REGISTRY.helmets[eq.helmet] : null;
+  const armorConfig = eq.armor ? EQUIPMENT_REGISTRY.armors[eq.armor] : null;
+  const gloveColor = eq.gloves ? EQUIPMENT_REGISTRY.gloves[eq.gloves] : "#475569";
+  const bootColor = eq.boots ? EQUIPMENT_REGISTRY.boots[eq.boots] : "#334155";
 
-  // 1. 懸浮法器
-  const orbY = -18 + Math.sin(p.animTimer * 4) * 4;
-  const orbX = -18 + Math.cos(p.animTimer * 4) * 3;
-  ctx.fillStyle = talisman.glow;
-  ctx.shadowColor = talisman.glow;
-  ctx.shadowBlur = 10;
-  ctx.beginPath();
-  ctx.arc(orbX, orbY, 4, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.shadowBlur = 0;
+  // 1. 披風 (若有裝備)
+  if (eq.accessory && EQUIPMENT_REGISTRY.accessories[eq.accessory]) {
+    const capeSway = (walkCycle * 6) + (p.vx * -2);
+    ctx.fillStyle = EQUIPMENT_REGISTRY.accessories[eq.accessory].color;
+    ctx.beginPath();
+    ctx.moveTo(-6, -4 - bobbing);
+    ctx.lineTo(-14 + capeSway, 14);
+    ctx.lineTo(-4 + capeSway, 16);
+    ctx.lineTo(2, -4 - bobbing);
+    ctx.closePath();
+    ctx.fill();
+  }
 
-  // 2. 披風配件
-  const capeSway = (walkCycle * 6) + (p.vx * -2);
-  ctx.fillStyle = EQUIPMENT_REGISTRY.accessories[eq.accessory].color;
-  ctx.beginPath();
-  ctx.moveTo(-6, -4 - bobbing);
-  ctx.lineTo(-14 + capeSway, 14);
-  ctx.lineTo(-4 + capeSway, 16);
-  ctx.lineTo(2, -4 - bobbing);
-  ctx.closePath();
-  ctx.fill();
-
-  // 3. 雙腿與鞋子
+  // 2. 雙腿與鞋子 (裸裝顯示預設內襯灰褲)
   const leftLegAngle = walkCycle * 0.45;
   const rightLegAngle = -walkCycle * 0.45;
 
@@ -130,36 +209,36 @@ function drawPlayerPaperdoll(ctx, p) {
   ctx.fillRect(-2, 0, 4, 8);
   ctx.restore();
 
-  // 4. 軀幹與盔甲
+  // 3. 軀幹與盔甲 (無盔甲時顯示深色作戰緊身衣)
   ctx.save();
   ctx.translate(0, -bobbing);
-  ctx.fillStyle = armorConfig.base;
-  ctx.fillRect(-7, -8, 14, 14);
-  ctx.fillStyle = armorConfig.plate;
-  ctx.beginPath();
-  ctx.moveTo(-5, -6);
-  ctx.lineTo(5, -6);
-  ctx.lineTo(3, 4);
-  ctx.lineTo(-3, 4);
-  ctx.closePath();
-  ctx.fill();
+  ctx.fillStyle = armorConfig ? armorConfig.base : "#1e293b";
+  ctx.fillRect(-6, -8, 12, 14);
+
+  if (armorConfig) {
+    ctx.fillStyle = armorConfig.plate;
+    ctx.beginPath();
+    ctx.moveTo(-5, -6);
+    ctx.lineTo(5, -6);
+    ctx.lineTo(3, 4);
+    ctx.lineTo(-3, 4);
+    ctx.closePath();
+    ctx.fill();
+  }
   ctx.restore();
 
-  // 5. 頭盔與目鏡
+  // 4. 頭部 (無頭盔時顯示基本防護面罩與原生頭型)
   ctx.save();
   ctx.translate(0, -12 - bobbing);
-  ctx.fillStyle = helmConfig.color;
+  ctx.fillStyle = helmConfig ? helmConfig.color : "#334155";
   ctx.beginPath();
-  ctx.arc(0, 0, 8, 0, Math.PI * 2);
+  ctx.arc(0, 0, 7.5, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.fillStyle = helmConfig.visor;
-  ctx.shadowColor = helmConfig.visor;
-  ctx.shadowBlur = 6;
-  ctx.fillRect(1, -2, 7, 4);
-  ctx.shadowBlur = 0;
+  ctx.fillStyle = helmConfig ? helmConfig.visor : "#38bdf8";
+  ctx.fillRect(1, -2, 6, 3);
 
-  if (helmConfig.horn) {
+  if (helmConfig && helmConfig.horn) {
     ctx.fillStyle = "#94a3b8";
     ctx.beginPath();
     ctx.moveTo(-4, -6); ctx.lineTo(-10, -12); ctx.lineTo(-2, -8);
@@ -167,7 +246,7 @@ function drawPlayerPaperdoll(ctx, p) {
   }
   ctx.restore();
 
-  // 6. 手臂與武器
+  // 5. 手臂與武器攻擊姿態
   drawWeaponSystem(ctx, p, gloveColor, bobbing);
 
   ctx.restore();
@@ -181,7 +260,19 @@ function drawWeaponSystem(ctx, p, gloveColor, bobbing) {
   ctx.save();
   ctx.translate(2, -2 - bobbing);
 
-  if (w.type === 'melee') {
+  if (!w || w.type === 'bare') {
+    // 【空手電磁衝擊】：赤手出拳動作
+    let punchX = 0;
+    if (isAttacking) punchX = Math.sin(attackProgress * Math.PI) * 10;
+    ctx.fillStyle = gloveColor;
+    ctx.fillRect(punchX, -2, 6, 4);
+    if (isAttacking) {
+      ctx.fillStyle = "#38bdf8";
+      ctx.beginPath();
+      ctx.arc(punchX + 8, 0, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (w.type === 'melee') {
     let swingAngle = -0.4;
     if (isAttacking) {
       swingAngle = -1.2 + attackProgress * 2.8;
@@ -197,8 +288,8 @@ function drawWeaponSystem(ctx, p, gloveColor, bobbing) {
     ctx.fillRect(0, -2, 5, 4);
     ctx.fillStyle = "#334155";
     ctx.fillRect(4, -1.5, 4, 3);
-    ctx.fillStyle = "#38bdf8";
-    ctx.shadowColor = "#38bdf8";
+    ctx.fillStyle = w.color || "#38bdf8";
+    ctx.shadowColor = w.color || "#38bdf8";
     ctx.shadowBlur = 10;
     ctx.fillRect(8, -1, 16, 2);
 
@@ -211,7 +302,7 @@ function drawWeaponSystem(ctx, p, gloveColor, bobbing) {
 
     ctx.save();
     ctx.translate(8, 0);
-    ctx.strokeStyle = "#0284c7";
+    ctx.strokeStyle = w.color || "#0284c7";
     ctx.lineWidth = 2.5;
     ctx.beginPath();
     ctx.arc(0, 0, 12, -Math.PI / 2.3, Math.PI / 2.3);
@@ -252,8 +343,8 @@ function drawWeaponSystem(ctx, p, gloveColor, bobbing) {
     ctx.fillRect(0, -2, 5, 4);
     ctx.fillStyle = "#64748b";
     ctx.fillRect(4, -1.5, 20, 3);
-    ctx.fillStyle = "#c084fc";
-    ctx.shadowColor = "#a855f7";
+    ctx.fillStyle = w.color || "#c084fc";
+    ctx.shadowColor = w.color || "#a855f7";
     ctx.shadowBlur = 12;
     ctx.beginPath();
     ctx.arc(24, 0, 4.5, 0, Math.PI * 2);
@@ -263,11 +354,7 @@ function drawWeaponSystem(ctx, p, gloveColor, bobbing) {
   ctx.restore();
 }
 
-/**
- * 繪製海嗣一般敵群與巨大 Boss
- */
 function drawEnemies(ctx, enemies, boss) {
-  // 1. 一般小怪
   for (const e of enemies) {
     ctx.save();
     ctx.translate(e.x, e.y);
@@ -314,12 +401,10 @@ function drawEnemies(ctx, enemies, boss) {
     ctx.restore();
   }
 
-  // 2. 深海霸主先鋒 Boss
   if (boss && boss.active) {
     ctx.save();
     ctx.translate(boss.x, boss.y);
 
-    // 巨大外甲陰影與發光
     ctx.shadowColor = '#ef4444';
     ctx.shadowBlur = 25;
     ctx.fillStyle = '#7f1d1d';
@@ -327,7 +412,6 @@ function drawEnemies(ctx, enemies, boss) {
     ctx.arc(0, 0, boss.radius, 0, Math.PI * 2);
     ctx.fill();
 
-    // 內層旋轉重型甲殼
     ctx.save();
     ctx.rotate(boss.pulse * 0.5);
     ctx.strokeStyle = '#f87171';
@@ -339,14 +423,12 @@ function drawEnemies(ctx, enemies, boss) {
     }
     ctx.restore();
 
-    // 核心等離子核 (狂暴呼吸)
     const corePulse = Math.sin(boss.pulse * 3) * 4;
     ctx.fillStyle = '#ef4444';
     ctx.beginPath();
     ctx.arc(0, 0, 16 + corePulse, 0, Math.PI * 2);
     ctx.fill();
 
-    // 雙螯暗影
     const clawOffset = Math.sin(boss.pulse * 2) * 6;
     ctx.fillStyle = '#991b1b';
     ctx.beginPath();
@@ -358,9 +440,6 @@ function drawEnemies(ctx, enemies, boss) {
   }
 }
 
-/**
- * 繪製 Boss 的環狀危險彈幕
- */
 function drawBossBullets(ctx, bossBullets) {
   for (const b of bossBullets) {
     ctx.save();
@@ -374,9 +453,25 @@ function drawBossBullets(ctx, bossBullets) {
   }
 }
 
-/**
- * 背包特寫預覽
- */
+function drawDashGhosts(ctx, ghosts) {
+  for (let i = 0; i < ghosts.length; i++) {
+    const g = ghosts[i];
+    ctx.save();
+    ctx.translate(g.x, g.y);
+    if (g.facing < 0) ctx.scale(-1, 1);
+
+    ctx.fillStyle = `rgba(56, 189, 248, ${g.alpha * 0.45})`;
+    ctx.shadowColor = "#38bdf8";
+    ctx.shadowBlur = 10 * g.alpha;
+
+    ctx.beginPath();
+    ctx.arc(0, -10, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillRect(-6, -6, 12, 16);
+    ctx.restore();
+  }
+}
+
 function drawInventoryPreview(ctx, p, animTime) {
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 
