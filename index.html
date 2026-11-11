@@ -20,7 +20,7 @@
   <button class="btn" onclick="startStory()">開始作戰 (START)</button>
 </div>
 
-<!-- 2. 故事模式 (支援點擊全螢幕任意處翻頁) -->
+<!-- 2. 故事模式 (點擊全螢幕任意處翻頁) -->
 <div id="story-screen" class="screen" onclick="handleStoryScreenClick(event)">
   <div class="story-header">
     <div class="progress-dots" id="dots-container"></div>
@@ -53,18 +53,36 @@
     </div>
   </div>
 
-  <!-- HUD 介面 -->
+  <!-- HUD 介面：經驗值與生命值清晰標示 -->
   <div id="hud">
-    <div class="bar-bg"><div class="bar-fill" id="exp-bar"></div></div>
+    <!-- 經驗值條 (黃金光芒) -->
+    <div class="hud-bar-wrapper">
+      <div class="hud-bar-info">
+        <span class="bar-title">經驗進度 (EXP)</span>
+        <span id="txt-exp-val">0 / 6</span>
+      </div>
+      <div class="bar-bg exp-bg"><div class="bar-fill exp-fill" id="exp-bar"></div></div>
+    </div>
+
+    <!-- 生命核心血條 (翠綠光芒) -->
+    <div class="hud-bar-wrapper" style="margin-top: 5px;">
+      <div class="hud-bar-info">
+        <span class="bar-title">核心護甲 (HP)</span>
+        <span id="txt-hp-val">100 / 100</span>
+      </div>
+      <div class="bar-bg hp-bg"><div class="bar-fill hp-fill" id="hp-bar"></div></div>
+    </div>
+
+    <!-- 底部數據資訊列 -->
     <div class="hud-stats">
-      <span id="txt-level">防衛階級: 1</span>
-      <span id="txt-kills">擊退海嗣: 0</span>
-      <span id="txt-hp">核心護甲: 100/100</span>
-      <button id="btn-open-bag" onclick="toggleInventory()">🎒 背包 [B]</button>
+      <span id="txt-level" class="stat-badge">階級: Lv.1</span>
+      <span id="txt-stage" class="stat-badge" style="color: #f59e0b; border-color: #f59e0b;">關卡: 1-1</span>
+      <span id="txt-kills" class="stat-badge">擊退海嗣: 0</span>
+      <button id="btn-open-bag" onclick="toggleInventory()">🎒 整備裝備 [B]</button>
     </div>
   </div>
 
-  <!-- 動態浮動觸控搖桿 (僅在螢幕左半側生成) -->
+  <!-- 動態浮動觸控搖桿 -->
   <div id="joystick-base">
     <div id="joystick-thumb"></div>
   </div>
@@ -82,16 +100,27 @@
     </button>
   </div>
 
-  <!-- 升級彈窗 -->
-  <div id="upgrade-modal">
+  <!-- 升級彈窗 (常規升級) -->
+  <div id="upgrade-modal" class="modal-backdrop">
     <h3 style="color: #38bdf8; letter-spacing: 2px;">防衛系統進化升級</h3>
     <div class="upgrade-card" onclick="chooseUpgrade('firerate')">⚡ 聚焦脈衝冷卻加速 (-20%)</div>
     <div class="upgrade-card" onclick="chooseUpgrade('damage')">💥 電磁等離子增幅 (+40% 傷害)</div>
     <div class="upgrade-card" onclick="chooseUpgrade('speed')">👟 地表突擊推進器 (+15% 移速)</div>
   </div>
 
+  <!-- Boss 戰利品自選寶箱視窗 (三選一裝備) -->
+  <div id="chest-modal" class="modal-backdrop">
+    <div class="chest-box-container">
+      <div class="chest-title">👑 擊破霸主先鋒 · 戰利品自選</div>
+      <div class="chest-subtitle" id="chest-stage-info">目前關卡裝備階級：普通 (STAGE 1)</div>
+      <div class="chest-cards-grid" id="chest-options-container">
+        <!-- 由 JS 動態注入三選一裝備卡牌 -->
+      </div>
+    </div>
+  </div>
+
   <!-- 九宮格裝備背包 -->
-  <div id="inventory-modal">
+  <div id="inventory-modal" class="modal-backdrop">
     <div class="inv-container">
       <div class="inv-header">
         <span>機甲整備系統 (INVENTORY)</span>
@@ -100,17 +129,18 @@
       <div class="inv-body">
         <div class="preview-box">
           <canvas id="preview-canvas" width="200" height="230"></canvas>
-          <div class="preview-info" id="preview-info">目前武器：離子軍刀</div>
+          <div class="preview-info" id="preview-info">目前武器：空手電磁衝擊</div>
+          <div class="preview-pet" id="preview-pet-info">護符寵物：未啟用</div>
         </div>
         <div class="grid-section">
           <div class="slot-filter">
-            <span class="tag">點擊九宮格裝備立即替換部件</span>
+            <span class="tag">點擊背包內裝備即可進行穿脫</span>
           </div>
           <div class="inv-grid" id="inv-grid"></div>
         </div>
       </div>
       <div class="inv-footer">
-        <span>快捷操作：鍵盤 [Space] 衝刺、[B] 背包 | 支援觸控快捷按鈕</span>
+        <span>快捷操作：鍵盤 [Space] 衝刺、[B] 背包 | 支援手機觸控</span>
       </div>
     </div>
   </div>
