@@ -236,7 +236,6 @@ function drawSingleRangedWeapon(ctx, p, wep, gloveColor, bobbing) {
     ctx.restore();
   }
 
-  // 滿星 5★ 附加旋轉星芒光點
   if (stars >= 4) {
     const starAngle = (p.animTimer * 5);
     ctx.fillStyle = "#facc15";
@@ -518,8 +517,7 @@ function drawPet(ctx, pet, p, time) {
     ctx.strokeStyle = "#a7f3d0"; ctx.lineWidth = 1;
     for (let t = -2; t <= 2; t += 2) {
       ctx.beginPath();
-      ctx.moveTo(t * 2, -2);
-      ctx.lineTo(t * 2 + Math.sin(time * 3 + t) * 3, 8);
+      ctx.moveTo(t * 2, -2); ctx.lineTo(t * 2 + Math.sin(time * 3 + t) * 3, 8);
       ctx.stroke();
     }
   } else if (pet.type === 'pull') {
@@ -620,6 +618,6 @@ function drawInventoryPreview(ctx, p, animTime) {
   ctx.save();
   ctx.translate(ctx.canvas.width / 2, ctx.canvas.height / 2 + 10);
   ctx.scale(2.2, 2.2);
-  drawPlayerPaperdoll(ctx, mockPlayer);
+  drawPlayerPaperdoll(pctx, mockPlayer);
   ctx.restore();
 }
