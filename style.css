@@ -585,7 +585,6 @@ html, body {
   height: 100vh;
   height: 100dvh;
   position: relative;
-  display: flex;
   justify-content: center;
   align-items: center;
   background: #020617;
