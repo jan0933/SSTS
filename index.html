@@ -15,8 +15,8 @@
   <div>請將裝置轉為橫向以獲得完整作戰視野</div>
 </div>
 
-<!-- 1. 首頁畫面 -->
-<div id="title-screen" class="screen">
+<!-- 1. 首頁畫面 (預設唯一顯示) -->
+<div id="title-screen" class="screen" style="display: flex;">
   <div class="logo-wrapper">
     <canvas id="logo-canvas" width="700" height="260"></canvas>
   </div>
@@ -26,8 +26,8 @@
   </div>
 </div>
 
-<!-- 2. 故事模式 -->
-<div id="story-screen" class="screen" onclick="handleStoryScreenClick(event)">
+<!-- 2. 故事模式 (初始強制隱藏) -->
+<div id="story-screen" class="screen" style="display: none;" onclick="handleStoryScreenClick(event)">
   <div class="story-header">
     <div class="progress-dots" id="dots-container"></div>
     <div class="story-badge" id="story-chapter">SSTS // ARCHIVE 01</div>
@@ -41,8 +41,8 @@
   <button class="story-skip-btn" onclick="skipStory(event)">略過劇情 (SKIP)</button>
 </div>
 
-<!-- 3. 大地圖選關畫面 (3D 旋轉地球 + 背包按鈕) -->
-<div id="world-map-screen" class="screen">
+<!-- 3. 大地圖選關畫面 (初始強制隱藏) -->
+<div id="world-map-screen" class="screen" style="display: none;">
   <div class="map-header">
     <div class="map-title">全球防衛陣線 · 100國領土收復</div>
     <div class="map-header-right">
@@ -100,7 +100,7 @@
     </div>
   </div>
 
-  <!-- 人體工學紙娃娃裝備面板 (穿戴中裝備可直接強化/拆解/卸下) -->
+  <!-- 人體工學紙娃娃裝備面板 -->
   <div id="inventory-modal" class="modal-backdrop">
     <div class="paperdoll-inv-container">
       <div class="inv-header">
@@ -185,8 +185,8 @@
   </div>
 </div>
 
-<!-- 4. 戰鬥主畫面 (等比 780:540 自適應視窗) -->
-<div id="game-container" class="screen">
+<!-- 4. 戰鬥主畫面 (初始強制隱藏，點擊關卡才開啟) -->
+<div id="game-container" class="screen" style="display: none;">
   <div class="canvas-aspect-wrapper">
     <canvas id="game-canvas" width="780" height="540"></canvas>
     <div id="emp-flash-overlay"></div>
@@ -232,7 +232,7 @@
     <!-- 搖桿 -->
     <div id="joystick-base"><div id="joystick-thumb"></div></div>
 
-    <!-- 戰鬥右側動作群 (射擊、法器、衝刺) -->
+    <!-- 戰鬥右側動作群 -->
     <div id="battle-action-cluster">
       <button id="btn-act-shoot" class="cluster-btn btn-shoot" onclick="triggerManualShoot()">
         <span class="act-icon">🏹</span>
@@ -251,7 +251,7 @@
     </div>
   </div>
 
-  <!-- 升級彈窗 (攻擊/血量/移速) -->
+  <!-- 升級彈窗 -->
   <div id="upgrade-modal" class="modal-backdrop">
     <h3 style="color: #38bdf8; letter-spacing: 2px;">防衛系統進化升級</h3>
     <div style="font-size: 12px; color: #94a3b8; margin: 4px 0 12px;">請選擇一項核心機能強化：</div>
