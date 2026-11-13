@@ -1,5 +1,5 @@
 /**
- * SSTS - 全球選關、金幣升星、5★覺醒專屬詞條、總戰力計算與拆解系統 (map.js)
+ * SSTS - 全球選關、金幣升星、四品階(白/藍/黃/橘)詞條系統、總戰力計算 (map.js)
  */
 
 const COUNTRIES_STAGE_DATA = [
@@ -105,7 +105,7 @@ const COUNTRIES_STAGE_DATA = [
   { id: 100, flag: "🌐", name: "加拿大與全球終局 (Global Core)", area: "10,000,000+ km²", continent: "GL", lat: 56.1, lon: -106.3, diff: 10, desc: "【世界終局決戰】北極冰蓋與全球海溝同步崩裂，深海王者本體降臨！" }
 ];
 
-/* ==================== 5★ 滿星專屬隨機附魔詞條庫 ==================== */
+/* ==================== 隨機附魔詞條庫 (藍裝1條 / 黃裝2條 / 橘裝3條) ==================== */
 const AFFIX_POOL = [
   { id: "crit", name: "🎯 精準獵殺", desc: "+15% 暴擊率 (造成 200% 暴擊傷害)", tag: "暴擊+15%" },
   { id: "slow", name: "❄️ 極寒凝霜", desc: "遠程命中附加 45% 冰凍減速持續 2 秒", tag: "命中緩速" },
@@ -115,28 +115,43 @@ const AFFIX_POOL = [
   { id: "rush", name: "💨 急行幽影", desc: "電磁衝刺閃避冷卻時間縮減 30%", tag: "衝刺冷卻-30%" }
 ];
 
-function getRandomAffix() {
-  const idx = Math.floor(Math.random() * AFFIX_POOL.length);
-  return { ...AFFIX_POOL[idx] };
+// 根據裝備品階抽取對應數量的不重複詞條：白0 / 藍1 / 黃2 / 橘3
+function generateAffixesForTier(tier) {
+  let count = 0;
+  if (tier === "rare") count = 1;
+  else if (tier === "elite") count = 2;
+  else if (tier === "legendary") count = 3;
+
+  if (count === 0) return [];
+  const shuffled = [...AFFIX_POOL].sort(() => 0.5 - Math.random());
+  return shuffled.slice(0, count).map(a => ({ ...a }));
 }
 
-/* ==================== 存檔系統 (串接 70 件全裝備庫) ==================== */
-const SAVE_KEY = "SSTS_SURFACE_SURVIVORS_SAVE_V7";
+// 相容取得單一裝備上的所有詞條陣列
+function getItemAffixList(item) {
+  if (!item) return [];
+  if (Array.isArray(item.affixes)) return item.affixes;
+  if (item.affix) return [item.affix];
+  return [];
+}
+
+/* ==================== 存檔系統 (四品階：白/藍/黃/橘) ==================== */
+const SAVE_KEY = "SSTS_SURFACE_SURVIVORS_SAVE_V8";
 
 function getStarterWeapon() {
   if (typeof MASTER_EQUIPMENT_DB !== 'undefined') {
     const w = MASTER_EQUIPMENT_DB.find(i => i.id === "w_01");
-    if (w) return { ...w, affix: null };
+    if (w) return { ...w, affixes: [] };
   }
-  return { id: "w_01", slot: "weapon", name: "新兵製式獵弓", type: "bow", tier: "common", stars: 1, damage: 30, speed: 10, desc: "基礎電磁弦弓 (傷害 30)", affix: null };
+  return { id: "w_01", slot: "weapon", name: "新兵製式獵弓", type: "bow", tier: "common", stars: 1, damage: 30, speed: 10, desc: "基礎電磁弦弓 (傷害 30)", affixes: [] };
 }
 
 function getStarterArtifact() {
   if (typeof MASTER_EQUIPMENT_DB !== 'undefined') {
     const a = MASTER_EQUIPMENT_DB.find(i => i.id === "art_01");
-    if (a) return { ...a, affix: null };
+    if (a) return { ...a, affixes: [] };
   }
-  return { id: "art_01", slot: "artifact", name: "基礎爆裂手雷核", skillType: "nova", tier: "common", stars: 1, skillMult: 1.0, desc: "主動技：周圍 360 度烈焰爆炸", affix: null };
+  return { id: "art_01", slot: "artifact", name: "基礎爆裂手雷核", skillType: "nova", tier: "common", stars: 1, skillMult: 1.0, desc: "主動技：周圍 360 度烈焰爆炸", affixes: [] };
 }
 
 const defaultSaveState = {
@@ -481,16 +496,16 @@ function continueGameFromSave() {
   openWorldMapScreen();
 }
 
-/* ==================== 人體工學紙娃娃裝備面板 (穿戴裝備置頂 + 總戰力計算) ==================== */
+/* ==================== 人體工學紙娃娃裝備面板 (四品階：白/藍/黃/橘) ==================== */
 let isInventoryOpen = false;
 let currentSelectingSlot = null;
 
+// 精簡為四種品階：普通(白)、稀有(藍)、菁英(黃)、傳說(橘)
 const TIER_META = {
-  common: { name: "普通", color: "#f1f5f9", class: "tier-common", mult: 1.0, salvageBase: 25 },
-  rare: { name: "稀有", color: "#38bdf8", class: "tier-rare", mult: 1.3, salvageBase: 60 },
-  elite: { name: "菁英", color: "#facc15", class: "tier-elite", mult: 1.6, salvageBase: 120 },
-  epic: { name: "史詩", color: "#c084fc", class: "tier-epic", mult: 2.0, salvageBase: 240 },
-  legendary: { name: "傳說", color: "#fb923c", class: "tier-legendary", mult: 2.6, salvageBase: 500 }
+  common: { name: "普通", color: "#f1f5f9", class: "tier-common", affixCount: 0, salvageBase: 25 },
+  rare: { name: "稀有", color: "#38bdf8", class: "tier-rare", affixCount: 1, salvageBase: 60 },
+  elite: { name: "菁英", color: "#facc15", class: "tier-elite", affixCount: 2, salvageBase: 140 },
+  legendary: { name: "傳說", color: "#fb923c", class: "tier-legendary", affixCount: 3, salvageBase: 400 }
 };
 
 function toggleInventory() {
@@ -521,7 +536,6 @@ function renderStarsStr(num) {
 function updateTotalStatsPanel() {
   const eq = userSave.equipped || {};
 
-  // 基礎屬性（含玩家等級成長）
   const baseLevelDmg = ((userSave.playerLevel || 1) - 1) * 5;
   const baseHp = userSave.playerMaxHp || 100;
   const baseSpd = 2.8;
@@ -533,7 +547,7 @@ function updateTotalStatsPanel() {
   let dmgReduce = 0;
   let fireRateMult = 1.0;
   let dashCdMult = 1.0;
-  const awakenedAffixes = [];
+  const allItemAffixes = [];
 
   for (const key in eq) {
     const item = eq[key];
@@ -546,15 +560,15 @@ function updateTotalStatsPanel() {
     if (item.fireRateMult) fireRateMult *= item.fireRateMult;
     if (item.dashCdMult) dashCdMult *= item.dashCdMult;
 
-    // 收集已啟動的 5★ 專屬詞條
-    if (item.stars === 5 && item.affix) {
-      awakenedAffixes.push(item.affix);
-      if (item.affix.id === "armor") dmgReduce += 0.25;
-      if (item.affix.id === "rush") dashCdMult *= 0.70;
-    }
+    // 收集該裝備自帶的所有隨機詞條 (藍1條、黃2條、橘3條)
+    const itemAffixes = getItemAffixList(item);
+    itemAffixes.forEach(aff => {
+      allItemAffixes.push(aff);
+      if (aff.id === "armor") dmgReduce += 0.25;
+      if (aff.id === "rush") dashCdMult *= 0.70;
+    });
   }
 
-  // 套用上限與百分比換算
   const totalAtk = baseLevelDmg + wepDmg + gearDmg;
   const totalHp = baseHp + gearHp;
   const totalSpd = (baseSpd + gearSpd).toFixed(2);
@@ -578,10 +592,10 @@ function updateTotalStatsPanel() {
   if (elDash) elDash.innerText = `-${totalDashPct}%`;
 
   if (elAffixBox) {
-    if (awakenedAffixes.length === 0) {
-      elAffixBox.innerHTML = `<span style="color:#64748b;">尚未覺醒 5★ 專屬詞條</span>`;
+    if (allItemAffixes.length === 0) {
+      elAffixBox.innerHTML = `<span style="color:#64748b;">目前無裝備附魔詞條 (藍1/黃2/橘3)</span>`;
     } else {
-      const uniqueTags = [...new Set(awakenedAffixes.map(a => `${a.name} (${a.tag})`))];
+      const uniqueTags = [...new Set(allItemAffixes.map(a => `${a.name} (${a.tag})`))];
       elAffixBox.innerHTML = uniqueTags.map(t => `<span class="active-affix-pill">${t}</span>`).join('');
     }
   }
@@ -592,68 +606,32 @@ function updatePaperdollSlotsDisplay() {
   const formatSlot = (item, defaultName) => {
     if (!item) return { name: defaultName, stars: "", affixText: "" };
     const tierMeta = TIER_META[item.tier || 'common'] || TIER_META.common;
+    const affList = getItemAffixList(item);
     return {
       name: item.name || defaultName,
       stars: renderStarsStr(item.stars),
       color: tierMeta.color,
-      affixText: (item.stars === 5 && item.affix) ? item.affix.tag : ""
+      affixText: affList.length > 0 ? affList.map(a => a.tag).join(" · ") : ""
     };
   };
 
-  const helm = formatSlot(eq.helmet, "未裝備");
-  const elH = document.getElementById('val-helmet');
-  elH.innerText = helm.name;
-  elH.style.color = helm.color || "#f8fafc";
-  document.getElementById('star-helmet').innerText = helm.stars;
-  document.getElementById('affix-helmet').innerText = helm.affixText;
+  const slots = ["helmet", "weapon", "armor", "gloves", "boots", "talisman", "artifact"];
+  slots.forEach(s => {
+    const formatted = formatSlot(eq[s], "未裝備");
+    const elVal = document.getElementById(`val-${s}`);
+    const elStar = document.getElementById(`star-${s}`);
+    const elAffix = document.getElementById(`affix-${s}`);
+    if (elVal) {
+      elVal.innerText = formatted.name;
+      elVal.style.color = formatted.color || "#f8fafc";
+    }
+    if (elStar) elStar.innerText = formatted.stars;
+    if (elAffix) elAffix.innerText = formatted.affixText;
+  });
 
-  const wep = formatSlot(eq.weapon, "未裝備");
-  const elW = document.getElementById('val-weapon');
-  elW.innerText = wep.name;
-  elW.style.color = wep.color || "#f8fafc";
-  document.getElementById('star-weapon').innerText = wep.stars;
-  document.getElementById('affix-weapon').innerText = wep.affixText;
-
-  const arm = formatSlot(eq.armor, "未裝備");
-  const elA = document.getElementById('val-armor');
-  elA.innerText = arm.name;
-  elA.style.color = arm.color || "#f8fafc";
-  document.getElementById('star-armor').innerText = arm.stars;
-  document.getElementById('affix-armor').innerText = arm.affixText;
-
-  const glo = formatSlot(eq.gloves, "未裝備");
-  const elG = document.getElementById('val-gloves');
-  elG.innerText = glo.name;
-  elG.style.color = glo.color || "#f8fafc";
-  document.getElementById('star-gloves').innerText = glo.stars;
-  document.getElementById('affix-gloves').innerText = glo.affixText;
-
-  const boo = formatSlot(eq.boots, "未裝備");
-  const elB = document.getElementById('val-boots');
-  elB.innerText = boo.name;
-  elB.style.color = boo.color || "#f8fafc";
-  document.getElementById('star-boots').innerText = boo.stars;
-  document.getElementById('affix-boots').innerText = boo.affixText;
-
-  const tal = formatSlot(eq.talisman, "未裝備");
-  const elT = document.getElementById('val-talisman');
-  elT.innerText = tal.name;
-  elT.style.color = tal.color || "#f8fafc";
-  document.getElementById('star-talisman').innerText = tal.stars;
-  document.getElementById('affix-talisman').innerText = tal.affixText;
-
-  const art = formatSlot(eq.artifact, "未裝備");
-  const elArt = document.getElementById('val-artifact');
-  elArt.innerText = art.name;
-  elArt.style.color = art.color || "#f8fafc";
-  document.getElementById('star-artifact').innerText = art.stars;
-  document.getElementById('affix-artifact').innerText = art.affixText;
-
-  // 同步刷新下方角色總屬性面板
   updateTotalStatsPanel();
 }
 
-// 動態產生裝備當前的最新屬性說明字串
 function buildDynamicDesc(item) {
   const parts = [];
   if (item.damage) parts.push(`傷害 ${item.damage}`);
@@ -672,7 +650,12 @@ function buildDynamicDesc(item) {
   return item.desc || '';
 }
 
-// 點擊左側槽位：顯示「目前已穿戴裝備（置頂可強化/拆解）」+「該槽位備用庫存」
+function renderAffixesHtml(item) {
+  const list = getItemAffixList(item);
+  if (list.length === 0) return "";
+  return list.map(a => `<div class="card-affix-badge">${a.name} · ${a.desc}</div>`).join("");
+}
+
 function selectSlotForEquip(slotKey) {
   currentSelectingSlot = slotKey;
   const title = document.getElementById('inv-panel-title');
@@ -680,13 +663,13 @@ function selectSlotForEquip(slotKey) {
   scrollBox.innerHTML = '';
 
   const slotTitles = {
-    helmet: "頭盔管理 (升星 / 拆解 / 替換)",
-    weapon: "遠程武器管理 (升星 / 拆解 / 替換)",
-    armor: "胸甲管理 (升星 / 拆解 / 替換)",
-    gloves: "戰術手套管理 (升星 / 拆解 / 替換)",
-    boots: "推進戰靴管理 (升星 / 拆解 / 替換)",
+    helmet: "頭盔管理 (升星純數值 / 拆解 / 替換)",
+    weapon: "遠程武器管理 (升星純數值 / 拆解 / 替換)",
+    armor: "胸甲管理 (升星純數值 / 拆解 / 替換)",
+    gloves: "戰術手套管理 (升星純數值 / 拆解 / 替換)",
+    boots: "推進戰靴管理 (升星純數值 / 拆解 / 替換)",
     talisman: "護符 (寵物) 管理",
-    artifact: "戰術法器管理 (升星 / 拆解 / 替換)"
+    artifact: "戰術法器管理 (升星純數值 / 拆解 / 替換)"
   };
   title.innerText = slotTitles[slotKey] || "裝備管理";
 
@@ -702,18 +685,13 @@ function selectSlotForEquip(slotKey) {
     return;
   }
 
-  // 1. 若當前「有穿戴裝備」，將其置頂顯示
+  // 1. 穿戴中裝備置頂
   if (equippedItem && equippedItem.id) {
     const tierMeta = TIER_META[equippedItem.tier || 'common'] || TIER_META.common;
     const curStars = equippedItem.stars || 1;
     const upgradeCost = curStars * 80 + (curStars >= 4 ? 120 : 0);
     const salvageGold = Math.floor(tierMeta.salvageBase * (1 + (curStars - 1) * 0.4));
     const isStarterGear = (equippedItem.id === "w_start" || equippedItem.id === "w_01" || equippedItem.id === "art_01");
-
-    let affixHtml = "";
-    if (curStars === 5 && equippedItem.affix) {
-      affixHtml = `<div class="card-affix-badge">${equippedItem.affix.name} · ${equippedItem.affix.desc}</div>`;
-    }
 
     const equippedCard = document.createElement('div');
     equippedCard.className = 'inv-equip-card is-currently-equipped';
@@ -728,11 +706,11 @@ function selectSlotForEquip(slotKey) {
         </div>
       </div>
       <div style="font-size: 10.5px; color: #cbd5e1;">${buildDynamicDesc(equippedItem)}</div>
-      ${affixHtml}
+      ${renderAffixesHtml(equippedItem)}
       <div class="card-actions-row">
         ${curStars < 5 
           ? `<button class="btn-card-action btn-upgrade" onclick="upgradeItemStar('${equippedItem.id}', this)">升星 (${upgradeCost}金)</button>` 
-          : `<span style="font-size: 10px; color: #facc15; font-weight: bold;">5★ 滿星</span>`
+          : `<span style="font-size: 10px; color: #facc15; font-weight: bold;">5★ 滿星強化</span>`
         }
         ${!isStarterGear 
           ? `<button class="btn-card-action btn-unequip" onclick="unequipSlotItem('${slotKey}')">卸下</button>
@@ -744,7 +722,7 @@ function selectSlotForEquip(slotKey) {
     scrollBox.appendChild(equippedCard);
   }
 
-  // 2. 顯示背包庫存中的其他備用裝備
+  // 2. 備用庫存裝備
   matchingInventory.forEach((item) => {
     const card = document.createElement('div');
     card.className = 'inv-equip-card';
@@ -754,11 +732,6 @@ function selectSlotForEquip(slotKey) {
     const upgradeCost = curStars * 80 + (curStars >= 4 ? 120 : 0);
     const salvageGold = Math.floor(tierMeta.salvageBase * (1 + (curStars - 1) * 0.4));
 
-    let affixHtml = "";
-    if (curStars === 5 && item.affix) {
-      affixHtml = `<div class="card-affix-badge">${item.affix.name} · ${item.affix.desc}</div>`;
-    }
-
     card.innerHTML = `
       <div class="card-header-row">
         <span style="font-size: 12.5px; font-weight: bold; color: ${tierMeta.color};">
@@ -767,11 +740,11 @@ function selectSlotForEquip(slotKey) {
         <span class="card-tier-tag ${tierMeta.class}">${tierMeta.name}</span>
       </div>
       <div style="font-size: 10.5px; color: #94a3b8;">${buildDynamicDesc(item)}</div>
-      ${affixHtml}
+      ${renderAffixesHtml(item)}
       <div class="card-actions-row">
         ${curStars < 5 
           ? `<button class="btn-card-action btn-upgrade" onclick="upgradeItemStar('${item.id}', this)">升星 (${upgradeCost}金)</button>` 
-          : `<span style="font-size: 10px; color: #facc15; font-weight: bold;">5★ 滿星</span>`
+          : `<span style="font-size: 10px; color: #facc15; font-weight: bold;">5★ 滿星強化</span>`
         }
         <button class="btn-card-action btn-equip" onclick="equipItemToSlot('${slotKey}', '${item.id}')">穿戴</button>
         <button class="btn-card-action btn-salvage" onclick="salvageItem('${item.id}')">拆解 (+${salvageGold}金)</button>
@@ -875,6 +848,7 @@ function spawnStarBurstParticles(targetElement, isMaxStar) {
   }
 }
 
+// 升星強化：純粹強化裝備數值，不再產生詞條
 function upgradeItemStar(itemId, clickedButtonElem) {
   let item = userSave.myInventory.find(i => i.id === itemId);
   let isEquipped = false;
@@ -907,7 +881,7 @@ function upgradeItemStar(itemId, clickedButtonElem) {
   userSave.playerGold -= cost;
   item.stars = curStars + 1;
 
-  // 全部位數值隨星級同步成長
+  // 純數值大幅成長
   if (item.damage) item.damage = Math.floor(item.damage * 1.3);
   if (item.bonusHp) item.bonusHp = Math.floor(item.bonusHp * 1.25);
   if (item.bonusDmg) item.bonusDmg = Math.floor(item.bonusDmg * 1.25);
@@ -915,10 +889,6 @@ function upgradeItemStar(itemId, clickedButtonElem) {
   if (item.skillMult) item.skillMult = parseFloat((item.skillMult * 1.25).toFixed(2));
 
   const isMaxStar = (item.stars === 5);
-
-  if (isMaxStar && !item.affix) {
-    item.affix = getRandomAffix();
-  }
 
   if (isEquipped && equippedKey) {
     userSave.equipped[equippedKey] = { ...item };
@@ -1016,7 +986,7 @@ function startDollPreviewLoop() {
 
     pctx.save();
     pctx.translate(pcanvas.width / 2, pcanvas.height / 2 + 10);
-    pctx.scale(2.2, 2.2);
+    pctx.scale(2.0, 2.0);
     drawPlayerPaperdoll(pctx, mockPlayer);
     pctx.restore();
 
