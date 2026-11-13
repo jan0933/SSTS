@@ -220,41 +220,37 @@
       <div class="boss-bar-bg"><div id="boss-bar-fill"></div></div>
     </div>
 
-    <!-- HUD 介面 -->
+    <!-- 左上方極簡文字情報：關卡名稱與擊殺進度 -->
+    <div id="hud-top-left-minimal">
+      <span id="txt-current-country">🇻🇦 梵蒂岡 · 哨站 1/10</span>
+      <span class="hud-divider">|</span>
+      <span id="txt-kills">擊退: 0 / 25</span>
+    </div>
+
+    <!-- 右上方緊湊型 HUD：僅保留經驗值與血條 -->
     <div id="hud">
       <div class="hud-bar-wrapper">
         <div class="hud-bar-info">
-          <span class="bar-title">經驗進度 (EXP)</span>
-          <span id="txt-exp-val">0 / 6</span>
+          <span class="bar-title" id="txt-level-prefix">Lv.1 EXP</span>
+          <span id="txt-exp-val">0 / 5</span>
         </div>
         <div class="bar-bg exp-bg"><div class="bar-fill exp-fill" id="exp-bar"></div></div>
       </div>
 
-      <div class="hud-bar-wrapper" style="margin-top: 5px;">
+      <div class="hud-bar-wrapper" style="margin-top: 4px;">
         <div class="hud-bar-info">
-          <span class="bar-title">核心護甲 (HP)</span>
+          <span class="bar-title">HP</span>
           <span id="txt-hp-val">100 / 100</span>
         </div>
         <div class="bar-bg hp-bg"><div class="bar-fill hp-fill" id="hp-bar"></div></div>
-      </div>
-
-      <div class="hud-stats">
-        <span id="txt-level" class="stat-badge">階級: Lv.1</span>
-        <span id="txt-current-country" class="stat-badge" style="color: #f59e0b; border-color: #f59e0b;">🇻🇦 梵蒂岡 (0.49 km²) - 1/10</span>
-        <span id="txt-weapon-info" class="stat-badge" style="color: #38bdf8;">武器: 遠距脈衝 1★</span>
-        <span id="txt-kills" class="stat-badge">擊退海嗣: 0</span>
       </div>
     </div>
 
     <!-- 搖桿 -->
     <div id="joystick-base"><div id="joystick-thumb"></div></div>
 
-    <!-- 戰鬥右側動作群 -->
+    <!-- 戰鬥右側動作群：僅保留法器與衝刺 -->
     <div id="battle-action-cluster">
-      <button id="btn-act-shoot" class="cluster-btn btn-shoot" onclick="triggerManualShoot()">
-        <span class="act-icon">🏹</span>
-        <span class="act-txt">射擊</span>
-      </button>
       <button id="btn-act-artifact" class="cluster-btn btn-artifact" onclick="triggerArtifactSkill()">
         <span class="act-icon">🔮</span>
         <span class="act-txt">法器</span>
