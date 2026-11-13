@@ -1,5 +1,5 @@
 /**
- * SSTS - 全球選關、金幣升星、四品階(白/藍/黃/橘)詞條系統、總戰力計算 (map.js)
+ * SSTS - 全球選關、金幣升星、分部位詞條疊加系統、總戰力計算與一鍵拆解 (map.js)
  */
 
 const COUNTRIES_STAGE_DATA = [
@@ -105,35 +105,13 @@ const COUNTRIES_STAGE_DATA = [
   { id: 100, flag: "🌐", name: "加拿大與全球終局 (Global Core)", area: "10,000,000+ km²", continent: "GL", lat: 56.1, lon: -106.3, diff: 10, desc: "【世界終局決戰】北極冰蓋與全球海溝同步崩裂，深海王者本體降臨！" }
 ];
 
-/* ==================== 隨機附魔詞條庫 (藍裝1條 / 黃裝2條 / 橘裝3條) ==================== */
-const AFFIX_POOL = [
-  { id: "crit", name: "🎯 精準獵殺", desc: "+15% 暴擊率 (造成 200% 暴擊傷害)", tag: "暴擊+15%" },
-  { id: "slow", name: "❄️ 極寒凝霜", desc: "遠程命中附加 45% 冰凍減速持續 2 秒", tag: "命中緩速" },
-  { id: "vamp", name: "🩸 逆鱗嗜血", desc: "消滅敵人時 12% 機率吸收生命 +8", tag: "殺敵回血" },
-  { id: "chain", name: "⚡ 超導連鎖", desc: "彈道命中時有機率召喚電弧彈跳周邊敵群", tag: "連鎖電弧" },
-  { id: "armor", name: "🛡️ 深淵磐石", desc: "受到海嗣攻擊時所受傷害減免 25%", tag: "減傷25%" },
-  { id: "rush", name: "💨 急行幽影", desc: "電磁衝刺閃避冷卻時間縮減 30%", tag: "衝刺冷卻-30%" }
-];
-
-// 根據裝備品階抽取對應數量的不重複詞條：白0 / 藍1 / 黃2 / 橘3
-function generateAffixesForTier(tier) {
-  let count = 0;
-  if (tier === "rare") count = 1;
-  else if (tier === "elite") count = 2;
-  else if (tier === "legendary") count = 3;
-
-  if (count === 0) return [];
-  const shuffled = [...AFFIX_POOL].sort(() => 0.5 - Math.random());
-  return shuffled.slice(0, count).map(a => ({ ...a }));
-}
-
-// 相容取得單一裝備上的所有詞條陣列
-function getItemAffixList(item) {
-  if (!item) return [];
-  if (Array.isArray(item.affixes)) return item.affixes;
-  if (item.affix) return [item.affix];
-  return [];
-}
+/* ==================== 動物靈獸圖示對照表 (無詞條，依白/藍/黃/橘進化不同動物) ==================== */
+const ANIMAL_ICON_MAP = {
+  seagull: "🕊️ 機械偵察海鷗",
+  turtle:  "🐢 深海碧波靈龜",
+  shark:   "🦈 雷霆虎鯊獵犬",
+  dragon:  "🐉 太古蒼穹應龍"
+};
 
 /* ==================== 存檔系統 (四品階：白/藍/黃/橘) ==================== */
 const SAVE_KEY = "SSTS_SURFACE_SURVIVORS_SAVE_V8";
@@ -141,17 +119,17 @@ const SAVE_KEY = "SSTS_SURFACE_SURVIVORS_SAVE_V8";
 function getStarterWeapon() {
   if (typeof MASTER_EQUIPMENT_DB !== 'undefined') {
     const w = MASTER_EQUIPMENT_DB.find(i => i.id === "w_01");
-    if (w) return { ...w, affixes: [] };
+    if (w) return { ...w, rank: 1, affixes: [] };
   }
-  return { id: "w_01", slot: "weapon", name: "新兵製式獵弓", type: "bow", tier: "common", stars: 1, damage: 30, speed: 10, desc: "基礎電磁弦弓 (傷害 30)", affixes: [] };
+  return { id: "w_01", slot: "weapon", rank: 1, name: "新兵製式獵弓", type: "bow", tier: "common", stars: 1, damage: 30, speed: 10, desc: "基礎電磁弦弓 (傷害 30)", affixes: [] };
 }
 
 function getStarterArtifact() {
   if (typeof MASTER_EQUIPMENT_DB !== 'undefined') {
     const a = MASTER_EQUIPMENT_DB.find(i => i.id === "art_01");
-    if (a) return { ...a, affixes: [] };
+    if (a) return { ...a, rank: 1, cooldownFrames: 240, affixes: [] };
   }
-  return { id: "art_01", slot: "artifact", name: "基礎爆裂手雷核", skillType: "nova", tier: "common", stars: 1, skillMult: 1.0, desc: "主動技：周圍 360 度烈焰爆炸", affixes: [] };
+  return { id: "art_01", slot: "artifact", rank: 1, name: "基礎爆裂手雷核", skillType: "nova", tier: "common", stars: 1, skillMult: 1.0, cooldownFrames: 240, desc: "主動技：周圍 360 度烈焰爆炸", affixes: [] };
 }
 
 const defaultSaveState = {
@@ -496,17 +474,106 @@ function continueGameFromSave() {
   openWorldMapScreen();
 }
 
-/* ==================== 人體工學紙娃娃裝備面板 (四品階：白/藍/黃/橘) ==================== */
+/* ==================== 人體工學紙娃娃裝備面板 (分部位詞條 / 靈獸進化 / 法器倍率 / 一鍵拆解) ==================== */
 let isInventoryOpen = false;
 let currentSelectingSlot = null;
 
-// 精簡為四種品階：普通(白)、稀有(藍)、菁英(黃)、傳說(橘)
-const TIER_META = {
-  common: { name: "普通", color: "#f1f5f9", class: "tier-common", affixCount: 0, salvageBase: 25 },
-  rare: { name: "稀有", color: "#38bdf8", class: "tier-rare", affixCount: 1, salvageBase: 60 },
-  elite: { name: "菁英", color: "#facc15", class: "tier-elite", affixCount: 2, salvageBase: 140 },
-  legendary: { name: "傳說", color: "#fb923c", class: "tier-legendary", affixCount: 3, salvageBase: 400 }
+const SALVAGE_BASE_BY_TIER = {
+  common: 25,
+  rare: 60,
+  elite: 140,
+  legendary: 400
 };
+
+function getTierDisplayMeta(tier) {
+  const t = tier || 'common';
+  const base = (typeof TIER_META !== 'undefined' && TIER_META[t]) ? TIER_META[t] : { name: '普通', color: '#f1f5f9', affixCount: 0 };
+  return {
+    name: base.name,
+    color: base.color,
+    class: `tier-${t}`,
+    affixCount: base.affixCount || 0,
+    salvageBase: SALVAGE_BASE_BY_TIER[t] || 25
+  };
+}
+
+// 取得防具「精密拆解 (a_salvage_up)」金幣加成倍率
+function getSalvageBonusMultiplier() {
+  let bonus = 0;
+  const eq = userSave.equipped || {};
+  for (const key in eq) {
+    const item = eq[key];
+    if (!item || item.slot === 'talisman' || item.slot === 'artifact') continue;
+    const list = (typeof getItemAffixList === 'function') ? getItemAffixList(item) : [];
+    list.forEach(aff => {
+      if (aff && aff.id === 'a_salvage_up') {
+        bonus += (aff.val || 0.15);
+      }
+    });
+  }
+  return 1 + Math.min(0.75, bonus);
+}
+
+function calcItemSalvageGold(item) {
+  if (!item) return 0;
+  const tierMeta = getTierDisplayMeta(item.tier);
+  const curStars = item.stars || 1;
+  const rank = item.rank || 1;
+  const raw = (tierMeta.salvageBase + (rank - 1) * 15) * (1 + (curStars - 1) * 0.4);
+  return Math.floor(raw * getSalvageBonusMultiplier());
+}
+
+// 一鍵拆解背包中所有閒置的普通(白)與稀有(藍)裝備
+function bulkSalvageIdleLowTier() {
+  if (!userSave || !Array.isArray(userSave.myInventory)) return;
+
+  const targets = userSave.myInventory.filter(item => item.tier === 'common' || item.tier === 'rare');
+  if (targets.length === 0) {
+    alert("背包中目前沒有閒置的「普通(白)」或「稀有(藍)」裝備可拆解！");
+    return;
+  }
+
+  let totalGold = 0;
+  targets.forEach(t => { totalGold += calcItemSalvageGold(t); });
+
+  if (!confirm(`確定要一鍵拆解背包內 ${targets.length} 件閒置白裝與藍裝嗎？\n預計回收：💰 +${totalGold} 金幣`)) {
+    return;
+  }
+
+  userSave.myInventory = userSave.myInventory.filter(item => item.tier !== 'common' && item.tier !== 'rare');
+  userSave.playerGold = (userSave.playerGold || 0) + totalGold;
+
+  saveGameProgress();
+  updatePaperdollSlotsDisplay();
+  if (currentSelectingSlot) selectSlotForEquip(currentSelectingSlot);
+  playTone(860, 'triangle', 0.22, 0.15);
+}
+
+// 動態在整備面板標題列渲染與更新「一鍵拆解閒置白/藍裝」按鈕
+function updateBulkSalvageButton() {
+  const invHeader = document.querySelector('#inventory-modal .inv-header');
+  if (!invHeader) return;
+
+  let bulkBtn = document.getElementById('btn-bulk-salvage-low');
+  if (!bulkBtn) {
+    bulkBtn = document.createElement('button');
+    bulkBtn.id = 'btn-bulk-salvage-low';
+    bulkBtn.className = 'btn-bulk-salvage';
+    bulkBtn.type = 'button';
+    bulkBtn.onclick = bulkSalvageIdleLowTier;
+
+    const closeBtn = invHeader.querySelector('.close-btn');
+    if (closeBtn) invHeader.insertBefore(bulkBtn, closeBtn);
+    else invHeader.appendChild(bulkBtn);
+  }
+
+  const targets = (userSave.myInventory || []).filter(item => item.tier === 'common' || item.tier === 'rare');
+  const estGold = targets.reduce((sum, it) => sum + calcItemSalvageGold(it), 0);
+  bulkBtn.innerText = targets.length > 0
+    ? `♻️ 一鍵拆解閒置白/藍 (${targets.length}件 · +${estGold}G)`
+    : `♻️ 無閒置白/藍裝`;
+  bulkBtn.disabled = targets.length === 0;
+}
 
 function toggleInventory() {
   isInventoryOpen = !isInventoryOpen;
@@ -527,12 +594,10 @@ function toggleInventory() {
 
 function renderStarsStr(num) {
   const n = Math.min(5, Math.max(1, num || 1));
-  let s = "";
-  for (let i = 0; i < n; i++) s += "★";
-  return s;
+  return "★".repeat(n);
 }
 
-// 計算並更新紙娃娃下方的「角色總屬性面板」
+// 計算並更新紙娃娃下方的「角色總屬性面板」（支援防具跨部位疊加規則）
 function updateTotalStatsPanel() {
   const eq = userSave.equipped || {};
 
@@ -547,7 +612,16 @@ function updateTotalStatsPanel() {
   let dmgReduce = 0;
   let fireRateMult = 1.0;
   let dashCdMult = 1.0;
-  const allItemAffixes = [];
+
+  let hpPctAdd = 0;
+  let spdPctAdd = 0;
+  let armorAffixReduce = 0;
+  let rushAffixReduce = 0;
+  const affixNameCounts = {};
+
+  const defMap = {};
+  if (typeof WEAPON_AFFIX_POOL !== 'undefined') WEAPON_AFFIX_POOL.forEach(a => defMap[a.id] = a);
+  if (typeof ARMOR_AFFIX_POOL !== 'undefined') ARMOR_AFFIX_POOL.forEach(a => defMap[a.id] = a);
 
   for (const key in eq) {
     const item = eq[key];
@@ -560,21 +634,27 @@ function updateTotalStatsPanel() {
     if (item.fireRateMult) fireRateMult *= item.fireRateMult;
     if (item.dashCdMult) dashCdMult *= item.dashCdMult;
 
-    // 收集該裝備自帶的所有隨機詞條 (藍1條、黃2條、橘3條)
-    const itemAffixes = getItemAffixList(item);
-    itemAffixes.forEach(aff => {
-      allItemAffixes.push(aff);
-      if (aff.id === "armor") dmgReduce += 0.25;
-      if (aff.id === "rush") dashCdMult *= 0.70;
-    });
+    if (item.slot !== 'talisman' && item.slot !== 'artifact') {
+      const itemAffixes = (typeof getItemAffixList === 'function') ? getItemAffixList(item) : [];
+      itemAffixes.forEach(aff => {
+        if (!aff || !aff.id) return;
+        const d = defMap[aff.id] || aff;
+        affixNameCounts[d.name] = (affixNameCounts[d.name] || 0) + 1;
+
+        if (aff.id === "a_hp_pct") hpPctAdd = Math.min(0.80, hpPctAdd + (d.val || 0.12));
+        if (aff.id === "a_move_spd") spdPctAdd = Math.min(0.45, spdPctAdd + (d.val || 0.08));
+        if (aff.id === "a_armor") armorAffixReduce = 1 - (1 - armorAffixReduce) * (1 - (d.val || 0.14));
+        if (aff.id === "a_rush") rushAffixReduce = 1 - (1 - rushAffixReduce) * (1 - (d.val || 0.18));
+      });
+    }
   }
 
   const totalAtk = baseLevelDmg + wepDmg + gearDmg;
-  const totalHp = baseHp + gearHp;
-  const totalSpd = (baseSpd + gearSpd).toFixed(2);
-  const totalDefPct = Math.min(75, Math.round(dmgReduce * 100));
-  const totalRatePct = Math.round((1 - fireRateMult) * 100);
-  const totalDashPct = Math.round((1 - dashCdMult) * 100);
+  const totalHp = Math.round((baseHp + gearHp) * (1 + hpPctAdd));
+  const totalSpd = ((baseSpd + gearSpd) * (1 + spdPctAdd)).toFixed(2);
+  const combinedDef = Math.min(85, Math.round((1 - (1 - Math.min(0.75, dmgReduce)) * (1 - armorAffixReduce)) * 100));
+  const totalRatePct = Math.max(0, Math.round((1 - fireRateMult) * 100));
+  const totalDashPct = Math.max(0, Math.round((1 - dashCdMult * (1 - rushAffixReduce)) * 100));
 
   const elAtk = document.getElementById('stat-total-atk');
   const elHp = document.getElementById('stat-total-hp');
@@ -587,37 +667,62 @@ function updateTotalStatsPanel() {
   if (elAtk) elAtk.innerText = totalAtk;
   if (elHp) elHp.innerText = totalHp;
   if (elSpd) elSpd.innerText = totalSpd;
-  if (elDef) elDef.innerText = `${totalDefPct}%`;
+  if (elDef) elDef.innerText = `${combinedDef}%`;
   if (elRate) elRate.innerText = `+${totalRatePct}%`;
   if (elDash) elDash.innerText = `-${totalDashPct}%`;
 
   if (elAffixBox) {
-    if (allItemAffixes.length === 0) {
-      elAffixBox.innerHTML = `<span style="color:#64748b;">目前無裝備附魔詞條 (藍1/黃2/橘3)</span>`;
+    const entries = Object.entries(affixNameCounts);
+    if (entries.length === 0) {
+      elAffixBox.innerHTML = `<span style="color:#64748b;">目前無裝備附魔詞條 (武器攻擊型 / 防具可跨部位疊加)</span>`;
     } else {
-      const uniqueTags = [...new Set(allItemAffixes.map(a => `${a.name} (${a.tag})`))];
-      elAffixBox.innerHTML = uniqueTags.map(t => `<span class="active-affix-pill">${t}</span>`).join('');
+      elAffixBox.innerHTML = entries
+        .map(([name, cnt]) => `<span class="active-affix-pill">${name}${cnt > 1 ? ` ×${cnt}` : ''}</span>`)
+        .join('');
     }
   }
 }
 
 function updatePaperdollSlotsDisplay() {
   const eq = userSave.equipped;
-  const formatSlot = (item, defaultName) => {
-    if (!item) return { name: defaultName, stars: "", affixText: "" };
-    const tierMeta = TIER_META[item.tier || 'common'] || TIER_META.common;
-    const affList = getItemAffixList(item);
+  const formatSlot = (slotKey, item, defaultName) => {
+    if (!item) return { name: defaultName, stars: "", affixText: "", affixColor: "#34d399" };
+    const tierMeta = getTierDisplayMeta(item.tier);
+
+    if (slotKey === "talisman") {
+      const animalLabel = ANIMAL_ICON_MAP[item.petAnimal] || "🐾 伴生靈獸";
+      return {
+        name: item.name || defaultName,
+        stars: renderStarsStr(item.stars),
+        color: tierMeta.color,
+        affixText: `${animalLabel} (${item.petPower || 1.0}x)`,
+        affixColor: "#34d399"
+      };
+    }
+
+    if (slotKey === "artifact") {
+      return {
+        name: item.name || defaultName,
+        stars: renderStarsStr(item.stars),
+        color: tierMeta.color,
+        affixText: `💥 威力 ${item.skillMult || 1.0}x`,
+        affixColor: "#c084fc"
+      };
+    }
+
+    const affList = (typeof getItemAffixList === 'function') ? getItemAffixList(item) : [];
     return {
       name: item.name || defaultName,
       stars: renderStarsStr(item.stars),
       color: tierMeta.color,
-      affixText: affList.length > 0 ? affList.map(a => a.tag).join(" · ") : ""
+      affixText: affList.length > 0 ? affList.map(a => a.name).join(" · ") : "",
+      affixColor: "#fde047"
     };
   };
 
   const slots = ["helmet", "weapon", "armor", "gloves", "boots", "talisman", "artifact"];
   slots.forEach(s => {
-    const formatted = formatSlot(eq[s], "未裝備");
+    const formatted = formatSlot(s, eq[s], "未裝備");
     const elVal = document.getElementById(`val-${s}`);
     const elStar = document.getElementById(`star-${s}`);
     const elAffix = document.getElementById(`affix-${s}`);
@@ -626,9 +731,13 @@ function updatePaperdollSlotsDisplay() {
       elVal.style.color = formatted.color || "#f8fafc";
     }
     if (elStar) elStar.innerText = formatted.stars;
-    if (elAffix) elAffix.innerText = formatted.affixText;
+    if (elAffix) {
+      elAffix.innerText = formatted.affixText;
+      elAffix.style.color = formatted.affixColor;
+    }
   });
 
+  updateBulkSalvageButton();
   updateTotalStatsPanel();
 }
 
@@ -642,18 +751,31 @@ function buildDynamicDesc(item) {
   if (item.fireRateMult) parts.push(`射速 +${Math.round((1 - item.fireRateMult) * 100)}%`);
   if (item.dashCdMult) parts.push(`衝刺冷卻 -${Math.round((1 - item.dashCdMult) * 100)}%`);
   if (item.skillMult && item.slot === "artifact") parts.push(`技能威力倍率 ${item.skillMult}x`);
+  if (item.petPower && item.slot === "talisman") parts.push(`靈獸威力倍率 ${item.petPower}x`);
 
   if (parts.length > 0) {
-    const baseText = item.desc ? item.desc.split('(')[0].trim() : '';
+    const baseText = item.desc ? item.desc.replace(/^\[.*?\]\s*/, '').split('(')[0].trim() : '';
     return baseText ? `${baseText} (${parts.join('，')})` : parts.join('，');
   }
   return item.desc || '';
 }
 
 function renderAffixesHtml(item) {
-  const list = getItemAffixList(item);
+  if (!item) return "";
+
+  if (item.slot === "talisman") {
+    const animalLabel = ANIMAL_ICON_MAP[item.petAnimal] || "🐾 伴生靈獸";
+    return `<div style="font-size:10px; color:#34d399; font-weight:bold; margin-top:2px;">${animalLabel} · 隨品質進化動物型態（無附魔詞條）</div>`;
+  }
+
+  if (item.slot === "artifact") {
+    const cdSec = ((item.cooldownFrames || 240) / 60).toFixed(1);
+    return `<div style="font-size:10px; color:#c084fc; font-weight:bold; margin-top:2px;">🔮 奧義技能倍率 ${item.skillMult || 1.0}x · 冷卻 ${cdSec}秒（無附魔詞條）</div>`;
+  }
+
+  const list = (typeof getItemAffixList === 'function') ? getItemAffixList(item) : [];
   if (list.length === 0) return "";
-  return list.map(a => `<div class="card-affix-badge">${a.name} · ${a.desc}</div>`).join("");
+  return list.map(a => `<div class="card-affix-badge">${a.name} · ${a.tag || a.desc || ''}</div>`).join("");
 }
 
 function selectSlotForEquip(slotKey) {
@@ -663,13 +785,13 @@ function selectSlotForEquip(slotKey) {
   scrollBox.innerHTML = '';
 
   const slotTitles = {
-    helmet: "頭盔管理 (升星純數值 / 拆解 / 替換)",
-    weapon: "遠程武器管理 (升星純數值 / 拆解 / 替換)",
-    armor: "胸甲管理 (升星純數值 / 拆解 / 替換)",
-    gloves: "戰術手套管理 (升星純數值 / 拆解 / 替換)",
-    boots: "推進戰靴管理 (升星純數值 / 拆解 / 替換)",
-    talisman: "護符 (寵物) 管理",
-    artifact: "戰術法器管理 (升星純數值 / 拆解 / 替換)"
+    helmet: "頭盔管理 (防具多元詞條可跨部位疊加)",
+    weapon: "遠程武器管理 (純攻擊型詞條 / 升星強化)",
+    armor: "胸甲管理 (防具多元詞條可跨部位疊加)",
+    gloves: "戰術手套管理 (防具多元詞條可跨部位疊加)",
+    boots: "推進戰靴管理 (防具多元詞條可跨部位疊加)",
+    talisman: "護符 (靈獸) 管理 (依品質進化不同動物)",
+    artifact: "戰術法器管理 (依品質提升毀滅性威力倍率)"
   };
   title.innerText = slotTitles[slotKey] || "裝備管理";
 
@@ -687,10 +809,11 @@ function selectSlotForEquip(slotKey) {
 
   // 1. 穿戴中裝備置頂
   if (equippedItem && equippedItem.id) {
-    const tierMeta = TIER_META[equippedItem.tier || 'common'] || TIER_META.common;
+    const tierMeta = getTierDisplayMeta(equippedItem.tier);
     const curStars = equippedItem.stars || 1;
+    const rankTag = equippedItem.rank ? `T${equippedItem.rank}·` : '';
     const upgradeCost = curStars * 80 + (curStars >= 4 ? 120 : 0);
-    const salvageGold = Math.floor(tierMeta.salvageBase * (1 + (curStars - 1) * 0.4));
+    const salvageGold = calcItemSalvageGold(equippedItem);
     const isStarterGear = (equippedItem.id === "w_start" || equippedItem.id === "w_01" || equippedItem.id === "art_01");
 
     const equippedCard = document.createElement('div');
@@ -701,7 +824,7 @@ function selectSlotForEquip(slotKey) {
           ${equippedItem.name} <span style="color: #facc15;">${renderStarsStr(curStars)}</span>
         </span>
         <div style="display: flex; gap: 4px; align-items: center;">
-          <span class="card-tier-tag ${tierMeta.class}">${tierMeta.name}</span>
+          <span class="card-tier-tag ${tierMeta.class}">${rankTag}${tierMeta.name}</span>
           <span class="equipped-tag">穿戴中</span>
         </div>
       </div>
@@ -722,22 +845,30 @@ function selectSlotForEquip(slotKey) {
     scrollBox.appendChild(equippedCard);
   }
 
-  // 2. 備用庫存裝備
-  matchingInventory.forEach((item) => {
+  // 2. 備用庫存裝備（依品質高到低、階級高到低排序）
+  const tierOrder = { legendary: 4, elite: 3, rare: 2, common: 1 };
+  const sortedInv = [...matchingInventory].sort((a, b) => {
+    const tDiff = (tierOrder[b.tier] || 1) - (tierOrder[a.tier] || 1);
+    if (tDiff !== 0) return tDiff;
+    return (b.rank || 1) - (a.rank || 1);
+  });
+
+  sortedInv.forEach((item) => {
     const card = document.createElement('div');
     card.className = 'inv-equip-card';
 
-    const tierMeta = TIER_META[item.tier || 'common'] || TIER_META.common;
+    const tierMeta = getTierDisplayMeta(item.tier);
     const curStars = item.stars || 1;
+    const rankTag = item.rank ? `T${item.rank}·` : '';
     const upgradeCost = curStars * 80 + (curStars >= 4 ? 120 : 0);
-    const salvageGold = Math.floor(tierMeta.salvageBase * (1 + (curStars - 1) * 0.4));
+    const salvageGold = calcItemSalvageGold(item);
 
     card.innerHTML = `
       <div class="card-header-row">
         <span style="font-size: 12.5px; font-weight: bold; color: ${tierMeta.color};">
           ${item.name} <span style="color: #facc15;">${renderStarsStr(curStars)}</span>
         </span>
-        <span class="card-tier-tag ${tierMeta.class}">${tierMeta.name}</span>
+        <span class="card-tier-tag ${tierMeta.class}">${rankTag}${tierMeta.name}</span>
       </div>
       <div style="font-size: 10.5px; color: #94a3b8;">${buildDynamicDesc(item)}</div>
       ${renderAffixesHtml(item)}
@@ -887,6 +1018,7 @@ function upgradeItemStar(itemId, clickedButtonElem) {
   if (item.bonusDmg) item.bonusDmg = Math.floor(item.bonusDmg * 1.25);
   if (item.bonusSpeed) item.bonusSpeed = parseFloat((item.bonusSpeed * 1.15).toFixed(2));
   if (item.skillMult) item.skillMult = parseFloat((item.skillMult * 1.25).toFixed(2));
+  if (item.petPower) item.petPower = parseFloat((item.petPower * 1.25).toFixed(2));
 
   const isMaxStar = (item.stars === 5);
 
@@ -934,9 +1066,7 @@ function salvageItem(itemId) {
     return;
   }
 
-  const tierMeta = TIER_META[item.tier || 'common'] || TIER_META.common;
-  const curStars = item.stars || 1;
-  const salvageGold = Math.floor(tierMeta.salvageBase * (1 + (curStars - 1) * 0.4));
+  const salvageGold = calcItemSalvageGold(item);
 
   const promptMsg = isEquipped 
     ? `【${item.name}】目前正在穿戴中，確定要直接拆解嗎？拆解將獲得 ${salvageGold} 金幣並卸除該裝備。` 
