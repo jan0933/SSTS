@@ -1,5 +1,5 @@
 /**
- * SSTS - 戰鬥引擎、70件全裝備屬性實裝、四品階(白/藍/黃/橘)多詞條與極簡HUD (game.js)
+ * SSTS - 戰鬥引擎、70件全裝備屬性實裝、四品階(白/藍/黃/橘)多詞條與雙手多點觸控 (game.js)
  */
 
 let audioCtx = null;
@@ -574,7 +574,41 @@ function triggerArtifactSkill() {
   }
 }
 
-/* ==================== 浮動搖桿 (支援等比縮放座標換算) ==================== */
+/* ==================== 多點觸控：右側動作按鈕即時綁定 ==================== */
+function bindActionButtons() {
+  const btnArtifact = document.getElementById('btn-act-artifact');
+  const btnDash = document.getElementById('btn-act-dash');
+
+  if (btnArtifact) {
+    btnArtifact.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      triggerArtifactSkill();
+    }, { passive: false });
+
+    btnArtifact.addEventListener('mousedown', (e) => {
+      e.stopPropagation();
+      triggerArtifactSkill();
+    });
+  }
+
+  if (btnDash) {
+    btnDash.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      triggerDash();
+    }, { passive: false });
+
+    btnDash.addEventListener('mousedown', (e) => {
+      e.stopPropagation();
+      triggerDash();
+    });
+  }
+}
+
+window.addEventListener('DOMContentLoaded', bindActionButtons);
+
+/* ==================== 浮動搖桿 (支援雙手多點觸控隔離) ==================== */
 const joyBase = document.getElementById('joystick-base');
 const joyThumb = document.getElementById('joystick-thumb');
 const joystick = { active: false, touchId: null, startX: 0, startY: 0, vectorX: 0, vectorY: 0, maxRadius: 50 };
@@ -591,13 +625,16 @@ function getTouchPosInCanvas(touch, canvasElem) {
 }
 
 canvas.addEventListener('touchstart', (e) => {
-  if (isPaused || !gameRunning || joystick.active) return;
+  if (isPaused || !gameRunning) return;
+  if (e.cancelable) e.preventDefault();
+
+  if (joystick.active) return;
 
   for (let i = 0; i < e.changedTouches.length; i++) {
     const touch = e.changedTouches[i];
     const pos = getTouchPosInCanvas(touch, canvas);
 
-    if (pos.x < canvas.width * 0.5) {
+    if (pos.x < canvas.width * 0.55) {
       joystick.active = true;
       joystick.touchId = touch.identifier;
       joystick.startX = pos.uiX;
@@ -619,6 +656,7 @@ window.addEventListener('touchmove', (e) => {
   for (let i = 0; i < e.changedTouches.length; i++) {
     const touch = e.changedTouches[i];
     if (touch.identifier === joystick.touchId) {
+      if (e.cancelable) e.preventDefault();
       const pos = getTouchPosInCanvas(touch, canvas);
 
       const deltaX = pos.uiX - joystick.startX;
