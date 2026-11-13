@@ -1,5 +1,5 @@
 /**
- * SSTS - 全球選關、金幣升星、分部位詞條疊加系統、總戰力計算與一鍵拆解 (map.js)
+ * SSTS - 全球選關、金幣升星、分部位詞條疊加系統、總戰力計算、存檔碼轉移與一鍵拆解 (map.js)
  */
 
 const COUNTRIES_STAGE_DATA = [
@@ -205,6 +205,111 @@ function resetSaveData() {
     localStorage.removeItem(SAVE_KEY);
     location.reload();
   }
+}
+
+/* ==================== 跨裝置存檔碼匯出 / 匯入系統 ==================== */
+function exportSaveCode() {
+  try {
+    saveGameProgress();
+    const jsonStr = JSON.stringify(userSave);
+    const encoded = 'SSTS1_' + btoa(unescape(encodeURIComponent(jsonStr)));
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(encoded).then(() => {
+        alert('✅ 存檔碼已複製到剪貼簿！\n請貼上並傳送至另一台裝置的「匯入存檔碼」視窗即可無縫接續進度。');
+      }).catch(() => {
+        prompt('請全選並複製下方存檔碼：', encoded);
+      });
+    } else {
+      prompt('請全選並複製下方存檔碼：', encoded);
+    }
+    if (typeof playTone === 'function') playTone(780, 'sine', 0.15);
+  } catch (e) {
+    alert('匯出存檔碼失敗：' + e.message);
+  }
+}
+
+function importSaveCode() {
+  const input = prompt('請貼上從其他裝置匯出的存檔碼（以 SSTS1_ 開頭）：');
+  if (!input) return;
+
+  const trimmed = input.trim();
+  if (!trimmed.startsWith('SSTS1_')) {
+    alert('❌ 存檔碼格式錯誤！請確認是否完整複製了以 SSTS1_ 開頭的字串。');
+    return;
+  }
+
+  try {
+    const base64Part = trimmed.slice(6);
+    const jsonStr = decodeURIComponent(escape(atob(base64Part)));
+    const parsed = JSON.parse(jsonStr);
+
+    if (typeof parsed !== 'object' || typeof parsed.unlockedCountryStage !== 'number' || !parsed.equipped) {
+      throw new Error('存檔結構不完整');
+    }
+
+    userSave = { ...defaultSaveState, ...parsed };
+    if (!userSave.equipped.weapon) userSave.equipped.weapon = getStarterWeapon();
+    if (!userSave.equipped.artifact) userSave.equipped.artifact = getStarterArtifact();
+
+    saveGameProgress();
+    updateSelectedStageUI();
+    updateGoldDisplays();
+    if (typeof playTone === 'function') playTone(920, 'triangle', 0.3, 0.15);
+    alert(`🎉 存檔匯入成功！\n已恢復至：第 ${userSave.unlockedCountryStage} 國 · Lv.${userSave.playerLevel} · 金幣 ${userSave.playerGold}`);
+  } catch (e) {
+    alert('❌ 存檔碼解析失敗或已損毀，請確認貼上的字串沒有遺漏字元。');
+  }
+}
+
+function ensureSaveTransferButtons() {
+  const resetBtn = document.querySelector('.btn-clear-save');
+  if (!resetBtn || document.getElementById('save-transfer-row')) return;
+
+  const row = document.createElement('div');
+  row.id = 'save-transfer-row';
+  row.style.cssText = 'display: flex; gap: 6px; margin-top: 8px;';
+
+  const btnExport = document.createElement('button');
+  btnExport.type = 'button';
+  btnExport.innerText = '📤 匯出存檔碼';
+  btnExport.style.cssText = 'flex: 1; background: rgba(14, 165, 233, 0.18); border: 1px solid #38bdf8; color: #bae6fd; font-size: 11px; font-weight: bold; padding: 6px; border-radius: 6px; cursor: pointer;';
+  btnExport.onclick = exportSaveCode;
+
+  const btnImport = document.createElement('button');
+  btnImport.type = 'button';
+  btnImport.innerText = '📥 匯入存檔碼';
+  btnImport.style.cssText = 'flex: 1; background: rgba(16, 185, 129, 0.18); border: 1px solid #34d399; color: #a7f3d0; font-size: 11px; font-weight: bold; padding: 6px; border-radius: 6px; cursor: pointer;';
+  btnImport.onclick = importSaveCode;
+
+  row.appendChild(btnExport);
+  row.appendChild(btnImport);
+  resetBtn.parentNode.insertBefore(row, resetBtn);
+}
+
+/* ==================== 首頁單一入口按鈕：自動判斷接續進度或播放開場劇情 ==================== */
+function handleStartGame() {
+  if (typeof initAudio === 'function') initAudio();
+  const hasExistingSave = loadGameSave();
+
+  const hasProgress = hasExistingSave && (
+    (userSave.unlockedCountryStage || 1) > 1 ||
+    (userSave.stageProgress && (userSave.stageProgress[1] || 0) > 0) ||
+    (userSave.playerLevel || 1) > 1 ||
+    (userSave.myInventory && userSave.myInventory.length > 0)
+  );
+
+  if (hasProgress) {
+    openWorldMapScreen();
+  } else if (typeof startStory === 'function') {
+    startStory();
+  } else {
+    openWorldMapScreen();
+  }
+}
+
+function continueGameFromSave() {
+  handleStartGame();
 }
 
 /* ==================== 3D 地球渲染 ==================== */
@@ -461,17 +566,12 @@ function openWorldMapScreen() {
   document.getElementById('game-container').style.display = 'none';
   document.getElementById('world-map-screen').style.display = 'flex';
 
+  ensureSaveTransferButtons();
   updateSelectedStageUI();
   updateGoldDisplays();
   saveGameProgress();
 
   if (!globeAnimId) drawGlobeScene();
-}
-
-function continueGameFromSave() {
-  initAudio();
-  loadGameSave();
-  openWorldMapScreen();
 }
 
 /* ==================== 人體工學紙娃娃裝備面板 (分部位詞條 / 靈獸進化 / 法器倍率 / 一鍵拆解) ==================== */
@@ -497,7 +597,6 @@ function getTierDisplayMeta(tier) {
   };
 }
 
-// 取得防具「精密拆解 (a_salvage_up)」金幣加成倍率
 function getSalvageBonusMultiplier() {
   let bonus = 0;
   const eq = userSave.equipped || {};
@@ -523,7 +622,6 @@ function calcItemSalvageGold(item) {
   return Math.floor(raw * getSalvageBonusMultiplier());
 }
 
-// 一鍵拆解背包中所有閒置的普通(白)與稀有(藍)裝備
 function bulkSalvageIdleLowTier() {
   if (!userSave || !Array.isArray(userSave.myInventory)) return;
 
@@ -549,7 +647,6 @@ function bulkSalvageIdleLowTier() {
   playTone(860, 'triangle', 0.22, 0.15);
 }
 
-// 動態在整備面板標題列渲染與更新「一鍵拆解閒置白/藍裝」按鈕
 function updateBulkSalvageButton() {
   const invHeader = document.querySelector('#inventory-modal .inv-header');
   if (!invHeader) return;
@@ -597,7 +694,6 @@ function renderStarsStr(num) {
   return "★".repeat(n);
 }
 
-// 計算並更新紙娃娃下方的「角色總屬性面板」（支援防具跨部位疊加規則）
 function updateTotalStatsPanel() {
   const eq = userSave.equipped || {};
 
@@ -979,7 +1075,6 @@ function spawnStarBurstParticles(targetElement, isMaxStar) {
   }
 }
 
-// 升星強化：純粹強化裝備數值，不再產生詞條
 function upgradeItemStar(itemId, clickedButtonElem) {
   let item = userSave.myInventory.find(i => i.id === itemId);
   let isEquipped = false;
@@ -1012,7 +1107,6 @@ function upgradeItemStar(itemId, clickedButtonElem) {
   userSave.playerGold -= cost;
   item.stars = curStars + 1;
 
-  // 純數值大幅成長
   if (item.damage) item.damage = Math.floor(item.damage * 1.3);
   if (item.bonusHp) item.bonusHp = Math.floor(item.bonusHp * 1.25);
   if (item.bonusDmg) item.bonusDmg = Math.floor(item.bonusDmg * 1.25);
