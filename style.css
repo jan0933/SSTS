@@ -811,7 +811,7 @@ canvas#game-canvas {
   transition: transform 0.04s ease-out;
 }
 
-/* 右側動作按鈕群：僅保留法器與衝刺雙按鈕 */
+/* 右側動作按鈕群：僅保留法器與衝刺雙按鈕 (支援多點觸控) */
 #battle-action-cluster {
   position: absolute;
   bottom: 12px;
@@ -823,6 +823,7 @@ canvas#game-canvas {
 }
 .cluster-btn {
   pointer-events: auto;
+  touch-action: manipulation;
   position: absolute;
   border-radius: 50%;
   display: flex;
@@ -836,6 +837,12 @@ canvas#game-canvas {
   -webkit-tap-highlight-color: transparent;
 }
 .cluster-btn:active { transform: scale(0.9); }
+
+/* 確保按鈕內的圖示與文字不干擾外層按鈕的 touchstart 接收 */
+.cluster-btn .act-icon,
+.cluster-btn .act-txt {
+  pointer-events: none;
+}
 
 .btn-artifact {
   width: 54px;
