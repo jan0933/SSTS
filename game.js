@@ -1,5 +1,5 @@
 /**
- * SSTS - 戰鬥引擎、70件全裝備屬性實裝、四品階(白/藍/黃/橘)多詞條、雙手多點觸控與 iOS 全螢幕引導 (game.js)
+ * SSTS - 戰鬥引擎、70件全裝備屬性實裝、四品階(白/藍/黃/橘)多詞條、雙手多點觸控與全螢幕自適應 (game.js)
  */
 
 let audioCtx = null;
@@ -37,7 +37,6 @@ function isStandaloneMode() {
 function toggleGlobalFullscreen() {
   const btn = document.getElementById('btn-global-fullscreen');
 
-  // iPhone / iPad Safari 系統限制不支援網頁 API 全螢幕，改為顯示操作引導
   if (isIOSDevice()) {
     if (isStandaloneMode()) {
       alert("目前已處於 iOS 無邊框全螢幕應用程式模式！");
@@ -51,7 +50,6 @@ function toggleGlobalFullscreen() {
     return;
   }
 
-  // Android 與桌面瀏覽器執行標準全螢幕 API
   if (!document.fullscreenElement && !document.webkitFullscreenElement) {
     const elem = document.documentElement;
     if (elem.requestFullscreen) {
@@ -76,6 +74,7 @@ function toggleGlobalFullscreen() {
 document.addEventListener('fullscreenchange', () => {
   const btn = document.getElementById('btn-global-fullscreen');
   if (btn) btn.innerText = document.fullscreenElement ? "✖ 退出全螢幕" : "⛶ 全螢幕";
+  resizeBattleCanvas();
 });
 
 /* ==================== 首頁動態發光 LOGO ==================== */
@@ -338,6 +337,23 @@ let battlePickups = [];
 let stageObstacles = [];
 let artifactEffects = [];
 
+/* ==================== 動態匹配螢幕長寬比（全螢幕無黑邊、角色不變形、不超框） ==================== */
+function resizeBattleCanvas() {
+  const wrapper = document.querySelector('.canvas-aspect-wrapper');
+  const w = wrapper && wrapper.clientWidth > 0 ? wrapper.clientWidth : window.innerWidth;
+  const h = wrapper && wrapper.clientHeight > 0 ? wrapper.clientHeight : window.innerHeight;
+  if (w > 0 && h > 0) {
+    const baseLogicalHeight = 540;
+    canvas.height = baseLogicalHeight;
+    canvas.width = Math.round(baseLogicalHeight * (w / h));
+
+    if (typeof player !== 'undefined') {
+      player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x));
+      player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y));
+    }
+  }
+}
+
 function getKillThreshold() {
   return (activeCountryStageId === 1 && activeSubstage < 5) ? 25 : 50;
 }
@@ -386,6 +402,8 @@ function compileActiveAffixes() {
 }
 
 function startCountryBattle(countryId, substageIndex) {
+  resizeBattleCanvas();
+
   activeCountryStageId = countryId;
   activeSubstage = substageIndex;
   activeCountryData = COUNTRIES_STAGE_DATA.find(s => s.id === countryId) || COUNTRIES_STAGE_DATA[0];
@@ -603,13 +621,11 @@ function triggerArtifactSkill() {
 
 /* ==================== 頁面初始化：多點觸控按鈕綁定與 PWA 全螢幕按鈕隱藏 ==================== */
 function initUIControlsAndPWA() {
-  // 1. 若已從主畫面 (PWA Standalone) 啟動，自動隱藏右上角「全螢幕」按鈕
   const fsBtn = document.getElementById('btn-global-fullscreen');
   if (isStandaloneMode() && fsBtn) {
     fsBtn.style.display = 'none';
   }
 
-  // 2. 綁定右側動作按鈕多點觸控（touchstart 零延遲觸發，不干擾左手搖桿）
   const btnArtifact = document.getElementById('btn-act-artifact');
   const btnDash = document.getElementById('btn-act-dash');
 
@@ -735,6 +751,7 @@ window.addEventListener('resize', () => {
   joystick.active = false;
   joystick.touchId = null;
   joyBase.style.display = 'none';
+  resizeBattleCanvas();
 });
 
 function triggerDash() {
