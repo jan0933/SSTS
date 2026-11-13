@@ -107,12 +107,12 @@
         </div>
         <button class="close-btn" onclick="closeSubstagesModal()">✕</button>
       </div>
-      <div class="substage-desc">前 1~5 關怪物數量遞增；6~10 關怪物數量對照前段但血量加倍！第 5 與第 10 關迎擊 Boss 掉落自選裝備。</div>
+      <div class="substage-desc">前 1~5 關怪物數量遞增；6~10 關怪物數量對照前段但血量加倍！第 5 與第 10 關迎擊傳說海怪 BOSS 掉落自選裝備。</div>
       <div class="substage-grid" id="substage-grid"></div>
     </div>
   </div>
 
-  <!-- 人體工學紙娃娃裝備面板 (含角色總戰力面板) -->
+  <!-- 人體工學紙娃娃裝備面板 (含角色總戰力面板與一鍵拆解) -->
   <div id="inventory-modal" class="modal-backdrop">
     <div class="paperdoll-inv-container">
       <div class="inv-header">
@@ -174,7 +174,7 @@
               <span class="slot-affix" id="affix-boots"></span>
             </div>
             <div class="gear-slot" id="slot-talisman" onclick="selectSlotForEquip('talisman')">
-              <span class="slot-label">護符 (寵物)</span>
+              <span class="slot-label">護符 (靈獸)</span>
               <span class="slot-val" id="val-talisman">未裝備</span>
               <span class="slot-stars" id="star-talisman"></span>
               <span class="slot-affix" id="affix-talisman"></span>
@@ -194,7 +194,7 @@
               <span>⚡ 衝刺CD: <b id="stat-total-dash" style="color:#fb923c;">-0%</b></span>
             </div>
             <div class="stats-affix-row" id="stat-active-affixes">
-              <span style="color:#64748b;">目前無裝備附魔詞條 (藍1/黃2/橘3)</span>
+              <span style="color:#64748b;">目前無裝備附魔詞條 (武器攻擊型 / 防具可跨部位疊加)</span>
             </div>
           </div>
         </div>
@@ -208,7 +208,7 @@
       </div>
 
       <div class="inv-footer">
-        <span>藍裝附帶 1 詞條、黃裝 2 詞條、橘裝 3 詞條；升星（1★~5★）專注強化裝備基礎數值</span>
+        <span>武器為純攻擊詞條、防具為多元疊加詞條；靈獸依品質進化動物、法器依品質提升爆發倍率</span>
       </div>
     </div>
   </div>
@@ -325,13 +325,22 @@
   </div>
 </div>
 
+<!-- 1. 純資料與詞條/怪物/地標定義層 -->
 <script src="equipment_db.js"></script>
 <script src="landmarks_db.js"></script>
 <script src="monsters_db.js"></script>
+
+<!-- 2. Canvas 向量繪圖引擎層 -->
 <script src="render_art.js"></script>
+
+<!-- 3. 戰利品掉落與 UI/輸入控制層 -->
 <script src="loot_system.js"></script>
 <script src="ui_controls.js"></script>
+
+<!-- 4. 大地圖選關與機甲整備層 -->
 <script src="map.js"></script>
+
+<!-- 5. 核心戰鬥迴圈 -->
 <script src="game.js"></script>
 </body>
 </html>
