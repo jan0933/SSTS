@@ -1,5 +1,5 @@
 /**
- * SSTS - 裝備分階掉寶(1~10階)、獨立品質機率表(白/藍/黃/橘)與寶箱三選一系統 (loot_system.js)
+ * SSTS - 裝備分階掉寶(1~10階)、獨立品質機率表(白/藍/黃/橘)、靈獸動物進化與寶箱三選一系統 (loot_system.js)
  */
 
 // 1. 依據國家編號 (1~100) 計算可掉落的裝備階級 (1~10階)
@@ -36,17 +36,20 @@ function resolveItemRank(item, db) {
   return idx >= 0 ? (idx + 1) : 1;
 }
 
-// 4. 依骰出的品質動態調整裝備詞條、顏色與基礎數值倍率
+// 4. 依骰出的品質動態調整裝備詞條、靈獸動物型態、法器倍率與基礎數值
 function applyRolledTierToItem(baseItem, rolledTier, rank) {
   const tierQualityMult = {
-    common: 1.0,     // 白裝：標準數值
-    rare: 1.12,      // 藍裝：+12%
-    elite: 1.25,     // 黃裝：+25%
-    legendary: 1.40  // 橘裝：+40%
+    common: 1.0,
+    rare: 1.15,
+    elite: 1.32,
+    legendary: 1.55
   };
   const mult = tierQualityMult[rolledTier] || 1.0;
+  const slot = baseItem.slot || 'weapon';
+
+  // 寵物與法器不產生詞條；武器與防具各自抽取專屬詞條池
   const rolledAffixes = (typeof generateAffixesForTier === 'function')
-    ? generateAffixesForTier(rolledTier)
+    ? generateAffixesForTier(rolledTier, slot)
     : [];
 
   const upgraded = {
@@ -62,12 +65,38 @@ function applyRolledTierToItem(baseItem, rolledTier, rank) {
   if (upgraded.bonusHp) upgraded.bonusHp = Math.round(upgraded.bonusHp * mult);
   if (upgraded.bonusSpeed) upgraded.bonusSpeed = parseFloat((upgraded.bonusSpeed * (1 + (mult - 1) * 0.5)).toFixed(2));
   if (upgraded.dmgReduce) upgraded.dmgReduce = parseFloat(Math.min(0.45, upgraded.dmgReduce * mult).toFixed(3));
-  if (upgraded.skillMult) upgraded.skillMult = parseFloat((upgraded.skillMult * mult).toFixed(2));
-  if (upgraded.petPower) upgraded.petPower = parseFloat((upgraded.petPower * mult).toFixed(2));
 
   const tierLabelMap = { common: '普通', rare: '稀有', elite: '菁英', legendary: '傳說' };
-  upgraded.desc = `[第${rank}階·${tierLabelMap[rolledTier]}] ` + (baseItem.desc || '').replace(/^\[.*?\]\s*/, '');
+  const cleanBaseDesc = (baseItem.desc || '').replace(/^\[.*?\]\s*/, '');
 
+  // 護符(寵物)：無詞條，依白/藍/黃/橘進化為不同動物
+  if (slot === 'talisman') {
+    const petSpec = (typeof PET_ANIMAL_BY_TIER !== 'undefined' && PET_ANIMAL_BY_TIER[rolledTier])
+      ? PET_ANIMAL_BY_TIER[rolledTier]
+      : { animal: 'seagull', name: '機械偵察海鷗', mode: 'atk', desc: '伴飛海鷗協助作戰' };
+
+    upgraded.petAnimal = petSpec.animal;
+    upgraded.petMode = petSpec.mode;
+    upgraded.petPower = parseFloat((1.0 + (rank - 1) * 0.18 + (mult - 1) * 1.4).toFixed(2));
+    upgraded.name = `${petSpec.name}·T${rank}`;
+    upgraded.desc = `[第${rank}階·${tierLabelMap[rolledTier]}靈獸] ${petSpec.desc}`;
+    return upgraded;
+  }
+
+  // 戰術法器：無詞條，品質帶來更高的技能爆發傷害與冷卻縮減
+  if (slot === 'artifact') {
+    const artifactPowerByTier = { common: 1.0, rare: 1.45, elite: 2.0, legendary: 2.85 };
+    const artifactCdByTier    = { common: 240, rare: 215,  elite: 190, legendary: 165 };
+    const baseSkillMult = baseItem.skillMult || 1.0;
+
+    upgraded.skillMult = parseFloat((baseSkillMult * artifactPowerByTier[rolledTier] * (1 + (rank - 1) * 0.12)).toFixed(2));
+    upgraded.cooldownFrames = artifactCdByTier[rolledTier] || 240;
+    upgraded.desc = `[第${rank}階·${tierLabelMap[rolledTier]}法器] 技能威力倍率 ${upgraded.skillMult}x · ${cleanBaseDesc}`;
+    return upgraded;
+  }
+
+  // 一般武器與防具
+  upgraded.desc = `[第${rank}階·${tierLabelMap[rolledTier]}] ${cleanBaseDesc}`;
   return upgraded;
 }
 
@@ -104,13 +133,22 @@ function openChestSelection(isApex) {
     const rolledTier = rollChestRarity(isApex);
     const rolledItem = applyRolledTierToItem(baseItem, rolledTier, itemRank);
 
-    const affixPreviewHtml = (rolledItem.affixes && rolledItem.affixes.length > 0)
-      ? rolledItem.affixes.map(a => `<div style="font-size:9.5px; color:#fde047; margin-top:2px;">${a.name} (${a.tag})</div>`).join('')
-      : `<div style="font-size:9.5px; color:#64748b; margin-top:2px;">無附魔詞條</div>`;
+    let affixPreviewHtml = '';
+    if (rolledItem.slot === 'talisman') {
+      affixPreviewHtml = `<div style="font-size:9.5px; color:#34d399; margin-top:2px;">🐾 伴生靈獸（無詞條·隨品質進化動物）</div>`;
+    } else if (rolledItem.slot === 'artifact') {
+      affixPreviewHtml = `<div style="font-size:9.5px; color:#c084fc; margin-top:2px;">🔮 奧義核心（無詞條·高品質高倍率爆發）</div>`;
+    } else if (rolledItem.affixes && rolledItem.affixes.length > 0) {
+      affixPreviewHtml = rolledItem.affixes.map(a => `<div style="font-size:9.5px; color:#fde047; margin-top:2px;">${a.name} (${a.tag})</div>`).join('');
+    } else {
+      affixPreviewHtml = `<div style="font-size:9.5px; color:#64748b; margin-top:2px;">無附魔詞條</div>`;
+    }
 
     const card = document.createElement('div');
     card.className = 'chest-card';
-    const tierMeta = TIER_META[rolledTier] || TIER_META.common;
+    const tierMeta = (typeof TIER_META !== 'undefined' && TIER_META[rolledTier])
+      ? TIER_META[rolledTier]
+      : { name: '普通', color: '#f1f5f9' };
     card.style.borderColor = tierMeta.color;
 
     card.innerHTML = `
