@@ -120,8 +120,24 @@ function getRandomAffix() {
   return { ...AFFIX_POOL[idx] };
 }
 
-/* ==================== 存檔系統 ==================== */
-const SAVE_KEY = "SSTS_SURFACE_SURVIVORS_SAVE_V6";
+/* ==================== 存檔系統 (串接 70 件全裝備庫) ==================== */
+const SAVE_KEY = "SSTS_SURFACE_SURVIVORS_SAVE_V7";
+
+function getStarterWeapon() {
+  if (typeof MASTER_EQUIPMENT_DB !== 'undefined') {
+    const w = MASTER_EQUIPMENT_DB.find(i => i.id === "w_01");
+    if (w) return { ...w, affix: null };
+  }
+  return { id: "w_01", slot: "weapon", name: "新兵製式獵弓", type: "bow", tier: "common", stars: 1, damage: 30, speed: 10, desc: "基礎電磁弦弓 (傷害 30)", affix: null };
+}
+
+function getStarterArtifact() {
+  if (typeof MASTER_EQUIPMENT_DB !== 'undefined') {
+    const a = MASTER_EQUIPMENT_DB.find(i => i.id === "art_01");
+    if (a) return { ...a, affix: null };
+  }
+  return { id: "art_01", slot: "artifact", name: "基礎爆裂手雷核", skillType: "nova", tier: "common", stars: 1, skillMult: 1.0, desc: "主動技：周圍 360 度烈焰爆炸", affix: null };
+}
 
 const defaultSaveState = {
   unlockedCountryStage: 1,
@@ -140,8 +156,8 @@ const defaultSaveState = {
     boots: null,
     accessory: null,
     talisman: null,
-    weapon: { id: "w_start", slot: "weapon", name: "斥候脈衝弓", type: "bow", tier: "common", stars: 1, damage: 32, speed: 11, color: '#38bdf8', affix: null },
-    artifact: { id: "art_nova", slot: "artifact", name: "等離子爆裂核", tier: "rare", stars: 1, skillType: "nova", affix: null }
+    weapon: getStarterWeapon(),
+    artifact: getStarterArtifact()
   }
 };
 
@@ -154,12 +170,21 @@ function loadGameSave() {
       const parsed = JSON.parse(raw);
       userSave = { ...defaultSaveState, ...parsed };
       if (typeof userSave.playerGold !== 'number') userSave.playerGold = 150;
+      if (!userSave.equipped.weapon) userSave.equipped.weapon = getStarterWeapon();
+      if (!userSave.equipped.artifact) userSave.equipped.artifact = getStarterArtifact();
       return true;
     }
   } catch(e) {
     console.warn("無法讀取存檔", e);
   }
-  userSave = { ...defaultSaveState };
+  userSave = {
+    ...defaultSaveState,
+    equipped: {
+      ...defaultSaveState.equipped,
+      weapon: getStarterWeapon(),
+      artifact: getStarterArtifact()
+    }
+  };
   return false;
 }
 
@@ -185,8 +210,6 @@ function updateGoldDisplays() {
 function resetSaveData() {
   if (confirm("確定要重設所有遊戲進度、關卡與裝備嗎？這將無法復原。")) {
     localStorage.removeItem(SAVE_KEY);
-    userSave = { ...defaultSaveState };
-    saveGameProgress();
     location.reload();
   }
 }
@@ -510,51 +533,70 @@ function updatePaperdollSlotsDisplay() {
   const helm = formatSlot(eq.helmet, "未裝備");
   const elH = document.getElementById('val-helmet');
   elH.innerText = helm.name;
-  if (helm.color) elH.style.color = helm.color;
+  elH.style.color = helm.color || "#f8fafc";
   document.getElementById('star-helmet').innerText = helm.stars;
   document.getElementById('affix-helmet').innerText = helm.affixText;
 
-  const wep = formatSlot(eq.weapon, "赤手脈衝");
+  const wep = formatSlot(eq.weapon, "未裝備");
   const elW = document.getElementById('val-weapon');
   elW.innerText = wep.name;
-  if (wep.color) elW.style.color = wep.color;
+  elW.style.color = wep.color || "#f8fafc";
   document.getElementById('star-weapon').innerText = wep.stars;
   document.getElementById('affix-weapon').innerText = wep.affixText;
 
   const arm = formatSlot(eq.armor, "未裝備");
   const elA = document.getElementById('val-armor');
   elA.innerText = arm.name;
-  if (arm.color) elA.style.color = arm.color;
+  elA.style.color = arm.color || "#f8fafc";
   document.getElementById('star-armor').innerText = arm.stars;
   document.getElementById('affix-armor').innerText = arm.affixText;
 
   const glo = formatSlot(eq.gloves, "未裝備");
   const elG = document.getElementById('val-gloves');
   elG.innerText = glo.name;
-  if (glo.color) elG.style.color = glo.color;
+  elG.style.color = glo.color || "#f8fafc";
   document.getElementById('star-gloves').innerText = glo.stars;
   document.getElementById('affix-gloves').innerText = glo.affixText;
 
   const boo = formatSlot(eq.boots, "未裝備");
   const elB = document.getElementById('val-boots');
   elB.innerText = boo.name;
-  if (boo.color) elB.style.color = boo.color;
+  elB.style.color = boo.color || "#f8fafc";
   document.getElementById('star-boots').innerText = boo.stars;
   document.getElementById('affix-boots').innerText = boo.affixText;
 
   const tal = formatSlot(eq.talisman, "未裝備");
   const elT = document.getElementById('val-talisman');
   elT.innerText = tal.name;
-  if (tal.color) elT.style.color = tal.color;
+  elT.style.color = tal.color || "#f8fafc";
   document.getElementById('star-talisman').innerText = tal.stars;
   document.getElementById('affix-talisman').innerText = tal.affixText;
 
-  const art = formatSlot(eq.artifact, "等離子爆裂核");
+  const art = formatSlot(eq.artifact, "未裝備");
   const elArt = document.getElementById('val-artifact');
   elArt.innerText = art.name;
-  if (art.color) elArt.style.color = art.color;
+  elArt.style.color = art.color || "#f8fafc";
   document.getElementById('star-artifact').innerText = art.stars;
   document.getElementById('affix-artifact').innerText = art.affixText;
+}
+
+// 動態產生裝備當前的最新屬性說明字串
+function buildDynamicDesc(item) {
+  const parts = [];
+  if (item.damage) parts.push(`傷害 ${item.damage}`);
+  if (item.bonusDmg) parts.push(`攻擊 +${item.bonusDmg}`);
+  if (item.bonusHp) parts.push(`生命 +${item.bonusHp}`);
+  if (item.bonusSpeed) parts.push(`移速 +${item.bonusSpeed}`);
+  if (item.dmgReduce) parts.push(`減傷 ${Math.round(item.dmgReduce * 100)}%`);
+  if (item.fireRateMult) parts.push(`射速 +${Math.round((1 - item.fireRateMult) * 100)}%`);
+  if (item.dashCdMult) parts.push(`衝刺冷卻 -${Math.round((1 - item.dashCdMult) * 100)}%`);
+  if (item.skillMult && item.slot === "artifact") parts.push(`技能威力倍率 ${item.skillMult}x`);
+
+  if (parts.length > 0) {
+    const baseText = item.desc ? item.desc.split('(')[0].trim() : '';
+    return baseText ? `${baseText} (${parts.join('，')})` : parts.join('，');
+  }
+  return item.desc || '';
 }
 
 // 點擊左側槽位：顯示「目前已穿戴裝備（置頂可強化/拆解）」+「該槽位備用庫存」
@@ -593,7 +635,7 @@ function selectSlotForEquip(slotKey) {
     const curStars = equippedItem.stars || 1;
     const upgradeCost = curStars * 80 + (curStars >= 4 ? 120 : 0);
     const salvageGold = Math.floor(tierMeta.salvageBase * (1 + (curStars - 1) * 0.4));
-    const isStarterWeapon = (equippedItem.id === "w_start");
+    const isStarterGear = (equippedItem.id === "w_start" || equippedItem.id === "w_01" || equippedItem.id === "art_01");
 
     let affixHtml = "";
     if (curStars === 5 && equippedItem.affix) {
@@ -612,17 +654,17 @@ function selectSlotForEquip(slotKey) {
           <span class="equipped-tag">穿戴中</span>
         </div>
       </div>
-      <div style="font-size: 10.5px; color: #cbd5e1;">${equippedItem.desc || ''}</div>
+      <div style="font-size: 10.5px; color: #cbd5e1;">${buildDynamicDesc(equippedItem)}</div>
       ${affixHtml}
       <div class="card-actions-row">
         ${curStars < 5 
           ? `<button class="btn-card-action btn-upgrade" onclick="upgradeItemStar('${equippedItem.id}', this)">升星 (${upgradeCost}金)</button>` 
           : `<span style="font-size: 10px; color: #facc15; font-weight: bold;">5★ 滿星</span>`
         }
-        ${!isStarterWeapon 
+        ${!isStarterGear 
           ? `<button class="btn-card-action btn-unequip" onclick="unequipSlotItem('${slotKey}')">卸下</button>
              <button class="btn-card-action btn-salvage" onclick="salvageItem('${equippedItem.id}')">拆解 (+${salvageGold}金)</button>` 
-          : `<span style="font-size: 10px; color: #64748b;">(初始裝備不可拆解)</span>`
+          : `<span style="font-size: 10px; color: #64748b;">(基礎核心不可拆解)</span>`
         }
       </div>
     `;
@@ -651,7 +693,7 @@ function selectSlotForEquip(slotKey) {
         </span>
         <span class="card-tier-tag ${tierMeta.class}">${tierMeta.name}</span>
       </div>
-      <div style="font-size: 10.5px; color: #94a3b8;">${item.desc || ''}</div>
+      <div style="font-size: 10.5px; color: #94a3b8;">${buildDynamicDesc(item)}</div>
       ${affixHtml}
       <div class="card-actions-row">
         ${curStars < 5 
@@ -668,7 +710,7 @@ function selectSlotForEquip(slotKey) {
 
 function unequipSlotItem(slotKey) {
   const currentEquipped = userSave.equipped[slotKey];
-  if (!currentEquipped || currentEquipped.id === "w_start") return;
+  if (!currentEquipped || currentEquipped.id === "w_start" || currentEquipped.id === "w_01" || currentEquipped.id === "art_01") return;
 
   userSave.myInventory.push({ ...currentEquipped });
   userSave.equipped[slotKey] = null;
@@ -685,7 +727,7 @@ function equipItemToSlot(slotKey, itemId) {
   const item = userSave.myInventory[itemIndex];
 
   const currentEquipped = userSave.equipped[slotKey];
-  if (currentEquipped && currentEquipped.id && currentEquipped.id !== "w_start") {
+  if (currentEquipped && currentEquipped.id) {
     userSave.myInventory.push(currentEquipped);
   }
 
@@ -792,7 +834,12 @@ function upgradeItemStar(itemId, clickedButtonElem) {
   userSave.playerGold -= cost;
   item.stars = curStars + 1;
 
+  // 全部位數值隨星級同步成長
   if (item.damage) item.damage = Math.floor(item.damage * 1.3);
+  if (item.bonusHp) item.bonusHp = Math.floor(item.bonusHp * 1.25);
+  if (item.bonusDmg) item.bonusDmg = Math.floor(item.bonusDmg * 1.25);
+  if (item.bonusSpeed) item.bonusSpeed = parseFloat((item.bonusSpeed * 1.15).toFixed(2));
+  if (item.skillMult) item.skillMult = parseFloat((item.skillMult * 1.25).toFixed(2));
 
   const isMaxStar = (item.stars === 5);
 
@@ -839,8 +886,8 @@ function salvageItem(itemId) {
   }
 
   if (!item) return;
-  if (item.id === "w_start") {
-    alert("初始裝備不可拆解！");
+  if (item.id === "w_start" || item.id === "w_01" || item.id === "art_01") {
+    alert("基礎核心裝備不可拆解！");
     return;
   }
 
