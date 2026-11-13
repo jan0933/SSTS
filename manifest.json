@@ -1,16 +1,20 @@
 {
   "name": "地表倖存者：深海逆鱗 (SSTS)",
   "short_name": "SSTS深海逆鱗",
-  "description": "全球防衛陣線 · 百國領土收復射擊生存遊戲",
+  "description": "全球100國領土收復戰術生存 Roguelite 遊戲",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
   "orientation": "landscape",
   "background_color": "#020617",
   "theme_color": "#020617",
+  "lang": "zh-TW",
+  "categories": ["games", "action"],
   "icons": [
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%23020617'/%3E%3Ccircle cx='256' cy='256' r='190' fill='none' stroke='%2338bdf8' stroke-width='20'/%3E%3Cpolygon points='256,110 380,340 256,290 132,340' fill='%2338bdf8'/%3E%3C/svg%3E",
-      "sizes": "512x512",
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%23020617'/%3E%3Ccircle cx='256' cy='256' r='190' fill='none' stroke='%2338bdf8' stroke-width='22'/%3E%3Ccircle cx='256' cy='256' r='145' fill='none' stroke='%230284c7' stroke-width='8' stroke-dasharray='24 14'/%3E%3Cpolygon points='256,105 385,345 256,285 127,345' fill='%2338bdf8'/%3E%3Ccircle cx='256' cy='240' r='22' fill='%23facc15'/%3E%3C/svg%3E",
+      "sizes": "192x192 512x512",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     }
