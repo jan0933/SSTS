@@ -1,5 +1,5 @@
 /**
- * SSTS - 全球選關、金幣升星、5★覺醒專屬詞條與拆解系統 (map.js)
+ * SSTS - 全球選關、金幣升星、5★覺醒專屬詞條、總戰力計算與拆解系統 (map.js)
  */
 
 const COUNTRIES_STAGE_DATA = [
@@ -481,7 +481,7 @@ function continueGameFromSave() {
   openWorldMapScreen();
 }
 
-/* ==================== 人體工學紙娃娃裝備面板 (穿戴裝備直接置頂強化/拆解) ==================== */
+/* ==================== 人體工學紙娃娃裝備面板 (穿戴裝備置頂 + 總戰力計算) ==================== */
 let isInventoryOpen = false;
 let currentSelectingSlot = null;
 
@@ -515,6 +515,76 @@ function renderStarsStr(num) {
   let s = "";
   for (let i = 0; i < n; i++) s += "★";
   return s;
+}
+
+// 計算並更新紙娃娃下方的「角色總屬性面板」
+function updateTotalStatsPanel() {
+  const eq = userSave.equipped || {};
+
+  // 基礎屬性（含玩家等級成長）
+  const baseLevelDmg = ((userSave.playerLevel || 1) - 1) * 5;
+  const baseHp = userSave.playerMaxHp || 100;
+  const baseSpd = 2.8;
+
+  let wepDmg = (eq.weapon && eq.weapon.damage) ? eq.weapon.damage : 0;
+  let gearDmg = 0;
+  let gearHp = 0;
+  let gearSpd = 0;
+  let dmgReduce = 0;
+  let fireRateMult = 1.0;
+  let dashCdMult = 1.0;
+  const awakenedAffixes = [];
+
+  for (const key in eq) {
+    const item = eq[key];
+    if (!item) continue;
+
+    if (item.bonusDmg) gearDmg += item.bonusDmg;
+    if (item.bonusHp) gearHp += item.bonusHp;
+    if (item.bonusSpeed) gearSpd += item.bonusSpeed;
+    if (item.dmgReduce) dmgReduce += item.dmgReduce;
+    if (item.fireRateMult) fireRateMult *= item.fireRateMult;
+    if (item.dashCdMult) dashCdMult *= item.dashCdMult;
+
+    // 收集已啟動的 5★ 專屬詞條
+    if (item.stars === 5 && item.affix) {
+      awakenedAffixes.push(item.affix);
+      if (item.affix.id === "armor") dmgReduce += 0.25;
+      if (item.affix.id === "rush") dashCdMult *= 0.70;
+    }
+  }
+
+  // 套用上限與百分比換算
+  const totalAtk = baseLevelDmg + wepDmg + gearDmg;
+  const totalHp = baseHp + gearHp;
+  const totalSpd = (baseSpd + gearSpd).toFixed(2);
+  const totalDefPct = Math.min(75, Math.round(dmgReduce * 100));
+  const totalRatePct = Math.round((1 - fireRateMult) * 100);
+  const totalDashPct = Math.round((1 - dashCdMult) * 100);
+
+  const elAtk = document.getElementById('stat-total-atk');
+  const elHp = document.getElementById('stat-total-hp');
+  const elSpd = document.getElementById('stat-total-spd');
+  const elDef = document.getElementById('stat-total-def');
+  const elRate = document.getElementById('stat-total-rate');
+  const elDash = document.getElementById('stat-total-dash');
+  const elAffixBox = document.getElementById('stat-active-affixes');
+
+  if (elAtk) elAtk.innerText = totalAtk;
+  if (elHp) elHp.innerText = totalHp;
+  if (elSpd) elSpd.innerText = totalSpd;
+  if (elDef) elDef.innerText = `${totalDefPct}%`;
+  if (elRate) elRate.innerText = `+${totalRatePct}%`;
+  if (elDash) elDash.innerText = `-${totalDashPct}%`;
+
+  if (elAffixBox) {
+    if (awakenedAffixes.length === 0) {
+      elAffixBox.innerHTML = `<span style="color:#64748b;">尚未覺醒 5★ 專屬詞條</span>`;
+    } else {
+      const uniqueTags = [...new Set(awakenedAffixes.map(a => `${a.name} (${a.tag})`))];
+      elAffixBox.innerHTML = uniqueTags.map(t => `<span class="active-affix-pill">${t}</span>`).join('');
+    }
+  }
 }
 
 function updatePaperdollSlotsDisplay() {
@@ -578,6 +648,9 @@ function updatePaperdollSlotsDisplay() {
   elArt.style.color = art.color || "#f8fafc";
   document.getElementById('star-artifact').innerText = art.stars;
   document.getElementById('affix-artifact').innerText = art.affixText;
+
+  // 同步刷新下方角色總屬性面板
+  updateTotalStatsPanel();
 }
 
 // 動態產生裝備當前的最新屬性說明字串
