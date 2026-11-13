@@ -27,7 +27,7 @@
   <div>請將裝置轉為橫向以獲得完整作戰視野</div>
 </div>
 
-<!-- 1. 首頁畫面 (預設唯一顯示) -->
+<!-- 1. 首頁畫面 (預設唯一顯示 · 單一智慧入口按鈕) -->
 <div id="title-screen" class="screen" style="display: flex;">
   <div class="logo-wrapper">
     <canvas id="logo-canvas" width="700" height="260"></canvas>
@@ -257,7 +257,7 @@
       </div>
     </div>
 
-    <!-- 搖桿 -->
+    <!-- 全螢幕浮動虛擬搖桿 -->
     <div id="joystick-base"><div id="joystick-thumb"></div></div>
 
     <!-- 戰鬥右側動作群：由 JS 綁定 touchstart 實現雙手多點觸控零延遲 -->
@@ -275,21 +275,28 @@
     </div>
   </div>
 
-  <!-- 升級彈窗 -->
+  <!-- 升級彈窗（中央懸浮視窗 · 三選項由左至右橫向排列） -->
   <div id="upgrade-modal" class="modal-backdrop">
-    <h3 style="color: #38bdf8; letter-spacing: 2px;">防衛系統進化升級</h3>
-    <div style="font-size: 12px; color: #94a3b8; margin: 4px 0 12px;">請選擇一項核心機能強化：</div>
-    <div class="upgrade-card" id="up-card-damage" onclick="chooseUpgrade('damage')">
-      <div class="up-title">⚔️ 強化核心攻擊力 (+15)</div>
-      <div class="up-stat" id="up-stat-damage">目前: 30 ➜ 升級後: 45</div>
-    </div>
-    <div class="upgrade-card" id="up-card-hp" onclick="chooseUpgrade('hp')">
-      <div class="up-title">❤️ 提升核心生命上限 (+25 並回滿)</div>
-      <div class="up-stat" id="up-stat-hp">目前: 100/100 ➜ 升級後: 125/125</div>
-    </div>
-    <div class="upgrade-card" id="up-card-speed" onclick="chooseUpgrade('speed')">
-      <div class="up-title">👟 推進引擎加速 (+12%)</div>
-      <div class="up-stat" id="up-stat-speed">目前: 2.8 ➜ 升級後: 3.1</div>
+    <div class="upgrade-box-container">
+      <div class="upgrade-header-title">⚡ 防衛系統進化升級 ⚡</div>
+      <div class="upgrade-header-sub">請選擇一項核心機能強化：</div>
+      <div class="upgrade-cards-grid">
+        <div class="upgrade-card" id="up-card-damage" onclick="chooseUpgrade('damage')">
+          <div class="up-icon">⚔️</div>
+          <div class="up-title">核心攻擊力 (+15)</div>
+          <div class="up-stat" id="up-stat-damage">目前: 30 ➜ 升級後: 45</div>
+        </div>
+        <div class="upgrade-card" id="up-card-hp" onclick="chooseUpgrade('hp')">
+          <div class="up-icon">❤️</div>
+          <div class="up-title">核心生命上限 (+25)</div>
+          <div class="up-stat" id="up-stat-hp">目前: 100/100 ➜ 上限: 125 (並補滿)</div>
+        </div>
+        <div class="upgrade-card" id="up-card-speed" onclick="chooseUpgrade('speed')">
+          <div class="up-icon">👟</div>
+          <div class="up-title">推進引擎加速 (+12%)</div>
+          <div class="up-stat" id="up-stat-speed">目前: 2.8 ➜ 升級後: 3.1</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -341,5 +348,16 @@
 
 <!-- 5. 核心戰鬥迴圈 -->
 <script src="game.js"></script>
+
+<!-- 6. 離線快取 Service Worker 註冊 -->
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch((err) => {
+        console.warn('Service Worker 註冊失敗:', err);
+      });
+    });
+  }
+</script>
 </body>
 </html>
