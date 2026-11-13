@@ -249,14 +249,14 @@
     <!-- 搖桿 -->
     <div id="joystick-base"><div id="joystick-thumb"></div></div>
 
-    <!-- 戰鬥右側動作群：僅保留法器與衝刺 -->
+    <!-- 戰鬥右側動作群：由 JS 綁定 touchstart 實現雙手多點觸控零延遲 -->
     <div id="battle-action-cluster">
-      <button id="btn-act-artifact" class="cluster-btn btn-artifact" onclick="triggerArtifactSkill()">
+      <button id="btn-act-artifact" class="cluster-btn btn-artifact" type="button">
         <span class="act-icon">🔮</span>
         <span class="act-txt">法器</span>
         <div id="artifact-cooldown-overlay"></div>
       </button>
-      <button id="btn-act-dash" class="cluster-btn btn-dash" onclick="triggerDash()">
+      <button id="btn-act-dash" class="cluster-btn btn-dash" type="button">
         <span class="act-icon">⚡</span>
         <span class="act-txt">衝刺</span>
         <div id="dash-cooldown-overlay"></div>
