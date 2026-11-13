@@ -1,5 +1,5 @@
 /**
- * SSTS - 核心戰鬥物理引擎、主動法器技能、傳說海怪 BOSS 系統與 60fps 主迴圈 (game.js)
+ * SSTS - 核心戰鬥物理引擎、10武器詞條、30防具跨部位疊加詞條、傳說海怪BOSS與60fps主迴圈 (game.js)
  */
 
 const canvas = document.getElementById('game-canvas');
@@ -45,7 +45,10 @@ let activeSubstage = 1;
 let activeCountryData = null;
 let gameRunning = false;
 let globalTime = 0;
+let frameCounter = 0;
+
 let activeAffixes = {};
+let affixStats = {}; // 跨部位疊加後的最終數值
 
 const player = {
   x: canvas.width / 2,
@@ -57,6 +60,7 @@ const player = {
   speed: 2.8,
   hp: 100,
   maxHp: 100,
+  shield: 0,           // 相位力場護盾 (a_shield_start)
   baseBonusDamage: 0,
   gearDmgReduce: 0,
   exp: 0,
@@ -79,6 +83,8 @@ const player = {
   isDashing: false,
   dashDuration: 9,
   dashTimer: 0,
+  dashInvulTimer: 0,   // 殘影相位無敵幀 (a_dash_invul)
+  killSpeedTimer: 0,   // 獵殺狂熱移速幀 (a_kill_spd)
   dashSpeedMulti: 3.5,
   dashCooldown: 90,
   dashCooldownTimer: 0,
@@ -97,7 +103,7 @@ const player = {
 };
 
 let dashGhosts = [];
-const pet = { active: false, type: null, power: 1.0, x: 0, y: 0, targetX: 0, targetY: 0, timer: 0 };
+const pet = { active: false, animal: 'seagull', mode: 'atk', power: 1.0, x: 0, y: 0, targetX: 0, targetY: 0, timer: 0 };
 const chest = { active: false, x: 0, y: 0, radius: 16, isApex: false };
 let battlePickups = [];
 let stageObstacles = [];
@@ -172,21 +178,45 @@ function generateStageObstacles(continent, countryId = activeCountryStageId) {
   }
 }
 
+/* ==================== 詞條跨部位疊加規則彙整引擎 ==================== */
 function compileActiveAffixes() {
   activeAffixes = {};
-  for (const key in userSave.equipped) {
-    const item = userSave.equipped[key];
-    if (!item) continue;
+  affixStats = {};
+
+  const defMap = {};
+  if (typeof WEAPON_AFFIX_POOL !== 'undefined') WEAPON_AFFIX_POOL.forEach(a => defMap[a.id] = a);
+  if (typeof ARMOR_AFFIX_POOL !== 'undefined') ARMOR_AFFIX_POOL.forEach(a => defMap[a.id] = a);
+
+  for (const slotKey in userSave.equipped) {
+    const item = userSave.equipped[slotKey];
+    if (!item || item.slot === 'talisman' || item.slot === 'artifact') continue;
+
     const list = (typeof getItemAffixList === 'function')
       ? getItemAffixList(item)
       : (item.affixes || (item.affix ? [item.affix] : []));
+
     list.forEach(aff => {
-      if (aff && aff.id) {
-        activeAffixes[aff.id] = true;
+      if (!aff || !aff.id) return;
+      const id = aff.id;
+      const def = defMap[id] || aff;
+      const val = typeof def.val === 'number' ? def.val : 1;
+      const stackType = def.stackType || 'add';
+
+      activeAffixes[id] = (activeAffixes[id] || 0) + 1;
+
+      if (stackType === 'mult_reduce') {
+        const prevRemain = affixStats[id] !== undefined ? (1 - affixStats[id]) : 1.0;
+        const newRemain = prevRemain * (1 - val);
+        affixStats[id] = parseFloat((1 - newRemain).toFixed(4));
+      } else if (stackType === 'count') {
+        const cap = def.cap || 5;
+        affixStats[id] = Math.min(cap, (affixStats[id] || 0) + val);
+      } else {
+        const cap = def.cap !== undefined ? def.cap : 9999;
+        affixStats[id] = parseFloat(Math.min(cap, (affixStats[id] || 0) + val).toFixed(4));
       }
     });
   }
-  player.dashCooldown = activeAffixes.rush ? 60 : 90;
 }
 
 function startCountryBattle(countryId, substageIndex) {
@@ -215,17 +245,48 @@ function startCountryBattle(countryId, substageIndex) {
   }
   player.gearDmgReduce = Math.min(0.75, player.gearDmgReduce);
 
+  player.weapon = userSave.equipped.weapon || (typeof getStarterWeapon === 'function' ? getStarterWeapon() : { id: "w_01", name: "新兵製式獵弓", type: "bow", tier: "common", stars: 1, damage: 30, speed: 10 });
+  player.artifact = userSave.equipped.artifact || (typeof getStarterArtifact === 'function' ? getStarterArtifact() : { id: "art_01", name: "基礎爆裂手雷核", skillType: "nova", skillMult: 1.0 });
+
+  const eqTalisman = userSave.equipped.talisman;
+  pet.power = (eqTalisman && eqTalisman.petPower) ? eqTalisman.petPower : 1.0;
+  pet.animal = (eqTalisman && eqTalisman.petAnimal) ? eqTalisman.petAnimal : 'seagull';
+  pet.mode = (eqTalisman && eqTalisman.petMode) ? eqTalisman.petMode : 'atk';
+
+  // 彙整所有武器與防具疊加詞條
+  compileActiveAffixes();
+
   player.level = userSave.playerLevel;
   player.exp = userSave.playerExp;
   player.nextExp = userSave.playerNextExp;
-  player.maxHp = userSave.playerMaxHp + totalGearHp;
+
+  // 套用防具【泰坦核心 a_hp_pct】最大生命疊加
+  const baseCombinedHp = userSave.playerMaxHp + totalGearHp;
+  player.maxHp = Math.round(baseCombinedHp * (1 + (affixStats.a_hp_pct || 0)));
   player.hp = player.maxHp;
+
+  // 套用防具【相位力場 a_shield_start】進場護盾
+  player.shield = affixStats.a_shield_start || 0;
+
   player.baseBonusDamage = ((player.level - 1) * 5) + totalGearDmg;
-  player.speed = parseFloat((player.baseSpeed + totalGearSpeed).toFixed(2));
+
+  // 套用防具【噴射滑行 a_move_spd】基礎移速疊加
+  const rawSpeed = (player.baseSpeed + totalGearSpeed) * (1 + (affixStats.a_move_spd || 0));
+  player.speed = parseFloat(rawSpeed.toFixed(2));
   player.fireInterval = Math.max(8, Math.floor(30 * fireRateMult));
 
-  player.weapon = userSave.equipped.weapon || (typeof getStarterWeapon === 'function' ? getStarterWeapon() : { id: "w_01", name: "新兵製式獵弓", type: "bow", tier: "common", stars: 1, damage: 30, speed: 10 });
-  player.artifact = userSave.equipped.artifact || (typeof getStarterArtifact === 'function' ? getStarterArtifact() : { id: "art_01", name: "基礎爆裂手雷核", skillType: "nova", skillMult: 1.0 });
+  // 套用防具【迅捷推進 a_rush】與【超頻法核 a_art_cd】乘法冷卻縮減
+  const rushReduce = affixStats.a_rush || 0;
+  player.dashCooldown = Math.max(22, Math.round(90 * dashCdMult * (1 - rushReduce)));
+
+  const artCdReduce = affixStats.a_art_cd || 0;
+  const baseArtCd = (player.artifact && player.artifact.cooldownFrames) ? player.artifact.cooldownFrames : 240;
+  player.artifactCooldown = Math.max(75, Math.round(baseArtCd * (1 - artCdReduce)));
+
+  // 套用防具【靈獸共鳴 a_pet_boost】
+  if (affixStats.a_pet_boost) {
+    pet.power = parseFloat((pet.power * (1 + affixStats.a_pet_boost)).toFixed(2));
+  }
 
   player.equipment = {
     helmet: userSave.equipped.helmet ? userSave.equipped.helmet.val : null,
@@ -233,17 +294,14 @@ function startCountryBattle(countryId, substageIndex) {
     gloves: userSave.equipped.gloves ? userSave.equipped.gloves.val : null,
     boots: userSave.equipped.boots ? userSave.equipped.boots.val : null,
     accessory: userSave.equipped.accessory ? userSave.equipped.accessory.val : null,
-    talisman: userSave.equipped.talisman ? userSave.equipped.talisman.val : null,
+    talisman: eqTalisman ? eqTalisman.val : null,
     weapon: player.weapon
   };
 
-  pet.power = (userSave.equipped.talisman && userSave.equipped.talisman.petPower) ? userSave.equipped.talisman.petPower : 1.0;
-
-  compileActiveAffixes();
-  player.dashCooldown = Math.max(25, Math.floor(player.dashCooldown * dashCdMult));
-
   player.x = canvas.width / 2;
   player.y = canvas.height / 2;
+  player.dashInvulTimer = 0;
+  player.killSpeedTimer = 0;
 
   enemies = [];
   bullets = [];
@@ -253,6 +311,7 @@ function startCountryBattle(countryId, substageIndex) {
   battlePickups = [];
   artifactEffects = [];
   kills = 0;
+  frameCounter = 0;
   boss.active = false;
   bossBarContainer.style.display = 'none';
   chest.active = false;
@@ -270,13 +329,31 @@ function startCountryBattle(countryId, substageIndex) {
   initGame();
 }
 
+/* ==================== 取得當前有效攻擊加成 (含防具詞條【戰損狂怒 a_berserk_atk】) ==================== */
+function getEffectiveBonusDamage() {
+  let bonus = player.baseBonusDamage;
+  if (affixStats.a_berserk_atk && player.maxHp > 0) {
+    const missingRatio = Math.max(0, 1 - (player.hp / player.maxHp));
+    const stacks = Math.floor(missingRatio * 10); // 每損失10%生命算1層
+    if (stacks > 0) {
+      const wepBase = player.weapon ? player.weapon.damage : 30;
+      const pct = Math.min(affixStats.a_berserk_atk, stacks * 0.04);
+      bonus += Math.round((wepBase + bonus) * pct);
+    }
+  }
+  return bonus;
+}
+
 /* ==================== 主動操作 (法器 / 衝刺) ==================== */
 function triggerArtifactSkill() {
   if (isPaused || !gameRunning || player.artifactCooldownTimer > 0) return;
 
   player.artifactCooldownTimer = player.artifactCooldown;
   const skill = player.artifact ? player.artifact.skillType : 'nova';
-  const skillMult = (player.artifact && player.artifact.skillMult) ? player.artifact.skillMult : 1.0;
+  const baseMult = (player.artifact && player.artifact.skillMult) ? player.artifact.skillMult : 1.0;
+  // 疊加防具詞條【奧義增幅 a_art_dmg】
+  const skillMult = baseMult * (1 + (affixStats.a_art_dmg || 0));
+  const curBonus = getEffectiveBonusDamage();
 
   if (skill === 'nova') {
     playTone(200, 'sawtooth', 0.4, 0.25);
@@ -291,11 +368,11 @@ function triggerArtifactSkill() {
     }
     artifactEffects.push({ type: 'nova', x: player.x, y: player.y, timer: 30, maxDuration: 30, particles });
 
-    const novaDmg = Math.floor((90 + player.baseBonusDamage) * skillMult);
+    const novaDmg = Math.floor((90 + curBonus) * skillMult);
     for (let i = enemies.length - 1; i >= 0; i--) {
-      if (Math.hypot(enemies[i].x - player.x, enemies[i].y - player.y) < 180) enemies[i].hp -= novaDmg;
+      if (Math.hypot(enemies[i].x - player.x, enemies[i].y - player.y) < 185) enemies[i].hp -= novaDmg;
     }
-    if (boss.active && Math.hypot(boss.x - player.x, boss.y - player.y) < 180 + boss.radius) boss.hp -= novaDmg;
+    if (boss.active && Math.hypot(boss.x - player.x, boss.y - player.y) < 185 + boss.radius) boss.hp -= novaDmg;
 
   } else if (skill === 'freeze') {
     playTone(850, 'sine', 0.3, 0.2);
@@ -305,7 +382,7 @@ function triggerArtifactSkill() {
     }
     artifactEffects.push({ type: 'freeze', x: player.x, y: player.y, timer: 35, maxDuration: 35, particles });
 
-    const freezeDmg = Math.floor((35 + player.baseBonusDamage) * skillMult);
+    const freezeDmg = Math.floor((35 + curBonus) * skillMult);
     for (const e of enemies) { e.speed *= 0.4; e.hp -= freezeDmg; }
     if (boss.active) {
       boss.speed *= 0.65;
@@ -318,7 +395,7 @@ function triggerArtifactSkill() {
     const strikes = [];
     const sorted = [...enemies].sort((a, b) => b.hp - a.hp);
     const strikeCount = Math.min(5, Math.max(3, sorted.length));
-    const thunderDmg = Math.floor((150 + player.baseBonusDamage) * skillMult);
+    const thunderDmg = Math.floor((150 + curBonus) * skillMult);
 
     for (let i = 0; i < strikeCount; i++) {
       const target = (i === 0 && boss.active) ? boss : (sorted[i] || { x: Math.random() * canvas.width, y: Math.random() * canvas.height, hp: 0 });
@@ -346,7 +423,7 @@ function triggerArtifactSkill() {
     }
     artifactEffects.push({ type: 'blackhole', x: canvas.width / 2, y: canvas.height / 2, timer: 50, maxDuration: 50, particles });
 
-    const bhDmg = Math.floor((55 + player.baseBonusDamage * 0.6) * skillMult);
+    const bhDmg = Math.floor((55 + curBonus * 0.6) * skillMult);
     for (const e of enemies) {
       e.x = canvas.width / 2 + (Math.random() - 0.5) * 40;
       e.y = canvas.height / 2 + (Math.random() - 0.5) * 40;
@@ -361,6 +438,27 @@ function triggerDash() {
   player.isDashing = true;
   player.dashTimer = player.dashDuration;
   player.dashCooldownTimer = player.dashCooldown;
+
+  // 防具詞條【殘影相位 a_dash_invul】：衝刺後額外無敵幀
+  if (affixStats.a_dash_invul) {
+    player.dashInvulTimer = affixStats.a_dash_invul;
+  }
+
+  // 防具詞條【衝刺震波 a_dash_nova】：起點釋放電漿震退並傷害周圍敵軍（層數疊加擴大範圍與傷害）
+  if (affixStats.a_dash_nova) {
+    const layers = affixStats.a_dash_nova;
+    const novaR = 85 + layers * 25;
+    const novaDmg = (25 + Math.round(getEffectiveBonusDamage() * 0.35)) * layers;
+    for (const e of enemies) {
+      const dist = Math.hypot(e.x - player.x, e.y - player.y);
+      if (dist < novaR) {
+        e.hp -= novaDmg;
+        const pushAng = Math.atan2(e.y - player.y, e.x - player.x);
+        e.x += Math.cos(pushAng) * (30 + layers * 10);
+        e.y += Math.sin(pushAng) * (30 + layers * 10);
+      }
+    }
+  }
 
   if (player.vx !== 0 || player.vy !== 0) {
     const len = Math.hypot(player.vx, player.vy);
@@ -472,7 +570,7 @@ function fireBossRingBarrage() {
   playTone(boss.isApex ? 175 : 235, 'square', 0.2, 0.1);
 }
 
-/* ==================== 哨站結算與道具效果 ==================== */
+/* ==================== 哨站結算與道具效果 (含防具詞條【賞金獵人 a_gold_gain】【連鎖引爆 a_bomb_power】) ==================== */
 function completeSubstage() {
   const cId = activeCountryStageId;
   const currentProgress = userSave.stageProgress[cId] || 0;
@@ -488,7 +586,10 @@ function completeSubstage() {
     }
   }
 
-  const earnedGold = 60 + (cId - 1) * 25 + activeSubstage * 8;
+  const baseGold = 60 + (cId - 1) * 25 + activeSubstage * 8;
+  const goldBonusMult = 1 + (affixStats.a_gold_gain || 0);
+  const earnedGold = Math.round(baseGold * goldBonusMult);
+
   userSave.playerGold = (userSave.playerGold || 0) + earnedGold;
   victoryGoldReward.innerText = `💰 作戰津貼：+${earnedGold} 金幣 (結餘: ${userSave.playerGold})`;
 
@@ -506,7 +607,9 @@ function syncPlayerSaveState() {
       totalGearHp += userSave.equipped[key].bonusHp;
     }
   }
-  userSave.playerMaxHp = Math.max(100, player.maxHp - totalGearHp);
+  const hpPctMult = 1 + (affixStats.a_hp_pct || 0);
+  const unscaledHp = Math.round(player.maxHp / hpPctMult);
+  userSave.playerMaxHp = Math.max(100, unscaledHp - totalGearHp);
   saveGameProgress();
 }
 
@@ -556,9 +659,14 @@ function activateEmpBomb() {
     setTimeout(() => { empFlashOverlay.style.display = 'none'; }, 400);
   }, 100);
 
+  // 防具詞條【連鎖引爆 a_bomb_power】：額外掉落結晶數量
+  const extraGems = affixStats.a_bomb_power || 0;
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
     gems.push({ x: e.x, y: e.y, radius: 4, magnetPull: true });
+    for (let k = 0; k < extraGems; k++) {
+      gems.push({ x: e.x + (Math.random() - 0.5) * 14, y: e.y + (Math.random() - 0.5) * 14, radius: 4, magnetPull: true });
+    }
     kills++;
   }
   enemies = [];
@@ -576,8 +684,16 @@ function initGame() {
 function updateHUD() {
   txtExpVal.innerText = `${player.exp} / ${player.nextExp}`;
   expBar.style.width = `${(player.exp / player.nextExp) * 100}%`;
-  txtHpVal.innerText = `${Math.max(0, Math.floor(player.hp))} / ${player.maxHp}`;
+  const shieldStr = player.shield > 0 ? ` (+${Math.ceil(player.shield)}盾)` : '';
+  txtHpVal.innerText = `${Math.max(0, Math.floor(player.hp))}${shieldStr} / ${player.maxHp}`;
   hpBar.style.width = `${Math.max(0, (player.hp / player.maxHp) * 100)}%`;
+}
+
+function healPlayer(rawAmount) {
+  if (rawAmount <= 0 || player.hp >= player.maxHp) return;
+  const boost = 1 + (affixStats.a_heal_boost || 0);
+  player.hp = Math.min(player.maxHp, player.hp + Math.max(1, Math.round(rawAmount * boost)));
+  updateHUD();
 }
 
 function spawnContinentEnemy() {
@@ -613,6 +729,7 @@ function spawnContinentEnemy() {
   const baseSpeed = (isEarlyCountry ? 1.0 : 1.35) * (spec.speedMult || 1.0);
   let baseHp = (isEarlyCountry ? (12 + normSubstage * 2) : (25 + activeCountryStageId * 3)) * (spec.hpMult || 1.0);
   if (isHpDoubled) baseHp *= 2;
+  const finalHp = Math.round(baseHp);
 
   enemies.push({
     x, y,
@@ -620,11 +737,16 @@ function spawnContinentEnemy() {
     vy: Math.sin(angle) * baseSpeed,
     kind: spec.kind,
     radius: spec.radius || 10,
-    hp: Math.round(baseHp),
-    pulse: Math.random() * 10
+    hp: finalHp,
+    maxHp: finalHp,
+    pulse: Math.random() * 10,
+    burnTimer: 0,
+    burnDmg: 0,
+    frostBroken: false
   });
 }
 
+/* ==================== 遠程自動射擊 (實裝 10 種武器純攻擊詞條) ==================== */
 function executeAttack() {
   let target = null;
   if (boss.active) {
@@ -641,33 +763,97 @@ function executeAttack() {
   player.attackTimer = player.attackDuration;
   player.facing = target.x >= player.x ? 1 : -1;
 
-  const angle = Math.atan2(target.y - player.y, target.x - player.x);
+  const baseAngle = Math.atan2(target.y - player.y, target.x - player.x);
   const w = player.weapon || { damage: 30, speed: 10, type: 'bow' };
-  let totalDamage = w.damage + player.baseBonusDamage;
+  let totalDamage = w.damage + getEffectiveBonusDamage();
 
+  // 1. 武器詞條【致命暴擊 w_crit】與【毀滅暴傷 w_crit_dmg】
   let isCrit = false;
-  if (activeAffixes.crit && Math.random() < 0.15) {
-    totalDamage *= 2.0;
+  if (activeAffixes.w_crit && Math.random() < 0.18) {
+    const critMult = 2.0 + (affixStats.w_crit_dmg || 0);
+    totalDamage = Math.round(totalDamage * critMult);
     isCrit = true;
   }
 
+  // 2. 武器詞條【穿甲貫穿 w_pierce】
+  const pierceCount = activeAffixes.w_pierce ? 1 : 0;
+
   bullets.push({
     x: player.x, y: player.y,
-    vx: Math.cos(angle) * w.speed, vy: Math.sin(angle) * w.speed,
+    vx: Math.cos(baseAngle) * w.speed, vy: Math.sin(baseAngle) * w.speed,
     radius: isCrit ? 6 : (w.type === 'staff' ? 6 : 4),
     damage: totalDamage,
     type: w.type,
-    isCrit: isCrit
+    isCrit: isCrit,
+    pierceLeft: pierceCount,
+    hitIds: []
   });
+
+  // 3. 武器詞條【雙重齊射 w_multishot】
+  if (activeAffixes.w_multishot && Math.random() < 0.28) {
+    const spreadAngle = baseAngle + (Math.random() < 0.5 ? 0.16 : -0.16);
+    bullets.push({
+      x: player.x, y: player.y,
+      vx: Math.cos(spreadAngle) * w.speed, vy: Math.sin(spreadAngle) * w.speed,
+      radius: 4,
+      damage: Math.round(totalDamage * 0.75),
+      type: w.type,
+      isCrit: isCrit,
+      pierceLeft: pierceCount,
+      hitIds: []
+    });
+  }
 
   if (isCrit) playTone(980, 'square', 0.12, 0.1);
   else if (w.type === 'staff') playTone(650, 'sine', 0.16);
   else playTone(850, 'triangle', 0.08);
 }
 
-function applyDamageToPlayer(rawDmg) {
+/* ==================== 玩家受擊與 30 種防具防禦/反擊詞條判定 ==================== */
+function applyDamageToPlayer(rawDmg, isBossOrProjectile = false) {
+  // 1. 防具詞條【殘影相位 a_dash_invul】無敵幀檢查
+  if (player.dashInvulTimer > 0) return false;
+
+  // 2. 防具詞條【光學偏折 a_dodge】閃避率判定 (最高45%)
+  if (affixStats.a_dodge && Math.random() < affixStats.a_dodge) {
+    return false;
+  }
+
+  // 3. 基礎減傷 + 防具【重甲防護 a_armor】+【霸主抗性 a_boss_def】+【背水鐵壁 a_low_hp_def】
   let finalDmg = rawDmg * (1 - (player.gearDmgReduce || 0));
-  if (activeAffixes.armor) finalDmg *= 0.75;
+  if (affixStats.a_armor) finalDmg *= (1 - affixStats.a_armor);
+  if (isBossOrProjectile && affixStats.a_boss_def) finalDmg *= (1 - affixStats.a_boss_def);
+  if (affixStats.a_low_hp_def && (player.hp / player.maxHp) < 0.40) {
+    finalDmg *= (1 - affixStats.a_low_hp_def);
+  }
+
+  // 4. 防具詞條【合金格擋 a_flat_block】固定減傷
+  if (affixStats.a_flat_block && rawDmg >= 1) {
+    finalDmg = Math.max(1, finalDmg - affixStats.a_flat_block);
+  }
+
+  // 5. 防具詞條【反傷電網 a_thorns】受擊反彈範圍電擊
+  if (affixStats.a_thorns && rawDmg >= 0.3) {
+    const thornsDmg = affixStats.a_thorns;
+    for (const e of enemies) {
+      if (Math.hypot(e.x - player.x, e.y - player.y) < 115) {
+        e.hp -= thornsDmg;
+      }
+    }
+  }
+
+  // 6. 優先扣除【相位力場 a_shield_start】護盾，再扣生命
+  if (player.shield > 0) {
+    if (player.shield >= finalDmg) {
+      player.shield -= finalDmg;
+      updateHUD();
+      return false;
+    } else {
+      finalDmg -= player.shield;
+      player.shield = 0;
+    }
+  }
+
   player.hp -= finalDmg;
   updateHUD();
   if (player.hp <= 0) {
@@ -677,9 +863,76 @@ function applyDamageToPlayer(rawDmg) {
   return false;
 }
 
+function handleEnemyKilled(e) {
+  gems.push({ x: e.x, y: e.y, radius: 4 });
+
+  // 防具詞條【嗜血汲取 a_vamp】
+  if (affixStats.a_vamp && Math.random() < affixStats.a_vamp) {
+    healPlayer(8);
+  }
+
+  // 防具詞條【獵殺狂熱 a_kill_spd】擊殺後 2 秒內提升移速
+  if (affixStats.a_kill_spd) {
+    player.killSpeedTimer = 120;
+  }
+
+  // 防具詞條【幸運羅盤 a_drop_luck】提升磁鐵與炸彈掉落率
+  const luckBonus = affixStats.a_drop_luck || 0;
+  const dropRand = Math.random();
+  if (dropRand < (0.05 + luckBonus)) battlePickups.push({ x: e.x, y: e.y, type: 'magnet' });
+  else if (dropRand < (0.09 + luckBonus * 1.5)) battlePickups.push({ x: e.x, y: e.y, type: 'bomb' });
+
+  kills++;
+  updateKillsDisplay();
+
+  const killThreshold = getKillThreshold();
+  if (activeSubstage !== 5 && activeSubstage !== 10) {
+    if (kills >= killThreshold) completeSubstage();
+  } else {
+    if (kills >= killThreshold && !boss.active && !chest.active) checkAndSpawnStageBoss();
+  }
+}
+
 function updateGame() {
   if (isPaused) return;
   globalTime += 0.04;
+  frameCounter++;
+
+  if (player.dashInvulTimer > 0) player.dashInvulTimer--;
+  if (player.killSpeedTimer > 0) player.killSpeedTimer--;
+
+  // 防具詞條【奈米修復 a_regen】：每 3 秒 (180幀) 自動回復生命
+  if (affixStats.a_regen && frameCounter % 180 === 0 && player.hp < player.maxHp) {
+    healPlayer(player.maxHp * affixStats.a_regen);
+  }
+
+  // 防具詞條【靜電立場 a_aura_shock】：每秒對周圍 95px 敵軍造成範圍電傷
+  if (affixStats.a_aura_shock && frameCounter % 60 === 0) {
+    const auraDmg = affixStats.a_aura_shock;
+    for (const e of enemies) {
+      if (Math.hypot(e.x - player.x, e.y - player.y) < 95) e.hp -= auraDmg;
+    }
+    if (boss.active && Math.hypot(boss.x - player.x, boss.y - player.y) < 95 + boss.radius) {
+      boss.hp -= auraDmg;
+    }
+  }
+
+  // 防具詞條【肩射微飛彈 a_auto_missile】：每 3 秒自動齊射層數對應的追蹤飛彈
+  if (affixStats.a_auto_missile && frameCounter % 180 === 0) {
+    const count = affixStats.a_auto_missile;
+    const missileDmg = 35 + Math.round(getEffectiveBonusDamage() * 0.6);
+    for (let m = 0; m < count; m++) {
+      const target = boss.active ? boss : (enemies[m % Math.max(1, enemies.length)]);
+      if (target) {
+        const ang = Math.atan2(target.y - player.y, target.x - player.x) + (m - (count - 1) / 2) * 0.15;
+        bullets.push({
+          x: player.x, y: player.y,
+          vx: Math.cos(ang) * 8.5, vy: Math.sin(ang) * 8.5,
+          radius: 5, damage: missileDmg, type: 'staff', isCrit: true, pierceLeft: 0, hitIds: []
+        });
+      }
+    }
+  }
 
   let dx = 0, dy = 0;
   if (keys['w'] || keys['arrowup']) dy -= 1;
@@ -708,13 +961,14 @@ function updateGame() {
     artifactCooldownOverlay.style.height = `0%`;
   }
 
+  const effectiveSpeed = player.speed * (player.killSpeedTimer > 0 ? (1 + (affixStats.a_kill_spd || 0)) : 1.0);
   let nextPx = player.x;
   let nextPy = player.y;
 
   if (player.isDashing) {
     player.dashTimer--;
-    player.vx = player.dashDirX * player.speed * player.dashSpeedMulti;
-    player.vy = player.dashDirY * player.speed * player.dashSpeedMulti;
+    player.vx = player.dashDirX * effectiveSpeed * player.dashSpeedMulti;
+    player.vy = player.dashDirY * effectiveSpeed * player.dashSpeedMulti;
     dashGhosts.push({ x: player.x, y: player.y, facing: player.facing, alpha: 1.0 });
     if (player.dashTimer <= 0) player.isDashing = false;
   } else {
@@ -723,8 +977,8 @@ function updateGame() {
       player.animTimer += 0.08;
       if (Math.abs(dx) > 0.05) player.facing = dx > 0 ? 1 : -1;
     }
-    player.vx = dx * player.speed;
-    player.vy = dy * player.speed;
+    player.vx = dx * effectiveSpeed;
+    player.vy = dy * effectiveSpeed;
   }
 
   nextPx = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x + player.vx));
@@ -753,45 +1007,52 @@ function updateGame() {
     player.fireTimer = 0;
   }
 
+  // 護符伴生靈獸行為 (海鷗/靈龜/虎鯊/應龍)
   if (player.equipment && player.equipment.talisman) {
     pet.active = true;
-    pet.type = player.equipment.talisman === 'atk_pet' ? 'atk' : (player.equipment.talisman === 'heal_pet' ? 'heal' : 'pull');
     pet.targetX = player.x - (player.facing * 24);
     pet.targetY = player.y - 20 + Math.sin(globalTime * 3) * 6;
-    pet.x += (pet.targetX - pet.x) * 0.1;
-    pet.y += (pet.targetY - pet.y) * 0.1;
+    pet.x += (pet.targetX - pet.x) * 0.12;
+    pet.y += (pet.targetY - pet.y) * 0.12;
     pet.timer++;
 
-    if (pet.type === 'atk' && pet.timer >= 45) {
-      pet.timer = 0;
-      if (enemies.length > 0) {
-        const e = enemies[0];
+    const mode = pet.mode || 'atk';
+    const atkCd = (mode === 'omni') ? 28 : (mode === 'hunt' ? 35 : 48);
+    if ((mode === 'atk' || mode === 'hunt' || mode === 'omni') && pet.timer % atkCd === 0) {
+      const target = boss.active ? boss : enemies[0];
+      if (target) {
+        const ang = Math.atan2(target.y - pet.y, target.x - pet.x);
         bullets.push({
           x: pet.x, y: pet.y,
-          vx: (e.x - pet.x) * 0.08, vy: (e.y - pet.y) * 0.08,
-          radius: 3.5,
-          damage: Math.floor((30 + player.baseBonusDamage * 0.5) * pet.power),
-          type: 'bow'
+          vx: Math.cos(ang) * 9, vy: Math.sin(ang) * 9,
+          radius: mode === 'omni' ? 5 : 3.5,
+          damage: Math.floor((28 + getEffectiveBonusDamage() * 0.45) * pet.power),
+          type: mode === 'omni' ? 'staff' : 'bow',
+          isCrit: (mode === 'omni'),
+          pierceLeft: 0,
+          hitIds: []
         });
-        playTone(1100, 'sine', 0.06, 0.04);
+        playTone(mode === 'omni' ? 1250 : 1080, 'sine', 0.05, 0.03);
       }
-    } else if (pet.type === 'heal' && pet.timer >= 180) {
-      pet.timer = 0;
+    }
+
+    if ((mode === 'heal' || mode === 'omni') && pet.timer % 180 === 0) {
       if (player.hp < player.maxHp) {
-        player.hp = Math.min(player.maxHp, player.hp + Math.floor(20 * pet.power));
-        updateHUD();
-        playTone(600, 'sine', 0.25, 0.08);
+        healPlayer(22 * pet.power);
+        playTone(620, 'sine', 0.22, 0.07);
       }
-    } else if (pet.type === 'pull' && pet.timer >= 240) {
-      pet.timer = 0;
-      const pullRange = 150 * Math.min(1.6, pet.power);
+    }
+
+    if ((mode === 'hunt' || mode === 'omni') && pet.timer % 220 === 0) {
+      const range = 160 * Math.min(1.5, pet.power);
       for (const e of enemies) {
-        if (Math.hypot(e.x - pet.x, e.y - pet.y) < pullRange) {
-          const angle = Math.atan2(pet.y - e.y, pet.x - e.x);
-          e.x += Math.cos(angle) * 45; e.y += Math.sin(angle) * 45;
+        if (Math.hypot(e.x - pet.x, e.y - pet.y) < range) {
+          const ang = Math.atan2(pet.y - e.y, pet.x - e.x);
+          const dir = (mode === 'omni') ? 1 : -1;
+          e.x += Math.cos(ang) * 42 * dir;
+          e.y += Math.sin(ang) * 42 * dir;
         }
       }
-      playTone(200, 'sawtooth', 0.2, 0.1);
     }
   } else {
     pet.active = false;
@@ -810,6 +1071,7 @@ function updateGame() {
     }
   }
 
+  // 子彈碰撞與 10 種武器攻擊詞條觸發
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i];
     b.x += b.vx; b.y += b.vy;
@@ -827,15 +1089,22 @@ function updateGame() {
     }
     if (hitObstacle) continue;
 
+    // 命中 Boss 判定
     if (boss.active && Math.hypot(b.x - boss.x, b.y - boss.y) < b.radius + boss.radius) {
-      boss.hp -= b.damage;
+      let bossDmg = b.damage;
+      // 武器詞條【巨獸獵手 w_giant_slay】對首領傷害 +25%
+      if (activeAffixes.w_giant_slay) bossDmg = Math.round(bossDmg * 1.25);
+      // 武器詞條【處決重擊 w_execute】低血量增傷 +60%
+      if (activeAffixes.w_execute && boss.hp < boss.maxHp * 0.35) bossDmg = Math.round(bossDmg * 1.6);
+      // 武器詞條【極寒破甲 w_frost_atk】
+      if (activeAffixes.w_frost_atk) {
+        bossDmg = Math.round(bossDmg * 1.15);
+        boss.speed = (boss.baseSpeed || 0.9) * 0.75;
+      }
+
+      boss.hp -= bossDmg;
       bullets.splice(i, 1);
       playTone(180, 'sawtooth', 0.04);
-
-      if (activeAffixes.slow) {
-        boss.speed *= 0.85;
-        setTimeout(() => { if (boss.active) boss.speed = boss.baseSpeed || (boss.isApex ? 1.0 : 0.75); }, 1500);
-      }
 
       const bossHpPct = Math.max(0, (boss.hp / boss.maxHp) * 100);
       bossBarFill.style.width = `${bossHpPct}%`;
@@ -855,50 +1124,72 @@ function updateGame() {
       continue;
     }
 
+    // 命中一般海嗣小怪判定
     for (let j = enemies.length - 1; j >= 0; j--) {
       const e = enemies[j];
+      if (b.hitIds && b.hitIds.includes(e)) continue;
+
       if (Math.hypot(b.x - e.x, b.y - e.y) < b.radius + e.radius) {
-        e.hp -= b.damage;
-        bullets.splice(i, 1);
-        playTone(220, 'sawtooth', 0.04);
+        let hitDmg = b.damage;
 
-        if (activeAffixes.slow) e.speed *= 0.55;
+        // 武器詞條【處決重擊 w_execute】
+        if (activeAffixes.w_execute && e.hp < (e.maxHp || 30) * 0.35) {
+          hitDmg = Math.round(hitDmg * 1.6);
+        }
+        // 武器詞條【極寒破甲 w_frost_atk】
+        if (activeAffixes.w_frost_atk) {
+          hitDmg = Math.round(hitDmg * 1.15);
+          if (!e.frostBroken) {
+            e.vx *= 0.6; e.vy *= 0.6;
+            e.frostBroken = true;
+          }
+        }
 
-        if (activeAffixes.chain && Math.random() < 0.25) {
+        e.hp -= hitDmg;
+
+        // 武器詞條【高熱灼燒 w_ignite】
+        if (activeAffixes.w_ignite) {
+          e.burnTimer = 180;
+          e.burnDmg = Math.max(3, Math.round(hitDmg * 0.14));
+        }
+
+        // 武器詞條【高爆彈頭 w_blast】：20%機率小範圍爆炸
+        if (activeAffixes.w_blast && Math.random() < 0.20) {
+          const blastDmg = Math.round(hitDmg * 0.45);
           for (const other of enemies) {
-            if (other !== e && Math.hypot(other.x - e.x, other.y - e.y) < 95) other.hp -= 20;
+            if (other !== e && Math.hypot(other.x - e.x, other.y - e.y) < 75) other.hp -= blastDmg;
+          }
+        }
+
+        // 武器詞條【連鎖閃電 w_chain】
+        if (activeAffixes.w_chain && Math.random() < 0.25) {
+          const chainDmg = Math.max(15, Math.round(hitDmg * 0.35));
+          for (const other of enemies) {
+            if (other !== e && Math.hypot(other.x - e.x, other.y - e.y) < 100) other.hp -= chainDmg;
           }
           playTone(900, 'sine', 0.05, 0.03);
         }
 
+        // 武器詞條【穿甲貫穿 w_pierce】
+        if (b.pierceLeft > 0) {
+          b.pierceLeft--;
+          b.hitIds.push(e);
+        } else {
+          bullets.splice(i, 1);
+        }
+
+        playTone(220, 'sawtooth', 0.04);
+
         if (e.hp <= 0) {
-          gems.push({ x: e.x, y: e.y, radius: 4 });
-
-          if (activeAffixes.vamp && Math.random() < 0.12) {
-            player.hp = Math.min(player.maxHp, player.hp + 8);
-            updateHUD();
-          }
-
-          const dropRand = Math.random();
-          if (dropRand < 0.05) battlePickups.push({ x: e.x, y: e.y, type: 'magnet' });
-          else if (dropRand < 0.09) battlePickups.push({ x: e.x, y: e.y, type: 'bomb' });
-
           enemies.splice(j, 1);
-          kills++;
-          updateKillsDisplay();
-
-          const killThreshold = getKillThreshold();
-          if (activeSubstage !== 5 && activeSubstage !== 10) {
-            if (kills >= killThreshold) completeSubstage();
-          } else {
-            if (kills >= killThreshold && !boss.active && !chest.active) checkAndSpawnStageBoss();
-          }
+          handleEnemyKilled(e);
         }
         break;
       }
     }
   }
 
+  // Boss 行為與彈幕
   if (boss.active) {
     const bossHpPct = Math.max(0, (boss.hp / boss.maxHp) * 100);
     bossBarFill.style.width = `${bossHpPct}%`;
@@ -927,7 +1218,7 @@ function updateGame() {
       }
 
       if (!player.isDashing && Math.hypot(player.x - boss.x, player.y - boss.y) < player.radius + boss.radius) {
-        if (applyDamageToPlayer(boss.isApex ? 0.6 : 0.35)) return;
+        if (applyDamageToPlayer(boss.isApex ? 0.6 : 0.35, true)) return;
       }
     }
   }
@@ -953,7 +1244,7 @@ function updateGame() {
     if (!player.isDashing && Math.hypot(bb.x - player.x, bb.y - player.y) < bb.radius + player.radius) {
       bossBullets.splice(i, 1);
       playTone(150, 'sawtooth', 0.1);
-      if (applyDamageToPlayer(bb.damage)) return;
+      if (applyDamageToPlayer(bb.damage, true)) return;
     }
   }
 
@@ -967,11 +1258,16 @@ function updateGame() {
 
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
+
+    // 持續燃燒傷害結算
+    if (e.burnTimer > 0) {
+      e.burnTimer--;
+      if (e.burnTimer % 30 === 0) e.hp -= e.burnDmg;
+    }
+
     if (e.hp <= 0) {
-      gems.push({ x: e.x, y: e.y, radius: 4 });
       enemies.splice(i, 1);
-      kills++;
-      updateKillsDisplay();
+      handleEnemyKilled(e);
       continue;
     }
 
@@ -1002,16 +1298,18 @@ function updateGame() {
     }
 
     if (!player.isDashing && Math.hypot(player.x - e.x, player.y - e.y) < player.radius + e.radius) {
-      if (applyDamageToPlayer((activeCountryStageId === 1) ? 0.12 : 0.35)) return;
+      if (applyDamageToPlayer((activeCountryStageId === 1) ? 0.12 : 0.35, false)) return;
     }
   }
 
+  // 經驗結晶吸附與拾取 (含防具詞條【超導磁場 a_magnet】【結晶滋養 a_orb_heal】【戰術解析 a_exp_gain】)
+  const magnetRange = 75 + (affixStats.a_magnet || 0);
   for (let i = gems.length - 1; i >= 0; i--) {
     const g = gems[i];
     const dist = Math.hypot(player.x - g.x, player.y - g.y);
 
-    if (g.magnetPull || dist < 75) {
-      const pullSpeed = g.magnetPull ? 14 : 6;
+    if (g.magnetPull || dist < magnetRange) {
+      const pullSpeed = g.magnetPull ? 14 : 6.5;
       const angle = Math.atan2(player.y - g.y, player.x - g.x);
       g.x += Math.cos(angle) * pullSpeed;
       g.y += Math.sin(angle) * pullSpeed;
@@ -1019,7 +1317,13 @@ function updateGame() {
 
     if (dist < player.radius + g.radius + 4) {
       gems.splice(i, 1);
-      player.exp++;
+
+      if (affixStats.a_orb_heal) {
+        healPlayer(affixStats.a_orb_heal);
+      }
+
+      const expGain = 1 + (affixStats.a_exp_gain || 0);
+      player.exp = parseFloat((player.exp + expGain).toFixed(2));
       playTone(1050, 'sine', 0.04);
       if (player.exp >= player.nextExp) triggerLevelUp();
       updateHUD();
@@ -1033,8 +1337,13 @@ function triggerLevelUp() {
   player.exp = 0;
   player.nextExp = Math.floor(player.nextExp * 1.35);
 
+  // 防具詞條【進化湧泉 a_level_heal】升級時額外回血
+  if (affixStats.a_level_heal) {
+    healPlayer(player.maxHp * affixStats.a_level_heal);
+  }
+
   const curWep = player.weapon ? player.weapon.damage : 30;
-  const curAtk = curWep + player.baseBonusDamage;
+  const curAtk = curWep + getEffectiveBonusDamage();
   document.getElementById('up-stat-damage').innerText = `目前: ${curAtk} ➜ 升級後: ${curAtk + 15}`;
   document.getElementById('up-stat-hp').innerText = `目前: ${Math.floor(player.hp)} / ${player.maxHp} ➜ 上限: ${player.maxHp + 25} (並補滿)`;
   const nextSpeed = (player.speed * 1.12).toFixed(2);
