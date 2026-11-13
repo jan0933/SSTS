@@ -1114,10 +1114,19 @@ function startDollPreviewLoop() {
       }
     };
 
+    const eqTal = userSave.equipped.talisman;
+    const mockPet = {
+      active: !!eqTal,
+      animal: (eqTal && eqTal.petAnimal) ? eqTal.petAnimal : 'seagull',
+      x: -18,
+      y: -14 + Math.sin(dollPreviewTime * 3) * 3
+    };
+
     pctx.save();
-    pctx.translate(pcanvas.width / 2, pcanvas.height / 2 + 10);
+    pctx.translate(pcanvas.width / 2 + 4, pcanvas.height / 2 + 12);
     pctx.scale(2.0, 2.0);
     drawPlayerPaperdoll(pctx, mockPlayer);
+    if (typeof drawPet === 'function') drawPet(pctx, mockPet, mockPlayer, dollPreviewTime);
     pctx.restore();
 
     dollPreviewAnimId = requestAnimationFrame(loop);
