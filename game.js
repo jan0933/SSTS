@@ -1,5 +1,5 @@
 /**
- * SSTS - 核心戰鬥物理引擎、10武器詞條、30防具跨部位疊加詞條、傳說海怪BOSS與60fps主迴圈 (game.js)
+ * SSTS - 核心戰鬥物理引擎、30種海嗣AI與特殊攻擊、10武器詞條、30防具疊加詞條與傳說海怪BOSS主迴圈 (game.js)
  */
 
 const canvas = document.getElementById('game-canvas');
@@ -141,7 +141,9 @@ window.addEventListener('resize', () => {
 });
 
 function getKillThreshold() {
-  return (activeCountryStageId === 1 && activeSubstage < 5) ? 25 : 50;
+  if (activeCountryStageId === 1 && activeSubstage < 5) return 25;
+  // 隨國家進度微幅提升清剿目標數（50 ~ 75 隻）
+  return Math.min(75, 50 + Math.floor(activeCountryStageId / 4));
 }
 
 function updateKillsDisplay() {
@@ -253,29 +255,23 @@ function startCountryBattle(countryId, substageIndex) {
   pet.animal = (eqTalisman && eqTalisman.petAnimal) ? eqTalisman.petAnimal : 'seagull';
   pet.mode = (eqTalisman && eqTalisman.petMode) ? eqTalisman.petMode : 'atk';
 
-  // 彙整所有武器與防具疊加詞條
   compileActiveAffixes();
 
   player.level = userSave.playerLevel;
   player.exp = userSave.playerExp;
   player.nextExp = userSave.playerNextExp;
 
-  // 套用防具【泰坦核心 a_hp_pct】最大生命疊加
   const baseCombinedHp = userSave.playerMaxHp + totalGearHp;
   player.maxHp = Math.round(baseCombinedHp * (1 + (affixStats.a_hp_pct || 0)));
   player.hp = player.maxHp;
 
-  // 套用防具【相位力場 a_shield_start】進場護盾
   player.shield = affixStats.a_shield_start || 0;
-
   player.baseBonusDamage = ((player.level - 1) * 5) + totalGearDmg;
 
-  // 套用防具【噴射滑行 a_move_spd】基礎移速疊加
   const rawSpeed = (player.baseSpeed + totalGearSpeed) * (1 + (affixStats.a_move_spd || 0));
   player.speed = parseFloat(rawSpeed.toFixed(2));
   player.fireInterval = Math.max(8, Math.floor(30 * fireRateMult));
 
-  // 套用防具【迅捷推進 a_rush】與【超頻法核 a_art_cd】乘法冷卻縮減
   const rushReduce = affixStats.a_rush || 0;
   player.dashCooldown = Math.max(22, Math.round(90 * dashCdMult * (1 - rushReduce)));
 
@@ -283,7 +279,6 @@ function startCountryBattle(countryId, substageIndex) {
   const baseArtCd = (player.artifact && player.artifact.cooldownFrames) ? player.artifact.cooldownFrames : 240;
   player.artifactCooldown = Math.max(75, Math.round(baseArtCd * (1 - artCdReduce)));
 
-  // 套用防具【靈獸共鳴 a_pet_boost】
   if (affixStats.a_pet_boost) {
     pet.power = parseFloat((pet.power * (1 + affixStats.a_pet_boost)).toFixed(2));
   }
@@ -329,12 +324,11 @@ function startCountryBattle(countryId, substageIndex) {
   initGame();
 }
 
-/* ==================== 取得當前有效攻擊加成 (含防具詞條【戰損狂怒 a_berserk_atk】) ==================== */
 function getEffectiveBonusDamage() {
   let bonus = player.baseBonusDamage;
   if (affixStats.a_berserk_atk && player.maxHp > 0) {
     const missingRatio = Math.max(0, 1 - (player.hp / player.maxHp));
-    const stacks = Math.floor(missingRatio * 10); // 每損失10%生命算1層
+    const stacks = Math.floor(missingRatio * 10);
     if (stacks > 0) {
       const wepBase = player.weapon ? player.weapon.damage : 30;
       const pct = Math.min(affixStats.a_berserk_atk, stacks * 0.04);
@@ -351,7 +345,6 @@ function triggerArtifactSkill() {
   player.artifactCooldownTimer = player.artifactCooldown;
   const skill = player.artifact ? player.artifact.skillType : 'nova';
   const baseMult = (player.artifact && player.artifact.skillMult) ? player.artifact.skillMult : 1.0;
-  // 疊加防具詞條【奧義增幅 a_art_dmg】
   const skillMult = baseMult * (1 + (affixStats.a_art_dmg || 0));
   const curBonus = getEffectiveBonusDamage();
 
@@ -383,7 +376,7 @@ function triggerArtifactSkill() {
     artifactEffects.push({ type: 'freeze', x: player.x, y: player.y, timer: 35, maxDuration: 35, particles });
 
     const freezeDmg = Math.floor((35 + curBonus) * skillMult);
-    for (const e of enemies) { e.speed *= 0.4; e.hp -= freezeDmg; }
+    for (const e of enemies) { e.baseSpeed *= 0.45; e.hp -= freezeDmg; }
     if (boss.active) {
       boss.speed *= 0.65;
       boss.hp -= freezeDmg;
@@ -439,12 +432,10 @@ function triggerDash() {
   player.dashTimer = player.dashDuration;
   player.dashCooldownTimer = player.dashCooldown;
 
-  // 防具詞條【殘影相位 a_dash_invul】：衝刺後額外無敵幀
   if (affixStats.a_dash_invul) {
     player.dashInvulTimer = affixStats.a_dash_invul;
   }
 
-  // 防具詞條【衝刺震波 a_dash_nova】：起點釋放電漿震退並傷害周圍敵軍（層數疊加擴大範圍與傷害）
   if (affixStats.a_dash_nova) {
     const layers = affixStats.a_dash_nova;
     const novaR = 85 + layers * 25;
@@ -469,7 +460,7 @@ function triggerDash() {
   playTone(920, 'sawtooth', 0.12, 0.08);
 }
 
-/* ==================== Boss 系統 (連動 monsters_db.js 傳說海怪圖鑑) ==================== */
+/* ==================== Boss 系統 (連動 monsters_db.js 傳說海怪圖鑑與難度曲線) ==================== */
 const boss = {
   active: false, isApex: false, x: 0, y: 0, radius: 36,
   hp: 500, maxHp: 500, speed: 0.9, baseSpeed: 0.9, pulse: 0,
@@ -498,14 +489,16 @@ function checkAndSpawnStageBoss() {
   boss.bulletPattern = bossSpec.bulletPattern || 'ring';
   boss.bulletColor = bossSpec.bulletColor || '#f43f5e';
 
-  const stageScaling = Math.max(0, activeCountryStageId - 1) * 80;
-  const baseHp = (isApex ? 900 : 400) * (bossSpec.hpMult || 1.0);
+  // 隨國家編號 (1~100) 指數成長的 BOSS 血量曲線
+  const cId = activeCountryStageId;
+  const stageScaling = Math.max(0, cId - 1) * 95 + Math.pow(Math.max(0, cId - 15), 1.5) * 18;
+  const baseHp = (isApex ? 950 : 420) * (bossSpec.hpMult || 1.0);
   boss.hp = Math.round(baseHp + stageScaling);
   boss.maxHp = boss.hp;
   boss.radius = isApex ? 40 : 30;
-  boss.baseSpeed = bossSpec.speed || (isApex ? 1.0 : 0.75);
+  boss.baseSpeed = (bossSpec.speed || (isApex ? 1.0 : 0.75)) * Math.min(1.5, 1 + cId * 0.004);
   boss.speed = boss.baseSpeed;
-  boss.ringAttackInterval = isApex ? 95 : 135;
+  boss.ringAttackInterval = Math.max(55, (isApex ? 95 : 135) - Math.floor(cId * 0.35));
 
   alarmText.innerText = isApex
     ? `⚠️ 警告：傳說巨獸【${bossSpec.name}】降臨 ⚠️`
@@ -521,8 +514,12 @@ function checkAndSpawnStageBoss() {
 }
 
 function fireBossRingBarrage() {
-  const bulletCount = boss.isApex ? 12 : 8;
-  const baseSpeed = boss.isApex ? 2.6 : 2.0;
+  const cId = activeCountryStageId;
+  const extraBullets = Math.floor(cId / 25);
+  const bulletCount = (boss.isApex ? 12 : 8) + extraBullets;
+  const baseSpeed = (boss.isApex ? 2.6 : 2.0) + Math.min(1.3, cId * 0.012);
+  const dmgScale = 1 + (cId - 1) * 0.025;
+  const shotDmg = Math.round((boss.isApex ? 14 : 8) * dmgScale);
 
   if (boss.bulletPattern === 'spiral') {
     for (let i = 0; i < bulletCount; i++) {
@@ -532,23 +529,23 @@ function fireBossRingBarrage() {
         vx: Math.cos(angle) * (baseSpeed * 1.1),
         vy: Math.sin(angle) * (baseSpeed * 1.1),
         radius: boss.isApex ? 6 : 4.5,
-        damage: boss.isApex ? 14 : 8,
+        damage: shotDmg,
         isApex: boss.isApex,
         color: boss.bulletColor
       });
     }
   } else if (boss.bulletPattern === 'sonar_wave') {
     const aimAngle = Math.atan2(player.y - boss.y, player.x - boss.x);
-    const fanCount = boss.isApex ? 7 : 5;
+    const fanCount = (boss.isApex ? 7 : 5) + Math.floor(cId / 35);
     for (let i = 0; i < fanCount; i++) {
-      const offset = (i - (fanCount - 1) / 2) * 0.22;
+      const offset = (i - (fanCount - 1) / 2) * 0.20;
       const angle = aimAngle + offset;
       bossBullets.push({
         x: boss.x, y: boss.y,
         vx: Math.cos(angle) * (baseSpeed * 1.25),
         vy: Math.sin(angle) * (baseSpeed * 1.25),
         radius: boss.isApex ? 6.5 : 5,
-        damage: boss.isApex ? 15 : 9,
+        damage: Math.round(shotDmg * 1.1),
         isApex: boss.isApex,
         color: boss.bulletColor
       });
@@ -561,7 +558,7 @@ function fireBossRingBarrage() {
         vx: Math.cos(angle) * baseSpeed,
         vy: Math.sin(angle) * baseSpeed,
         radius: boss.isApex ? 6 : 4.5,
-        damage: boss.isApex ? 14 : 8,
+        damage: shotDmg,
         isApex: boss.isApex,
         color: boss.bulletColor
       });
@@ -570,7 +567,7 @@ function fireBossRingBarrage() {
   playTone(boss.isApex ? 175 : 235, 'square', 0.2, 0.1);
 }
 
-/* ==================== 哨站結算與道具效果 (含防具詞條【賞金獵人 a_gold_gain】【連鎖引爆 a_bomb_power】) ==================== */
+/* ==================== 哨站結算與道具效果 ==================== */
 function completeSubstage() {
   const cId = activeCountryStageId;
   const currentProgress = userSave.stageProgress[cId] || 0;
@@ -586,7 +583,7 @@ function completeSubstage() {
     }
   }
 
-  const baseGold = 60 + (cId - 1) * 25 + activeSubstage * 8;
+  const baseGold = 60 + (cId - 1) * 28 + activeSubstage * 10;
   const goldBonusMult = 1 + (affixStats.a_gold_gain || 0);
   const earnedGold = Math.round(baseGold * goldBonusMult);
 
@@ -659,7 +656,6 @@ function activateEmpBomb() {
     setTimeout(() => { empFlashOverlay.style.display = 'none'; }, 400);
   }, 100);
 
-  // 防具詞條【連鎖引爆 a_bomb_power】：額外掉落結晶數量
   const extraGems = affixStats.a_bomb_power || 0;
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
@@ -696,50 +692,56 @@ function healPlayer(rawAmount) {
   updateHUD();
 }
 
+/* ==================== 隨國家進度 (1~100) 階梯難度成長的生態生怪引擎 ==================== */
 function spawnContinentEnemy() {
   const normSubstage = (activeSubstage > 5) ? (activeSubstage - 5) : activeSubstage;
   const isHpDoubled = (activeSubstage > 5);
-  const isEarlyCountry = (activeCountryStageId === 1);
-  const maxCap = isEarlyCountry ? (4 + normSubstage * 2) : (7 + normSubstage * 3);
+  const cId = activeCountryStageId;
+
+  const tierBonusCap = Math.floor(cId / 8);
+  const maxCap = (cId === 1 ? 4 : 7) + normSubstage * 2 + tierBonusCap;
   if (enemies.length >= maxCap) return;
 
   const edge = Math.floor(Math.random() * 4);
-  let x, y, angle = 0;
-
-  if (edge === 0) {
-    x = Math.random() * canvas.width; y = 15;
-    angle = (Math.PI * 0.2) + Math.random() * (Math.PI * 0.6);
-  } else if (edge === 1) {
-    x = canvas.width - 15; y = Math.random() * canvas.height;
-    angle = (Math.PI * 0.7) + Math.random() * (Math.PI * 0.6);
-  } else if (edge === 2) {
-    x = Math.random() * canvas.width; y = canvas.height - 15;
-    angle = -(Math.PI * 0.2) - Math.random() * (Math.PI * 0.6);
-  } else {
-    x = 15; y = Math.random() * canvas.height;
-    angle = -(Math.PI * 0.3) + Math.random() * (Math.PI * 0.6);
-  }
+  let x, y;
+  if (edge === 0) { x = Math.random() * canvas.width; y = 16; }
+  else if (edge === 1) { x = canvas.width - 16; y = Math.random() * canvas.height; }
+  else if (edge === 2) { x = Math.random() * canvas.width; y = canvas.height - 16; }
+  else { x = 16; y = Math.random() * canvas.height; }
 
   const cont = activeCountryData ? activeCountryData.continent : 'EU';
-  const pool = (typeof CONTINENT_ENEMY_POOL !== 'undefined' && CONTINENT_ENEMY_POOL[cont])
-    ? CONTINENT_ENEMY_POOL[cont]
-    : [{ kind: 'ice_jelly', speedMult: 1.0, hpMult: 1.0, radius: 10 }];
+  const spec = (typeof pickStageEnemySpec === 'function')
+    ? pickStageEnemySpec(cont, cId)
+    : { kind: 'ice_jelly', radius: 10, speedMult: 1.0, hpMult: 1.0, dmgMult: 1.0, aiType: 'chase', attackType: 'melee' };
 
-  const spec = pool[Math.floor(Math.random() * pool.length)];
-  const baseSpeed = (isEarlyCountry ? 1.0 : 1.35) * (spec.speedMult || 1.0);
-  let baseHp = (isEarlyCountry ? (12 + normSubstage * 2) : (25 + activeCountryStageId * 3)) * (spec.hpMult || 1.0);
-  if (isHpDoubled) baseHp *= 2;
+  const progressFactor = 1 + (cId - 1) * 0.085 + Math.pow(Math.max(0, cId - 20), 1.35) * 0.025;
+  const speedScaling = Math.min(1.75, 1 + (cId - 1) * 0.006);
+
+  const baseSpeed = (cId === 1 ? 0.95 : 1.25) * (spec.speedMult || 1.0) * speedScaling;
+  let baseHp = (cId === 1 ? (14 + normSubstage * 3) : (26 * progressFactor + normSubstage * 6)) * (spec.hpMult || 1.0);
+  if (isHpDoubled) baseHp *= 1.85;
   const finalHp = Math.round(baseHp);
+
+  const contactDmg = ((cId === 1 ? 0.14 : 0.32) * (1 + (cId - 1) * 0.022)) * (spec.dmgMult || 1.0);
 
   enemies.push({
     x, y,
-    vx: Math.cos(angle) * baseSpeed,
-    vy: Math.sin(angle) * baseSpeed,
+    vx: 0, vy: 0,
+    baseSpeed: baseSpeed,
     kind: spec.kind,
+    color: spec.color || '#6366f1',
     radius: spec.radius || 10,
     hp: finalHp,
     maxHp: finalHp,
+    contactDmg: contactDmg,
+    aiType: spec.aiType || 'chase',
+    attackType: spec.attackType || 'melee',
+    bulletColor: spec.bulletColor || '#fb7185',
     pulse: Math.random() * 10,
+    aiTimer: Math.floor(Math.random() * 90),
+    attackTimer: Math.floor(Math.random() * 120),
+    dashState: 0,
+    dashVx: 0, dashVy: 0,
     burnTimer: 0,
     burnDmg: 0,
     frostBroken: false
@@ -767,7 +769,6 @@ function executeAttack() {
   const w = player.weapon || { damage: 30, speed: 10, type: 'bow' };
   let totalDamage = w.damage + getEffectiveBonusDamage();
 
-  // 1. 武器詞條【致命暴擊 w_crit】與【毀滅暴傷 w_crit_dmg】
   let isCrit = false;
   if (activeAffixes.w_crit && Math.random() < 0.18) {
     const critMult = 2.0 + (affixStats.w_crit_dmg || 0);
@@ -775,7 +776,6 @@ function executeAttack() {
     isCrit = true;
   }
 
-  // 2. 武器詞條【穿甲貫穿 w_pierce】
   const pierceCount = activeAffixes.w_pierce ? 1 : 0;
 
   bullets.push({
@@ -789,7 +789,6 @@ function executeAttack() {
     hitIds: []
   });
 
-  // 3. 武器詞條【雙重齊射 w_multishot】
   if (activeAffixes.w_multishot && Math.random() < 0.28) {
     const spreadAngle = baseAngle + (Math.random() < 0.5 ? 0.16 : -0.16);
     bullets.push({
@@ -811,15 +810,12 @@ function executeAttack() {
 
 /* ==================== 玩家受擊與 30 種防具防禦/反擊詞條判定 ==================== */
 function applyDamageToPlayer(rawDmg, isBossOrProjectile = false) {
-  // 1. 防具詞條【殘影相位 a_dash_invul】無敵幀檢查
   if (player.dashInvulTimer > 0) return false;
 
-  // 2. 防具詞條【光學偏折 a_dodge】閃避率判定 (最高45%)
   if (affixStats.a_dodge && Math.random() < affixStats.a_dodge) {
     return false;
   }
 
-  // 3. 基礎減傷 + 防具【重甲防護 a_armor】+【霸主抗性 a_boss_def】+【背水鐵壁 a_low_hp_def】
   let finalDmg = rawDmg * (1 - (player.gearDmgReduce || 0));
   if (affixStats.a_armor) finalDmg *= (1 - affixStats.a_armor);
   if (isBossOrProjectile && affixStats.a_boss_def) finalDmg *= (1 - affixStats.a_boss_def);
@@ -827,12 +823,10 @@ function applyDamageToPlayer(rawDmg, isBossOrProjectile = false) {
     finalDmg *= (1 - affixStats.a_low_hp_def);
   }
 
-  // 4. 防具詞條【合金格擋 a_flat_block】固定減傷
   if (affixStats.a_flat_block && rawDmg >= 1) {
     finalDmg = Math.max(1, finalDmg - affixStats.a_flat_block);
   }
 
-  // 5. 防具詞條【反傷電網 a_thorns】受擊反彈範圍電擊
   if (affixStats.a_thorns && rawDmg >= 0.3) {
     const thornsDmg = affixStats.a_thorns;
     for (const e of enemies) {
@@ -842,7 +836,6 @@ function applyDamageToPlayer(rawDmg, isBossOrProjectile = false) {
     }
   }
 
-  // 6. 優先扣除【相位力場 a_shield_start】護盾，再扣生命
   if (player.shield > 0) {
     if (player.shield >= finalDmg) {
       player.shield -= finalDmg;
@@ -866,17 +859,52 @@ function applyDamageToPlayer(rawDmg, isBossOrProjectile = false) {
 function handleEnemyKilled(e) {
   gems.push({ x: e.x, y: e.y, radius: 4 });
 
-  // 防具詞條【嗜血汲取 a_vamp】
+  // 特殊攻擊型態【自爆衝擊 bomber】
+  if (e.attackType === 'bomber') {
+    artifactEffects.push({
+      type: 'nova', x: e.x, y: e.y, timer: 16, maxDuration: 16,
+      particles: [{ x: e.x, y: e.y, angle: 0, speed: 0, size: 6 }]
+    });
+    if (!player.isDashing && Math.hypot(player.x - e.x, player.y - e.y) < 65 + player.radius) {
+      applyDamageToPlayer(8 + Math.floor(activeCountryStageId * 0.25), true);
+    }
+  }
+
+  // 特殊攻擊型態【分裂增殖 splitter】
+  if (e.attackType === 'splitter' && typeof SEA_MONSTER_SPECIES !== 'undefined') {
+    const mini = SEA_MONSTER_SPECIES.mini_slime;
+    for (let s = 0; s < 2; s++) {
+      const offsetAngle = Math.random() * Math.PI * 2;
+      const miniHp = Math.max(10, Math.round(e.maxHp * 0.28));
+      enemies.push({
+        x: e.x + Math.cos(offsetAngle) * 14,
+        y: e.y + Math.sin(offsetAngle) * 14,
+        vx: 0, vy: 0,
+        baseSpeed: e.baseSpeed * 1.65,
+        kind: mini.kind,
+        color: mini.color,
+        radius: mini.radius,
+        hp: miniHp,
+        maxHp: miniHp,
+        contactDmg: e.contactDmg * 0.65,
+        aiType: 'zigzag',
+        attackType: 'melee',
+        pulse: Math.random() * 10,
+        aiTimer: 0,
+        attackTimer: 0,
+        burnTimer: 0, burnDmg: 0, frostBroken: false
+      });
+    }
+  }
+
   if (affixStats.a_vamp && Math.random() < affixStats.a_vamp) {
     healPlayer(8);
   }
 
-  // 防具詞條【獵殺狂熱 a_kill_spd】擊殺後 2 秒內提升移速
   if (affixStats.a_kill_spd) {
     player.killSpeedTimer = 120;
   }
 
-  // 防具詞條【幸運羅盤 a_drop_luck】提升磁鐵與炸彈掉落率
   const luckBonus = affixStats.a_drop_luck || 0;
   const dropRand = Math.random();
   if (dropRand < (0.05 + luckBonus)) battlePickups.push({ x: e.x, y: e.y, type: 'magnet' });
@@ -901,12 +929,10 @@ function updateGame() {
   if (player.dashInvulTimer > 0) player.dashInvulTimer--;
   if (player.killSpeedTimer > 0) player.killSpeedTimer--;
 
-  // 防具詞條【奈米修復 a_regen】：每 3 秒 (180幀) 自動回復生命
   if (affixStats.a_regen && frameCounter % 180 === 0 && player.hp < player.maxHp) {
     healPlayer(player.maxHp * affixStats.a_regen);
   }
 
-  // 防具詞條【靜電立場 a_aura_shock】：每秒對周圍 95px 敵軍造成範圍電傷
   if (affixStats.a_aura_shock && frameCounter % 60 === 0) {
     const auraDmg = affixStats.a_aura_shock;
     for (const e of enemies) {
@@ -917,7 +943,6 @@ function updateGame() {
     }
   }
 
-  // 防具詞條【肩射微飛彈 a_auto_missile】：每 3 秒自動齊射層數對應的追蹤飛彈
   if (affixStats.a_auto_missile && frameCounter % 180 === 0) {
     const count = affixStats.a_auto_missile;
     const missileDmg = 35 + Math.round(getEffectiveBonusDamage() * 0.6);
@@ -1089,14 +1114,10 @@ function updateGame() {
     }
     if (hitObstacle) continue;
 
-    // 命中 Boss 判定
     if (boss.active && Math.hypot(b.x - boss.x, b.y - boss.y) < b.radius + boss.radius) {
       let bossDmg = b.damage;
-      // 武器詞條【巨獸獵手 w_giant_slay】對首領傷害 +25%
       if (activeAffixes.w_giant_slay) bossDmg = Math.round(bossDmg * 1.25);
-      // 武器詞條【處決重擊 w_execute】低血量增傷 +60%
       if (activeAffixes.w_execute && boss.hp < boss.maxHp * 0.35) bossDmg = Math.round(bossDmg * 1.6);
-      // 武器詞條【極寒破甲 w_frost_atk】
       if (activeAffixes.w_frost_atk) {
         bossDmg = Math.round(bossDmg * 1.15);
         boss.speed = (boss.baseSpeed || 0.9) * 0.75;
@@ -1124,7 +1145,6 @@ function updateGame() {
       continue;
     }
 
-    // 命中一般海嗣小怪判定
     for (let j = enemies.length - 1; j >= 0; j--) {
       const e = enemies[j];
       if (b.hitIds && b.hitIds.includes(e)) continue;
@@ -1132,28 +1152,24 @@ function updateGame() {
       if (Math.hypot(b.x - e.x, b.y - e.y) < b.radius + e.radius) {
         let hitDmg = b.damage;
 
-        // 武器詞條【處決重擊 w_execute】
         if (activeAffixes.w_execute && e.hp < (e.maxHp || 30) * 0.35) {
           hitDmg = Math.round(hitDmg * 1.6);
         }
-        // 武器詞條【極寒破甲 w_frost_atk】
         if (activeAffixes.w_frost_atk) {
           hitDmg = Math.round(hitDmg * 1.15);
           if (!e.frostBroken) {
-            e.vx *= 0.6; e.vy *= 0.6;
+            e.baseSpeed *= 0.6;
             e.frostBroken = true;
           }
         }
 
         e.hp -= hitDmg;
 
-        // 武器詞條【高熱灼燒 w_ignite】
         if (activeAffixes.w_ignite) {
           e.burnTimer = 180;
           e.burnDmg = Math.max(3, Math.round(hitDmg * 0.14));
         }
 
-        // 武器詞條【高爆彈頭 w_blast】：20%機率小範圍爆炸
         if (activeAffixes.w_blast && Math.random() < 0.20) {
           const blastDmg = Math.round(hitDmg * 0.45);
           for (const other of enemies) {
@@ -1161,7 +1177,6 @@ function updateGame() {
           }
         }
 
-        // 武器詞條【連鎖閃電 w_chain】
         if (activeAffixes.w_chain && Math.random() < 0.25) {
           const chainDmg = Math.max(15, Math.round(hitDmg * 0.35));
           for (const other of enemies) {
@@ -1170,7 +1185,6 @@ function updateGame() {
           playTone(900, 'sine', 0.05, 0.03);
         }
 
-        // 武器詞條【穿甲貫穿 w_pierce】
         if (b.pierceLeft > 0) {
           b.pierceLeft--;
           b.hitIds.push(e);
@@ -1223,6 +1237,7 @@ function updateGame() {
     }
   }
 
+  // 敵軍遠程彈幕（包含 BOSS 與遠程海嗣射出的子彈）
   for (let i = bossBullets.length - 1; i >= 0; i--) {
     const bb = bossBullets[i];
     bb.x += bb.vx; bb.y += bb.vy;
@@ -1248,18 +1263,20 @@ function updateGame() {
     }
   }
 
+  // 刷怪頻率隨國家編號與哨站遞增
   spawnTimer++;
   const normSubstage = (activeSubstage > 5) ? (activeSubstage - 5) : activeSubstage;
-  const currentInterval = Math.max(25, 75 - (normSubstage * 9));
+  const countrySpeedup = Math.min(20, Math.floor(activeCountryStageId / 5));
+  const currentInterval = Math.max(18, 72 - (normSubstage * 7) - countrySpeedup);
   if (spawnTimer >= currentInterval) {
     spawnContinentEnemy();
     spawnTimer = 0;
   }
 
+  // 30 種生態海嗣 5 種 AI 行進與攻擊更新
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
 
-    // 持續燃燒傷害結算
     if (e.burnTimer > 0) {
       e.burnTimer--;
       if (e.burnTimer % 30 === 0) e.hp -= e.burnDmg;
@@ -1272,14 +1289,78 @@ function updateGame() {
     }
 
     e.pulse += 0.08;
+    e.aiTimer = (e.aiTimer || 0) + 1;
+    e.attackTimer = (e.attackTimer || 0) + 1;
+
+    const toPlayerAng = Math.atan2(player.y - e.y, player.x - e.x);
+    const distToPlayer = Math.hypot(player.x - e.x, player.y - e.y);
+    const spd = e.baseSpeed || 1.2;
+
+    if (e.aiType === 'zigzag') {
+      const sway = Math.sin(e.aiTimer * 0.12) * 1.15;
+      e.vx = Math.cos(toPlayerAng + sway) * spd;
+      e.vy = Math.sin(toPlayerAng + sway) * spd;
+    } else if (e.aiType === 'orbiter') {
+      const orbitOffset = (distToPlayer > 165) ? 0.35 : 1.35;
+      e.vx = Math.cos(toPlayerAng + orbitOffset) * spd;
+      e.vy = Math.sin(toPlayerAng + orbitOffset) * spd;
+    } else if (e.aiType === 'sniper') {
+      if (distToPlayer > 220) {
+        e.vx = Math.cos(toPlayerAng) * spd;
+        e.vy = Math.sin(toPlayerAng) * spd;
+      } else {
+        e.vx = Math.cos(toPlayerAng + Math.PI / 2) * (spd * 0.35);
+        e.vy = Math.sin(toPlayerAng + Math.PI / 2) * (spd * 0.35);
+      }
+    } else if (e.aiType === 'dasher') {
+      if (e.dashState === 0) {
+        e.vx = Math.cos(toPlayerAng) * spd;
+        e.vy = Math.sin(toPlayerAng) * spd;
+        if (distToPlayer < 210 && e.aiTimer > 70) {
+          e.dashState = 1;
+          e.aiTimer = 0;
+        }
+      } else if (e.dashState === 1) {
+        e.vx = 0; e.vy = 0;
+        if (e.aiTimer >= 32) {
+          e.dashState = 2;
+          e.aiTimer = 0;
+          e.dashVx = Math.cos(toPlayerAng) * (spd * 3.1);
+          e.dashVy = Math.sin(toPlayerAng) * (spd * 3.1);
+        }
+      } else {
+        e.vx = e.dashVx;
+        e.vy = e.dashVy;
+        if (e.aiTimer >= 24) {
+          e.dashState = 0;
+          e.aiTimer = 0;
+        }
+      }
+    } else {
+      e.vx = Math.cos(toPlayerAng) * spd;
+      e.vy = Math.sin(toPlayerAng) * spd;
+    }
+
+    if (e.attackType === 'ranged' && e.attackTimer >= 165) {
+      e.attackTimer = 0;
+      const projSpeed = 2.2 + Math.min(1.4, activeCountryStageId * 0.015);
+      const projDmg = 6 + Math.floor(activeCountryStageId * 0.18);
+      bossBullets.push({
+        x: e.x, y: e.y,
+        vx: Math.cos(toPlayerAng) * projSpeed,
+        vy: Math.sin(toPlayerAng) * projSpeed,
+        radius: 4,
+        damage: projDmg,
+        isApex: false,
+        color: e.bulletColor || '#c084fc'
+      });
+    }
+
     e.x += e.vx;
     e.y += e.vy;
 
-    if (e.x - e.radius <= 0) { e.x = e.radius; e.vx = -e.vx; }
-    else if (e.x + e.radius >= canvas.width) { e.x = canvas.width - e.radius; e.vx = -e.vx; }
-
-    if (e.y - e.radius <= 0) { e.y = e.radius; e.vy = -e.vy; }
-    else if (e.y + e.radius >= canvas.height) { e.y = canvas.height - e.radius; e.vy = -e.vy; }
+    e.x = Math.max(e.radius, Math.min(canvas.width - e.radius, e.x));
+    e.y = Math.max(e.radius, Math.min(canvas.height - e.radius, e.y));
 
     for (const obs of stageObstacles) {
       const halfW = obs.width / 2 + e.radius;
@@ -1288,21 +1369,18 @@ function updateGame() {
         const overlapX = halfW - Math.abs(e.x - obs.x);
         const overlapY = halfH - Math.abs(e.y - obs.y);
         if (overlapX < overlapY) {
-          e.vx = -e.vx;
           e.x += (e.x > obs.x ? overlapX : -overlapX);
         } else {
-          e.vy = -e.vy;
           e.y += (e.y > obs.y ? overlapY : -overlapY);
         }
       }
     }
 
     if (!player.isDashing && Math.hypot(player.x - e.x, player.y - e.y) < player.radius + e.radius) {
-      if (applyDamageToPlayer((activeCountryStageId === 1) ? 0.12 : 0.35, false)) return;
+      if (applyDamageToPlayer(e.contactDmg || 0.25, false)) return;
     }
   }
 
-  // 經驗結晶吸附與拾取 (含防具詞條【超導磁場 a_magnet】【結晶滋養 a_orb_heal】【戰術解析 a_exp_gain】)
   const magnetRange = 75 + (affixStats.a_magnet || 0);
   for (let i = gems.length - 1; i >= 0; i--) {
     const g = gems[i];
@@ -1337,7 +1415,6 @@ function triggerLevelUp() {
   player.exp = 0;
   player.nextExp = Math.floor(player.nextExp * 1.35);
 
-  // 防具詞條【進化湧泉 a_level_heal】升級時額外回血
   if (affixStats.a_level_heal) {
     healPlayer(player.maxHp * affixStats.a_level_heal);
   }
