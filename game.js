@@ -1,5 +1,5 @@
 /**
- * SSTS - 核心戰鬥物理引擎、主動法器技能、Boss 系統與 60fps 主迴圈 (game.js)
+ * SSTS - 核心戰鬥物理引擎、主動法器技能、傳說海怪 BOSS 系統與 60fps 主迴圈 (game.js)
  */
 
 const canvas = document.getElementById('game-canvas');
@@ -310,7 +310,7 @@ function triggerArtifactSkill() {
     if (boss.active) {
       boss.speed *= 0.65;
       boss.hp -= freezeDmg;
-      setTimeout(() => { if (boss.active) boss.speed = boss.isApex ? 1.0 : 0.75; }, 2500);
+      setTimeout(() => { if (boss.active) boss.speed = boss.baseSpeed || (boss.isApex ? 1.0 : 0.75); }, 2500);
     }
 
   } else if (skill === 'thunder') {
@@ -371,11 +371,14 @@ function triggerDash() {
   playTone(920, 'sawtooth', 0.12, 0.08);
 }
 
-/* ==================== Boss 系統 ==================== */
+/* ==================== Boss 系統 (連動 monsters_db.js 傳說海怪圖鑑) ==================== */
 const boss = {
   active: false, isApex: false, x: 0, y: 0, radius: 36,
-  hp: 500, maxHp: 500, speed: 0.9, pulse: 0,
-  ringAttackTimer: 0, ringAttackInterval: 120
+  hp: 500, maxHp: 500, speed: 0.9, baseSpeed: 0.9, pulse: 0,
+  ringAttackTimer: 0, ringAttackInterval: 120,
+  visual: 'leviathan',
+  bulletPattern: 'ring',
+  bulletColor: '#f43f5e'
 };
 let bossBullets = [];
 
@@ -385,44 +388,88 @@ function checkAndSpawnStageBoss() {
   const isApex = (activeSubstage === 10);
   if (!isMini && !isApex) return;
 
+  const bossSpec = (typeof resolveStageBossData === 'function')
+    ? resolveStageBossData(activeCountryData, activeCountryStageId, isApex)
+    : { name: '深海領土霸主', visual: 'leviathan', hpMult: 1.0, speed: 0.9, bulletPattern: 'ring', bulletColor: '#f43f5e' };
+
   boss.active = true;
   boss.isApex = isApex;
   boss.x = canvas.width / 2;
   boss.y = -60;
+  boss.visual = bossSpec.visual;
+  boss.bulletPattern = bossSpec.bulletPattern || 'ring';
+  boss.bulletColor = bossSpec.bulletColor || '#f43f5e';
 
   const stageScaling = Math.max(0, activeCountryStageId - 1) * 80;
-  const baseHp = isApex ? 900 : 400;
-  boss.hp = baseHp + stageScaling;
+  const baseHp = (isApex ? 900 : 400) * (bossSpec.hpMult || 1.0);
+  boss.hp = Math.round(baseHp + stageScaling);
   boss.maxHp = boss.hp;
-  boss.radius = isApex ? 38 : 28;
-  boss.speed = isApex ? 1.0 : 0.75;
-  boss.ringAttackInterval = isApex ? 100 : 140;
+  boss.radius = isApex ? 40 : 30;
+  boss.baseSpeed = bossSpec.speed || (isApex ? 1.0 : 0.75);
+  boss.speed = boss.baseSpeed;
+  boss.ringAttackInterval = isApex ? 95 : 135;
 
-  alarmText.innerText = isApex ? "⚠️ 警告：領土終極霸主現身 ⚠️" : "⚠️ 警告：區域精英先鋒現身 ⚠️";
-  document.getElementById('boss-name').innerText = isApex ? `【${activeCountryData.name.split(' ')[0]}·領土霸主】` : `【${activeCountryData.name.split(' ')[0]}·突變先鋒】`;
+  alarmText.innerText = isApex
+    ? `⚠️ 警告：傳說巨獸【${bossSpec.name}】降臨 ⚠️`
+    : `⚠️ 警告：深淵海怪【${bossSpec.name}】現身 ⚠️`;
+  document.getElementById('boss-name').innerText = `【${bossSpec.name}】`;
 
   bossAlarmOverlay.style.display = 'flex';
   bossBarContainer.style.display = 'block';
   updateKillsDisplay();
-  playTone(isApex ? 140 : 190, 'sawtooth', 0.6, 0.2);
+  playTone(isApex ? 130 : 185, 'sawtooth', 0.65, 0.22);
 
-  setTimeout(() => { bossAlarmOverlay.style.display = 'none'; }, 2200);
+  setTimeout(() => { bossAlarmOverlay.style.display = 'none'; }, 2300);
 }
 
 function fireBossRingBarrage() {
   const bulletCount = boss.isApex ? 12 : 8;
-  const speed = boss.isApex ? 2.6 : 2.0;
-  for (let i = 0; i < bulletCount; i++) {
-    const angle = (Math.PI * 2 / bulletCount) * i + (boss.pulse * 0.5);
-    bossBullets.push({
-      x: boss.x, y: boss.y,
-      vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-      radius: boss.isApex ? 6 : 4.5,
-      damage: boss.isApex ? 14 : 8,
-      isApex: boss.isApex
-    });
+  const baseSpeed = boss.isApex ? 2.6 : 2.0;
+
+  if (boss.bulletPattern === 'spiral') {
+    for (let i = 0; i < bulletCount; i++) {
+      const angle = (Math.PI * 2 / bulletCount) * i + (boss.pulse * 1.4);
+      bossBullets.push({
+        x: boss.x, y: boss.y,
+        vx: Math.cos(angle) * (baseSpeed * 1.1),
+        vy: Math.sin(angle) * (baseSpeed * 1.1),
+        radius: boss.isApex ? 6 : 4.5,
+        damage: boss.isApex ? 14 : 8,
+        isApex: boss.isApex,
+        color: boss.bulletColor
+      });
+    }
+  } else if (boss.bulletPattern === 'sonar_wave') {
+    const aimAngle = Math.atan2(player.y - boss.y, player.x - boss.x);
+    const fanCount = boss.isApex ? 7 : 5;
+    for (let i = 0; i < fanCount; i++) {
+      const offset = (i - (fanCount - 1) / 2) * 0.22;
+      const angle = aimAngle + offset;
+      bossBullets.push({
+        x: boss.x, y: boss.y,
+        vx: Math.cos(angle) * (baseSpeed * 1.25),
+        vy: Math.sin(angle) * (baseSpeed * 1.25),
+        radius: boss.isApex ? 6.5 : 5,
+        damage: boss.isApex ? 15 : 9,
+        isApex: boss.isApex,
+        color: boss.bulletColor
+      });
+    }
+  } else {
+    for (let i = 0; i < bulletCount; i++) {
+      const angle = (Math.PI * 2 / bulletCount) * i + (boss.pulse * 0.5);
+      bossBullets.push({
+        x: boss.x, y: boss.y,
+        vx: Math.cos(angle) * baseSpeed,
+        vy: Math.sin(angle) * baseSpeed,
+        radius: boss.isApex ? 6 : 4.5,
+        damage: boss.isApex ? 14 : 8,
+        isApex: boss.isApex,
+        color: boss.bulletColor
+      });
+    }
   }
-  playTone(boss.isApex ? 180 : 240, 'square', 0.2, 0.1);
+  playTone(boss.isApex ? 175 : 235, 'square', 0.2, 0.1);
 }
 
 /* ==================== 哨站結算與道具效果 ==================== */
@@ -558,30 +605,22 @@ function spawnContinentEnemy() {
   }
 
   const cont = activeCountryData ? activeCountryData.continent : 'EU';
-  let kind = 'default';
-  let baseSpeed = isEarlyCountry ? 1.0 : 1.35;
-  let radius = 10;
-  let baseHp = isEarlyCountry ? (12 + normSubstage * 2) : (25 + activeCountryStageId * 3);
+  const pool = (typeof CONTINENT_ENEMY_POOL !== 'undefined' && CONTINENT_ENEMY_POOL[cont])
+    ? CONTINENT_ENEMY_POOL[cont]
+    : [{ kind: 'ice_jelly', speedMult: 1.0, hpMult: 1.0, radius: 10 }];
 
+  const spec = pool[Math.floor(Math.random() * pool.length)];
+  const baseSpeed = (isEarlyCountry ? 1.0 : 1.35) * (spec.speedMult || 1.0);
+  let baseHp = (isEarlyCountry ? (12 + normSubstage * 2) : (25 + activeCountryStageId * 3)) * (spec.hpMult || 1.0);
   if (isHpDoubled) baseHp *= 2;
-
-  if (cont === 'OC' || cont === 'AM') {
-    kind = 'shark';
-    baseSpeed = isEarlyCountry ? 1.2 : 1.7;
-  } else if (cont === 'AS' || cont === 'AF') {
-    kind = 'crab';
-    baseSpeed = isEarlyCountry ? 0.7 : 0.95;
-    baseHp = Math.floor(baseHp * 1.3);
-  } else if (cont === 'EU' || cont === 'GL') {
-    kind = 'ice_jelly';
-  }
 
   enemies.push({
     x, y,
     vx: Math.cos(angle) * baseSpeed,
     vy: Math.sin(angle) * baseSpeed,
-    kind, radius,
-    hp: baseHp,
+    kind: spec.kind,
+    radius: spec.radius || 10,
+    hp: Math.round(baseHp),
     pulse: Math.random() * 10
   });
 }
@@ -795,7 +834,7 @@ function updateGame() {
 
       if (activeAffixes.slow) {
         boss.speed *= 0.85;
-        setTimeout(() => { boss.speed = boss.isApex ? 1.0 : 0.75; }, 1500);
+        setTimeout(() => { if (boss.active) boss.speed = boss.baseSpeed || (boss.isApex ? 1.0 : 0.75); }, 1500);
       }
 
       const bossHpPct = Math.max(0, (boss.hp / boss.maxHp) * 100);
