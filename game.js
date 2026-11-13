@@ -1,5 +1,5 @@
 /**
- * SSTS - 戰鬥引擎、等比自適應座標映射、5★附魔詞條戰鬥實裝 (game.js)
+ * SSTS - 戰鬥引擎、70件全裝備屬性實裝、5★附魔詞條與等比座標映射 (game.js)
  */
 
 let audioCtx = null;
@@ -262,10 +262,12 @@ const player = {
   vx: 0,
   vy: 0,
   radius: 14,
+  baseSpeed: 2.8, // 玩家基礎移速（不含裝備加成）
   speed: 2.8,
   hp: 100,
   maxHp: 100,
   baseBonusDamage: 0,
+  gearDmgReduce: 0, // 裝備物理減傷比例 (0 ~ 0.8)
   exp: 0,
   level: 1,
   nextExp: 5,
@@ -277,8 +279,8 @@ const player = {
   fireInterval: 30,
   fireTimer: 0,
 
-  weapon: { id: "w_start", name: "斥候脈衝弓", type: "bow", tier: "common", stars: 1, damage: 32, speed: 11, color: '#38bdf8' },
-  artifact: { id: "art_nova", name: "等離子爆裂核", skillType: "nova" },
+  weapon: { id: "w_01", name: "新兵製式獵弓", type: "bow", tier: "common", stars: 1, damage: 30, speed: 10 },
+  artifact: { id: "art_01", name: "基礎爆裂手雷核", skillType: "nova", skillMult: 1.0 },
 
   artifactCooldown: 240,
   artifactCooldownTimer: 0,
@@ -304,35 +306,11 @@ const player = {
 };
 
 let dashGhosts = [];
-const pet = { active: false, type: null, x: 0, y: 0, targetX: 0, targetY: 0, timer: 0 };
+const pet = { active: false, type: null, power: 1.0, x: 0, y: 0, targetX: 0, targetY: 0, timer: 0 };
 const chest = { active: false, x: 0, y: 0, radius: 16, isApex: false };
 let battlePickups = [];
 let stageObstacles = [];
 let artifactEffects = [];
-
-/* ==================== 5 品階戰利品裝備庫 ==================== */
-const EQUIPMENT_DATABASE = {
-  1: [
-    { id: "w_bow_1", slot: "weapon", name: "電磁穿甲弩", type: "bow", tier: "common", stars: 1, desc: "遠程穿透射擊 (傷害 35)", damage: 35, speed: 11, color: '#38bdf8' },
-    { id: "w_staff_1", slot: "weapon", name: "星芒脈衝杖", type: "staff", tier: "rare", stars: 1, desc: "遠程等離子法球 (傷害 48)", damage: 48, speed: 8.5, color: '#c084fc' },
-    { id: "h_scout_1", slot: "helmet", name: "斥候護目鏡", tier: "common", stars: 1, desc: "視野延伸，基礎暴擊提升", val: "scout" },
-    { id: "a_scout_1", slot: "armor", name: "輕甲合金胸衣", tier: "rare", stars: 1, desc: "提升 35 點生命上限", val: "scout" },
-    { id: "t_atk_1", slot: "talisman", name: "雷光護符", tier: "common", stars: 1, desc: "召喚【電漿浮游蟲】遠距雷射協攻", val: "atk_pet" }
-  ],
-  2: [
-    { id: "w_bow_2", slot: "weapon", name: "暴風電磁巨弩", type: "bow", tier: "elite", stars: 1, desc: "超高速貫穿箭 (傷害 75)", damage: 75, speed: 13, color: '#facc15' },
-    { id: "w_staff_2", slot: "weapon", name: "虛空引力星杖", type: "staff", tier: "epic", stars: 1, desc: "雙重分裂暗能球 (傷害 95)", damage: 95, speed: 9.5, color: '#c084fc' },
-    { id: "h_heavy_2", slot: "helmet", name: "重型合金角盔", tier: "elite", stars: 1, desc: "減免 15% 承受傷害", val: "heavy" },
-    { id: "a_heavy_2", slot: "armor", name: "板塊重裝戰甲", tier: "epic", stars: 1, desc: "大幅提升護甲與生命上限", val: "heavy" },
-    { id: "t_heal_2", slot: "talisman", name: "潮汐精靈符", tier: "elite", stars: 1, desc: "召喚【醫療水母】每 4 秒回復生命", val: "heal_pet" }
-  ],
-  3: [
-    { id: "w_bow_3", slot: "weapon", name: "弒神天罰巨弩", type: "bow", tier: "legendary", stars: 1, desc: "三重散射電磁光束 (傷害 145)", damage: 145, speed: 15, color: '#fb923c' },
-    { id: "w_staff_3", slot: "weapon", name: "超新星天災杖", type: "staff", tier: "legendary", stars: 1, desc: "貫穿引爆核光球 (傷害 165)", damage: 165, speed: 11, color: '#fb923c' },
-    { id: "a_archmage_3", slot: "armor", name: "星宿天災戰袍", tier: "legendary", stars: 1, desc: "生命與護甲超載，傷害提升 30%", val: "archmage" },
-    { id: "t_pull_3", slot: "talisman", name: "深淵重力核", tier: "legendary", stars: 1, desc: "召喚【磁暴黑洞核】強力牽引群怪", val: "pull_pet" }
-  ]
-};
 
 function generateStageObstacles(continent) {
   stageObstacles = [];
@@ -366,15 +344,38 @@ function startCountryBattle(countryId, substageIndex) {
   activeSubstage = substageIndex;
   activeCountryData = COUNTRIES_STAGE_DATA.find(s => s.id === countryId) || COUNTRIES_STAGE_DATA[0];
 
+  // 彙整全身 7 部位裝備的數值加成
+  let totalGearHp = 0;
+  let totalGearDmg = 0;
+  let totalGearSpeed = 0;
+  let fireRateMult = 1.0;
+  let dashCdMult = 1.0;
+  player.gearDmgReduce = 0;
+
+  for (const key in userSave.equipped) {
+    const eqItem = userSave.equipped[key];
+    if (!eqItem) continue;
+    if (eqItem.bonusHp) totalGearHp += eqItem.bonusHp;
+    if (eqItem.bonusDmg) totalGearDmg += eqItem.bonusDmg;
+    if (eqItem.bonusSpeed) totalGearSpeed += eqItem.bonusSpeed;
+    if (eqItem.fireRateMult) fireRateMult *= eqItem.fireRateMult;
+    if (eqItem.dashCdMult) dashCdMult *= eqItem.dashCdMult;
+    if (eqItem.dmgReduce) player.gearDmgReduce += eqItem.dmgReduce;
+  }
+  // 減傷上限封頂 75% 避免無敵
+  player.gearDmgReduce = Math.min(0.75, player.gearDmgReduce);
+
   player.level = userSave.playerLevel;
   player.exp = userSave.playerExp;
   player.nextExp = userSave.playerNextExp;
-  player.maxHp = userSave.playerMaxHp;
+  player.maxHp = userSave.playerMaxHp + totalGearHp;
   player.hp = player.maxHp;
-  player.baseBonusDamage = (player.level - 1) * 5;
+  player.baseBonusDamage = ((player.level - 1) * 5) + totalGearDmg;
+  player.speed = parseFloat((player.baseSpeed + totalGearSpeed).toFixed(2));
+  player.fireInterval = Math.max(8, Math.floor(30 * fireRateMult));
 
-  player.weapon = userSave.equipped.weapon || { id: "w_start", name: "斥候脈衝弓", type: "bow", tier: "common", stars: 1, damage: 32, speed: 11, color: '#38bdf8' };
-  player.artifact = userSave.equipped.artifact || { id: "art_nova", name: "等離子爆裂核", skillType: "nova" };
+  player.weapon = userSave.equipped.weapon || (typeof getStarterWeapon === 'function' ? getStarterWeapon() : { id: "w_01", name: "新兵製式獵弓", type: "bow", tier: "common", stars: 1, damage: 30, speed: 10 });
+  player.artifact = userSave.equipped.artifact || (typeof getStarterArtifact === 'function' ? getStarterArtifact() : { id: "art_01", name: "基礎爆裂手雷核", skillType: "nova", skillMult: 1.0 });
 
   player.equipment = {
     helmet: userSave.equipped.helmet ? userSave.equipped.helmet.val : null,
@@ -386,7 +387,10 @@ function startCountryBattle(countryId, substageIndex) {
     weapon: player.weapon
   };
 
+  pet.power = (userSave.equipped.talisman && userSave.equipped.talisman.petPower) ? userSave.equipped.talisman.petPower : 1.0;
+
   compileActiveAffixes();
+  player.dashCooldown = Math.max(25, Math.floor(player.dashCooldown * dashCdMult));
 
   player.x = canvas.width / 2;
   player.y = canvas.height / 2;
@@ -426,6 +430,7 @@ function triggerArtifactSkill() {
 
   player.artifactCooldownTimer = player.artifactCooldown;
   const skill = player.artifact ? player.artifact.skillType : 'nova';
+  const skillMult = (player.artifact && player.artifact.skillMult) ? player.artifact.skillMult : 1.0;
 
   if (skill === 'nova') {
     playTone(200, 'sawtooth', 0.4, 0.25);
@@ -448,11 +453,15 @@ function triggerArtifactSkill() {
       particles
     });
 
+    const novaDmg = Math.floor((90 + player.baseBonusDamage) * skillMult);
     for (let i = enemies.length - 1; i >= 0; i--) {
       const e = enemies[i];
       if (Math.hypot(e.x - player.x, e.y - player.y) < 180) {
-        e.hp -= (90 + player.baseBonusDamage);
+        e.hp -= novaDmg;
       }
+    }
+    if (boss.active && Math.hypot(boss.x - player.x, boss.y - player.y) < 180 + boss.radius) {
+      boss.hp -= novaDmg;
     }
 
   } else if (skill === 'freeze') {
@@ -475,9 +484,15 @@ function triggerArtifactSkill() {
       particles
     });
 
+    const freezeDmg = Math.floor((35 + player.baseBonusDamage) * skillMult);
     for (const e of enemies) {
       e.speed *= 0.4;
-      e.hp -= (30 + player.baseBonusDamage);
+      e.hp -= freezeDmg;
+    }
+    if (boss.active) {
+      boss.speed *= 0.65;
+      boss.hp -= freezeDmg;
+      setTimeout(() => { if (boss.active) boss.speed = boss.isApex ? 1.0 : 0.75; }, 2500);
     }
 
   } else if (skill === 'thunder') {
@@ -485,10 +500,11 @@ function triggerArtifactSkill() {
     const strikes = [];
     const sorted = [...enemies].sort((a, b) => b.hp - a.hp);
     const strikeCount = Math.min(5, Math.max(3, sorted.length));
+    const thunderDmg = Math.floor((150 + player.baseBonusDamage) * skillMult);
 
     for (let i = 0; i < strikeCount; i++) {
-      const target = sorted[i] || { x: Math.random() * canvas.width, y: Math.random() * canvas.height, hp: 0 };
-      target.hp -= (150 + player.baseBonusDamage);
+      const target = (i === 0 && boss.active) ? boss : (sorted[i] || { x: Math.random() * canvas.width, y: Math.random() * canvas.height, hp: 0 });
+      target.hp -= thunderDmg;
 
       const points = [];
       let cy = 0;
@@ -533,10 +549,14 @@ function triggerArtifactSkill() {
       particles
     });
 
+    const bhDmg = Math.floor((55 + player.baseBonusDamage * 0.6) * skillMult);
     for (const e of enemies) {
       e.x = canvas.width / 2 + (Math.random() - 0.5) * 40;
       e.y = canvas.height / 2 + (Math.random() - 0.5) * 40;
-      e.hp -= 40;
+      e.hp -= bhDmg;
+    }
+    if (boss.active) {
+      boss.hp -= bhDmg;
     }
   }
 }
@@ -719,18 +739,33 @@ function fireBossRingBarrage() {
   playTone(boss.isApex ? 180 : 240, 'square', 0.2, 0.1);
 }
 
+/* ==================== 70 件全裝備庫寶箱三選一 ==================== */
 function openChestSelection(isApex) {
   isPaused = true;
   chestModal.style.display = 'flex';
   chestOptionsContainer.innerHTML = '';
 
-  const poolKey = activeCountryStageId <= 20 ? 1 : (activeCountryStageId <= 60 ? 2 : 3);
-  const pool = EQUIPMENT_DATABASE[poolKey];
+  let allowedTiers = ["common", "rare"];
+  if (activeCountryStageId > 60) {
+    allowedTiers = isApex ? ["epic", "legendary"] : ["elite", "epic", "legendary"];
+  } else if (activeCountryStageId > 20) {
+    allowedTiers = isApex ? ["elite", "epic"] : ["rare", "elite", "epic"];
+  } else {
+    allowedTiers = isApex ? ["rare", "elite"] : ["common", "rare"];
+  }
+
+  const db = (typeof MASTER_EQUIPMENT_DB !== 'undefined') ? MASTER_EQUIPMENT_DB : [];
+  const pool = db.filter(item => allowedTiers.includes(item.tier));
   const shuffled = [...pool].sort(() => 0.5 - Math.random());
   const options = shuffled.slice(0, 3);
 
-  chestTitle.innerText = isApex ? "👑 擊破領土霸主 · 頂級裝備自選" : "⚔️ 擊破先鋒 Boss · 稀有裝備自選";
-  chestStageInfo.innerText = isApex ? "品質階級：史詩 / 傳說級戰利品" : "品質階級：稀有 / 菁英級戰利品";
+  const slotNames = {
+    weapon: "遠程武器", helmet: "頭盔", armor: "胸部盔甲",
+    gloves: "手套", boots: "鞋子", talisman: "護符", artifact: "戰術法器"
+  };
+
+  chestTitle.innerText = isApex ? "👑 擊破領土霸主 · 頂級戰利品自選" : "⚔️ 擊破先鋒 Boss · 戰術裝備自選";
+  chestStageInfo.innerText = `從 70 種全球軍械庫中隨機截獲 3 件裝備`;
 
   options.forEach(item => {
     const card = document.createElement('div');
@@ -738,13 +773,20 @@ function openChestSelection(isApex) {
     const tierMeta = TIER_META[item.tier || 'common'] || TIER_META.common;
     card.innerHTML = `
       <div class="chest-card-type" style="color: ${tierMeta.color}">
-        [ ${tierMeta.name} · ${renderStarsStr(item.stars || 1)} ]
+        [ ${tierMeta.name} · ${slotNames[item.slot] || '裝備'} ]
       </div>
       <div class="chest-card-name">${item.name}</div>
       <div class="chest-card-desc">${item.desc}</div>
       <div style="font-size: 10px; color: #eab308; margin-top: 8px;">★ 點擊獲取 ★</div>
     `;
-    card.onclick = () => { claimChestItem(item); };
+    card.onclick = () => {
+      const instanceItem = {
+        ...item,
+        id: `${item.id}_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+        affix: null
+      };
+      claimChestItem(instanceItem);
+    };
     chestOptionsContainer.appendChild(card);
   });
 
@@ -787,7 +829,14 @@ function syncPlayerSaveState() {
   userSave.playerLevel = player.level;
   userSave.playerExp = player.exp;
   userSave.playerNextExp = player.nextExp;
-  userSave.playerMaxHp = player.maxHp;
+  // 只保存基礎最大生命，避免裝備加成重複累加
+  let totalGearHp = 0;
+  for (const key in userSave.equipped) {
+    if (userSave.equipped[key] && userSave.equipped[key].bonusHp) {
+      totalGearHp += userSave.equipped[key].bonusHp;
+    }
+  }
+  userSave.playerMaxHp = Math.max(100, player.maxHp - totalGearHp);
   saveGameProgress();
 }
 
@@ -966,6 +1015,19 @@ function executeAttack() {
   else playTone(850, 'triangle', 0.08);
 }
 
+// 統一處理受到物理或法術傷害（套用裝備減傷與深淵磐石詞條）
+function applyDamageToPlayer(rawDmg) {
+  let finalDmg = rawDmg * (1 - (player.gearDmgReduce || 0));
+  if (activeAffixes.armor) finalDmg *= 0.75;
+  player.hp -= finalDmg;
+  updateHUD();
+  if (player.hp <= 0) {
+    triggerPlayerDefeat();
+    return true;
+  }
+  return false;
+}
+
 function updateGame() {
   if (isPaused) return;
   globalTime += 0.04;
@@ -1042,7 +1104,7 @@ function updateGame() {
     player.fireTimer = 0;
   }
 
-  // 護符寵物
+  // 護符寵物邏輯 (套用 petPower 倍率)
   if (player.equipment && player.equipment.talisman) {
     pet.active = true;
     pet.type = player.equipment.talisman === 'atk_pet' ? 'atk' : (player.equipment.talisman === 'heal_pet' ? 'heal' : 'pull');
@@ -1059,24 +1121,28 @@ function updateGame() {
         bullets.push({
           x: pet.x, y: pet.y,
           vx: (e.x - pet.x) * 0.08, vy: (e.y - pet.y) * 0.08,
-          radius: 3.5, damage: 30 + player.baseBonusDamage, type: 'bow'
+          radius: 3.5,
+          damage: Math.floor((30 + player.baseBonusDamage * 0.5) * pet.power),
+          type: 'bow'
         });
         playTone(1100, 'sine', 0.06, 0.04);
       }
     } else if (pet.type === 'heal' && pet.timer >= 180) {
       pet.timer = 0;
       if (player.hp < player.maxHp) {
-        player.hp = Math.min(player.maxHp, player.hp + 20);
+        const healAmount = Math.floor(20 * pet.power);
+        player.hp = Math.min(player.maxHp, player.hp + healAmount);
         updateHUD();
         playTone(600, 'sine', 0.25, 0.08);
       }
     } else if (pet.type === 'pull' && pet.timer >= 240) {
       pet.timer = 0;
+      const pullRange = 150 * Math.min(1.6, pet.power);
       for (const e of enemies) {
         const dist = Math.hypot(e.x - pet.x, e.y - pet.y);
-        if (dist < 150) {
+        if (dist < pullRange) {
           const angle = Math.atan2(pet.y - e.y, pet.x - e.x);
-          e.x += Math.cos(angle) * 40; e.y += Math.sin(angle) * 40;
+          e.x += Math.cos(angle) * 45; e.y += Math.sin(angle) * 45;
         }
       }
       playTone(200, 'sawtooth', 0.2, 0.1);
@@ -1194,27 +1260,37 @@ function updateGame() {
     }
   }
 
-  // Boss 行為
+  // Boss 行為與血條同步 (支援法器直接擊殺 Boss)
   if (boss.active) {
-    boss.pulse += 0.05;
-    const angle = Math.atan2(player.y - boss.y, player.x - boss.x);
-    boss.x += Math.cos(angle) * boss.speed;
-    boss.y += Math.sin(angle) * boss.speed;
+    const bossHpPct = Math.max(0, (boss.hp / boss.maxHp) * 100);
+    bossBarFill.style.width = `${bossHpPct}%`;
+    bossHpText.innerText = `${Math.ceil(bossHpPct)}%`;
 
-    boss.ringAttackTimer++;
-    if (boss.ringAttackTimer >= boss.ringAttackInterval) {
-      fireBossRingBarrage();
-      boss.ringAttackTimer = 0;
-    }
+    if (boss.hp <= 0) {
+      boss.active = false;
+      bossBarContainer.style.display = 'none';
+      kills += 15;
+      txtKills.innerText = `擊退海嗣: ${kills}`;
+      chest.active = true;
+      chest.isApex = boss.isApex;
+      chest.x = boss.x;
+      chest.y = boss.y;
+      playTone(950, 'triangle', 0.5, 0.2);
+    } else {
+      boss.pulse += 0.05;
+      const angle = Math.atan2(player.y - boss.y, player.x - boss.x);
+      boss.x += Math.cos(angle) * boss.speed;
+      boss.y += Math.sin(angle) * boss.speed;
 
-    if (!player.isDashing && Math.hypot(player.x - boss.x, player.y - boss.y) < player.radius + boss.radius) {
-      let dmg = boss.isApex ? 0.6 : 0.35;
-      if (activeAffixes.armor) dmg *= 0.75;
-      player.hp -= dmg;
-      updateHUD();
-      if (player.hp <= 0) {
-        triggerPlayerDefeat();
-        return;
+      boss.ringAttackTimer++;
+      if (boss.ringAttackTimer >= boss.ringAttackInterval) {
+        fireBossRingBarrage();
+        boss.ringAttackTimer = 0;
+      }
+
+      if (!player.isDashing && Math.hypot(player.x - boss.x, player.y - boss.y) < player.radius + boss.radius) {
+        const rawDmg = boss.isApex ? 0.6 : 0.35;
+        if (applyDamageToPlayer(rawDmg)) return;
       }
     }
   }
@@ -1239,16 +1315,9 @@ function updateGame() {
     if (hitObs) continue;
 
     if (!player.isDashing && Math.hypot(bb.x - player.x, bb.y - player.y) < bb.radius + player.radius) {
-      let dmg = bb.damage;
-      if (activeAffixes.armor) dmg *= 0.75;
-      player.hp -= dmg;
       bossBullets.splice(i, 1);
-      updateHUD();
       playTone(150, 'sawtooth', 0.1);
-      if (player.hp <= 0) {
-        triggerPlayerDefeat();
-        return;
-      }
+      if (applyDamageToPlayer(bb.damage)) return;
     }
   }
 
@@ -1262,6 +1331,15 @@ function updateGame() {
 
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
+    // 若小怪被法器 AoE 直接炸死，補上結算
+    if (e.hp <= 0) {
+      gems.push({ x: e.x, y: e.y, radius: 4 });
+      enemies.splice(i, 1);
+      kills++;
+      txtKills.innerText = `擊退海嗣: ${kills}`;
+      continue;
+    }
+
     e.pulse += 0.08;
     e.x += e.vx;
     e.y += e.vy;
@@ -1289,14 +1367,8 @@ function updateGame() {
     }
 
     if (!player.isDashing && Math.hypot(player.x - e.x, player.y - e.y) < player.radius + e.radius) {
-      let dmg = (activeCountryStageId === 1) ? 0.12 : 0.35;
-      if (activeAffixes.armor) dmg *= 0.75;
-      player.hp -= dmg;
-      updateHUD();
-      if (player.hp <= 0) {
-        triggerPlayerDefeat();
-        return;
-      }
+      const rawDmg = (activeCountryStageId === 1) ? 0.12 : 0.35;
+      if (applyDamageToPlayer(rawDmg)) return;
     }
   }
 
@@ -1353,6 +1425,7 @@ function chooseUpgrade(type) {
     player.maxHp += 25;
     player.hp = player.maxHp;
   } else if (type === 'speed') {
+    player.baseSpeed = parseFloat((player.baseSpeed * 1.12).toFixed(2));
     player.speed = parseFloat((player.speed * 1.12).toFixed(2));
   }
 
