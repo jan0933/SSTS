@@ -575,10 +575,10 @@ html, body {
 .btn-upgrade { background: #ca8a04; color: white; border-color: #eab308; }
 .btn-salvage { background: #1e293b; color: #f87171; border-color: #ef4444; }
 
+/* 四種品階顏色：白 / 藍 / 黃 / 橘 */
 .tier-common { color: #f1f5f9; border-color: #94a3b8; }
 .tier-rare { color: #38bdf8; border-color: #0284c7; }
 .tier-elite { color: #facc15; border-color: #ca8a04; }
-.tier-epic { color: #c084fc; border-color: #9333ea; }
 .tier-legendary { color: #fb923c; border-color: #ea580c; }
 
 .card-affix-badge {
