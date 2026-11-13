@@ -1,5 +1,5 @@
 /**
- * SSTS - 戰場環境、22種世界各國特色建築地標、12種生態海嗣與10大傳說巨獸BOSS繪圖引擎 (render_art.js)
+ * SSTS - 戰場環境、22種世界各國特色建築地標、12種高細節生態海嗣、10大傳說巨獸BOSS與精細人形機甲繪圖引擎 (render_art.js)
  */
 
 /* ==================== 大洲戰場背景 ==================== */
@@ -40,7 +40,7 @@ function drawContinentBackground(ctx, continent, width, height) {
   ctx.stroke();
 }
 
-/* ==================== 世界百國特色建築障礙物繪製引擎 ==================== */
+/* ==================== 世界百國特色建築障礙物繪製引擎 (22種地標) ==================== */
 function drawObstacles(ctx, obstacles, continent, globalTime) {
   if (!obstacles || obstacles.length === 0) return;
 
@@ -537,113 +537,197 @@ function drawBattlePickups(ctx, pickups, globalTime) {
   }
 }
 
-/* ==================== 12 種生態小怪與 10 大傳說海怪 BOSS 繪製引擎 ==================== */
+/* ==================== 12 種高細節生態小怪與 10 大傳說海怪 BOSS 繪製引擎 ==================== */
 function drawEnemies(ctx, enemies, boss) {
   for (const e of enemies) {
     ctx.save();
     ctx.translate(e.x, e.y);
-    const s = 1 + Math.sin(e.pulse) * 0.08;
+    const s = 1 + Math.sin(e.pulse) * 0.06;
     ctx.scale(s, s);
     const r = e.radius || 10;
+    const facing = (e.vx !== undefined && e.vx < 0) ? -1 : 1;
 
     switch (e.kind) {
       case 'tiger_shark':
-      case 'great_white': // 掠食巨鯊（流線魚雷身 + 背鰭 + 血紅眼）
-        ctx.fillStyle = e.kind === 'great_white' ? '#64748b' : '#0284c7';
+      case 'great_white': { // 掠食巨鯊（流線魚身 + 背鰭 + 擺動尾鰭 + 利齒）
+        ctx.scale(facing, 1);
+        ctx.fillStyle = e.kind === 'great_white' ? '#475569' : '#0284c7';
         ctx.beginPath();
-        ctx.ellipse(0, 0, r + 4, r - 3, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, r + 5, r - 3, 0, 0, Math.PI * 2);
         ctx.fill();
+        // 腹部銀白
+        ctx.fillStyle = '#cbd5e1';
         ctx.beginPath();
-        ctx.moveTo(-2, -r + 3); ctx.lineTo(-6, -r - 4); ctx.lineTo(3, -r + 3);
-        ctx.moveTo(-r - 2, 0); ctx.lineTo(-r - 7, -5); ctx.lineTo(-r - 7, 5);
+        ctx.ellipse(1, 2.5, r + 2, r - 6, 0, 0, Math.PI);
         ctx.fill();
-        ctx.fillStyle = '#f43f5e';
-        ctx.beginPath(); ctx.arc(5, -2, 2, 0, Math.PI * 2); ctx.fill();
-        break;
-
-      case 'armored_crab':
-      case 'coral_golem': // 重甲巨鉗蟹（硬殼 + 雙大螯）
-        ctx.fillStyle = e.kind === 'coral_golem' ? '#b91c1c' : '#ea580c';
+        // 高聳背鰭與擺動尾鰭
+        const tailWag = Math.sin(e.pulse * 2.5) * 3;
+        ctx.fillStyle = e.kind === 'great_white' ? '#334155' : '#0369a1';
         ctx.beginPath();
-        ctx.arc(0, 0, r + 1, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(-r - 2, -4, 4, 0, Math.PI * 2);
-        ctx.arc(r + 2, -4, 4, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#fde047';
-        ctx.beginPath(); ctx.arc(-3, -2, 2, 0, Math.PI * 2); ctx.arc(3, -2, 2, 0, Math.PI * 2); ctx.fill();
-        break;
-
-      case 'angler_fish': // 幽光燈籠魚（頭頂發光誘餌）
-        ctx.fillStyle = '#1e3a8a';
-        ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = '#93c5fd';
-        ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.moveTo(0, -r); ctx.quadraticCurveTo(6, -r - 7, 9, -r - 2); ctx.stroke();
-        ctx.fillStyle = '#fef08a';
-        ctx.beginPath(); ctx.arc(9, -r - 2, 3, 0, Math.PI * 2); ctx.fill();
-        break;
-
-      case 'ink_octopus': // 墨淵毒章魚（圓頂頭 + 擺動觸手）
-        ctx.fillStyle = '#7e22ce';
-        ctx.beginPath(); ctx.arc(0, -2, r - 1, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = '#c084fc';
-        ctx.lineWidth = 2;
-        for (let t = -6; t <= 6; t += 4) {
-          ctx.beginPath();
-          ctx.moveTo(t, 4);
-          ctx.lineTo(t + Math.sin(e.pulse + t) * 3, r + 4);
-          ctx.stroke();
-        }
-        break;
-
-      case 'siren_eel':
-      case 'abyss_worm': // 電擊鰻 / 海溝蠕蟲（波浪長條身軀）
-        ctx.strokeStyle = e.kind === 'siren_eel' ? '#38bdf8' : '#e11d48';
-        ctx.lineWidth = 5;
-        ctx.lineCap = 'round';
-        ctx.beginPath();
-        ctx.moveTo(-r - 3, Math.sin(e.pulse) * 3);
-        ctx.quadraticCurveTo(0, -Math.sin(e.pulse) * 4, r + 3, Math.sin(e.pulse) * 3);
-        ctx.stroke();
-        break;
-
-      case 'sting_ray': // 幻影魔鬼魚（菱形寬翼）
-        ctx.fillStyle = '#0d9488';
-        ctx.beginPath();
-        ctx.moveTo(0, -r - 2);
-        ctx.lineTo(r + 4, 2);
-        ctx.lineTo(0, r);
-        ctx.lineTo(-r - 4, 2);
+        ctx.moveTo(-1, -r + 3); ctx.lineTo(-5, -r - 6); ctx.lineTo(4, -r + 3);
+        ctx.moveTo(-r - 3, 0); ctx.lineTo(-r - 9, -6 + tailWag); ctx.lineTo(-r - 9, 6 + tailWag);
         ctx.closePath();
         ctx.fill();
+        // 凶狠紅眼
+        ctx.fillStyle = '#f43f5e';
+        ctx.beginPath(); ctx.arc(6, -2, 2, 0, Math.PI * 2); ctx.fill();
         break;
+      }
 
-      case 'frost_urchin': // 冰淵棘海膽（放射尖刺球體）
-        ctx.fillStyle = '#0369a1';
-        ctx.beginPath(); ctx.arc(0, 0, r - 2, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = '#bae6fd';
+      case 'armored_crab':
+      case 'coral_golem': { // 重甲巨鉗蟹（鋸齒甲殼 + 兩側步足 + 雙巨螯）
+        const crabColor = e.kind === 'coral_golem' ? '#991b1b' : '#c2410c';
+        const clawColor = e.kind === 'coral_golem' ? '#ef4444' : '#f97316';
+        // 兩側六條步足
+        ctx.strokeStyle = crabColor;
+        ctx.lineWidth = 2;
+        const legMove = Math.sin(e.pulse * 2) * 2;
+        for (let side of [-1, 1]) {
+          for (let ly = -3; ly <= 4; ly += 3.5) {
+            ctx.beginPath();
+            ctx.moveTo(side * (r - 2), ly);
+            ctx.lineTo(side * (r + 6), ly + 3 + (ly === 0 ? legMove : -legMove));
+            ctx.stroke();
+          }
+        }
+        // 扁橢圓鋸齒背甲
+        ctx.fillStyle = crabColor;
+        ctx.beginPath();
+        ctx.ellipse(0, 1, r + 2, r - 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#fdba74';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        // 雙大螯
+        ctx.fillStyle = clawColor;
+        ctx.beginPath();
+        ctx.ellipse(-r - 2, -6, 4.5, 3.2, -0.4, 0, Math.PI * 2);
+        ctx.ellipse(r + 2, -6, 4.5, 3.2, 0.4, 0, Math.PI * 2);
+        ctx.fill();
+        // 雙眼柄
+        ctx.fillStyle = '#fef08a';
+        ctx.beginPath(); ctx.arc(-3.5, -4, 2, 0, Math.PI * 2); ctx.arc(3.5, -4, 2, 0, Math.PI * 2); ctx.fill();
+        break;
+      }
+
+      case 'angler_fish': { // 幽光燈籠魚（圓鼓深海魚身 + 尾鰭 + 利齒大口 + 頭頂發光燈籠）
+        ctx.scale(facing, 1);
+        ctx.fillStyle = '#1e3a8a';
+        ctx.beginPath(); ctx.ellipse(-1, 0, r + 1, r - 1, 0, 0, Math.PI * 2); ctx.fill();
+        // 尾鰭
+        ctx.beginPath(); ctx.moveTo(-r, 0); ctx.lineTo(-r - 6, -5); ctx.lineTo(-r - 6, 5); ctx.closePath(); ctx.fill();
+        // 利齒巨口
+        ctx.fillStyle = '#0f172a';
+        ctx.beginPath(); ctx.arc(4, 2, 5, -0.3, Math.PI * 0.8); ctx.fill();
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(3, -1, 1.5, 2.5); ctx.fillRect(6, 0, 1.5, 2.5);
+        // 頭頂發光誘餌
+        ctx.strokeStyle = '#93c5fd';
         ctx.lineWidth = 1.5;
-        for (let a = 0; a < Math.PI * 2; a += Math.PI / 4) {
+        ctx.beginPath(); ctx.moveTo(1, -r + 1); ctx.quadraticCurveTo(8, -r - 8, 11, -r - 2); ctx.stroke();
+        ctx.fillStyle = '#fef08a';
+        ctx.beginPath(); ctx.arc(11, -r - 2, 3, 0, Math.PI * 2); ctx.fill();
+        break;
+      }
+
+      case 'ink_octopus': { // 墨淵毒章魚（囊狀頭冠 + 6 條波浪觸腕）
+        ctx.strokeStyle = '#a855f7';
+        ctx.lineWidth = 2.2;
+        ctx.lineCap = 'round';
+        for (let t = -7; t <= 7; t += 3.5) {
+          const wave = Math.sin(e.pulse * 1.8 + t) * 3.5;
           ctx.beginPath();
-          ctx.moveTo(Math.cos(a) * (r - 3), Math.sin(a) * (r - 3));
-          ctx.lineTo(Math.cos(a) * (r + 4), Math.sin(a) * (r + 4));
+          ctx.moveTo(t * 0.7, 2);
+          ctx.quadraticCurveTo(t + wave, 7, t * 1.1 - wave * 0.5, r + 5);
           ctx.stroke();
         }
+        ctx.fillStyle = '#6b21a8';
+        ctx.beginPath();
+        ctx.ellipse(0, -3, r - 1, r + 1, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fde047';
+        ctx.beginPath(); ctx.arc(-3, -1, 1.8, 0, Math.PI * 2); ctx.arc(3, -1, 1.8, 0, Math.PI * 2); ctx.fill();
         break;
+      }
+
+      case 'siren_eel':
+      case 'abyss_worm': { // 電擊鰻 / 海溝蠕蟲（多節蛇形蠕動身軀）
+        const bodyCol = e.kind === 'siren_eel' ? '#0284c7' : '#be123c';
+        const glowCol = e.kind === 'siren_eel' ? '#7dd3fc' : '#fda4af';
+        for (let seg = -2; seg <= 2; seg++) {
+          const sx = seg * 4.5 * facing;
+          const sy = Math.sin(e.pulse * 2 + seg * 1.1) * 3.5;
+          const sr = (seg === 2) ? 5.5 : (4.5 - Math.abs(seg) * 0.5);
+          ctx.fillStyle = bodyCol;
+          ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI * 2); ctx.fill();
+          ctx.strokeStyle = glowCol; ctx.lineWidth = 1; ctx.stroke();
+        }
+        break;
+      }
+
+      case 'sting_ray': { // 幻影魔鬼魚（流線寬翼 + 長毒尾針）
+        ctx.scale(facing, 1);
+        ctx.strokeStyle = '#5eead4';
+        ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.moveTo(-r, 0);
+        ctx.quadraticCurveTo(-r - 6, Math.sin(e.pulse * 2) * 4, -r - 12, 0);
+        ctx.stroke();
+
+        ctx.fillStyle = '#0f766e';
+        ctx.beginPath();
+        ctx.moveTo(r + 4, 0);
+        ctx.quadraticCurveTo(0, -r - 5, -r - 2, -3);
+        ctx.lineTo(-r + 2, 0);
+        ctx.lineTo(-r - 2, 3);
+        ctx.quadraticCurveTo(0, r + 5, r + 4, 0);
+        ctx.fill();
+        break;
+      }
+
+      case 'frost_urchin': { // 冰淵棘海膽（深藍核心 + 12 根長短冰晶尖刺）
+        ctx.strokeStyle = '#bae6fd';
+        ctx.lineWidth = 1.8;
+        for (let a = 0; a < Math.PI * 2; a += Math.PI / 6) {
+          const spikeLen = (Math.round(a * 10) % 2 === 0) ? r + 6 : r + 3;
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(a) * (r - 3), Math.sin(a) * (r - 3));
+          ctx.lineTo(Math.cos(a) * spikeLen, Math.sin(a) * spikeLen);
+          ctx.stroke();
+        }
+        ctx.fillStyle = '#0369a1';
+        ctx.beginPath(); ctx.arc(0, 0, r - 2, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#f43f5e';
+        ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI * 2); ctx.fill();
+        break;
+      }
 
       case 'box_jelly':
       case 'ice_jelly':
-      default: // 寒霜/箱型水母
-        ctx.fillStyle = e.kind === 'box_jelly' ? '#06b6d4' : '#6366f1';
-        ctx.beginPath();
-        ctx.arc(0, 0, r, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = '#a5b4fc';
+      default: { // 寒霜/箱型水母（半透明傘蓋 + 4 條飄動觸鬚）
+        const domeColor = e.kind === 'box_jelly' ? 'rgba(6, 182, 212, 0.85)' : 'rgba(99, 102, 241, 0.85)';
+        const tentacleColor = e.kind === 'box_jelly' ? '#67e8f9' : '#a5b4fc';
+        // 飄動觸鬚
+        ctx.strokeStyle = tentacleColor;
         ctx.lineWidth = 1.5;
+        for (let tx = -5; tx <= 5; tx += 3.3) {
+          const sway = Math.sin(e.pulse * 1.8 + tx) * 3;
+          ctx.beginPath();
+          ctx.moveTo(tx, 1);
+          ctx.quadraticCurveTo(tx + sway, 6, tx - sway * 0.6, r + 5);
+          ctx.stroke();
+        }
+        // 半圓傘蓋
+        ctx.fillStyle = domeColor;
+        ctx.beginPath();
+        ctx.arc(0, 1, r, Math.PI, 0);
+        ctx.quadraticCurveTo(0, 4, -r, 1);
+        ctx.fill();
+        ctx.strokeStyle = '#e0e7ff';
+        ctx.lineWidth = 1.2;
         ctx.stroke();
         break;
+      }
     }
     ctx.restore();
   }
@@ -910,55 +994,192 @@ function drawDashGhosts(ctx, ghosts) {
   }
 }
 
-/* ==================== 玩家機甲紙娃娃繪製 ==================== */
+/* ==================== 玩家人形機甲紙娃娃繪製 (頭部/護目鏡/胸甲/肩甲/雙腿擺動/實體武器) ==================== */
 function drawPlayerPaperdoll(ctx, player) {
   ctx.save();
   ctx.translate(player.x, player.y);
 
-  // 腳下光環
-  ctx.strokeStyle = 'rgba(56, 189, 248, 0.5)';
+  // 1. 腳下戰術光環
+  ctx.strokeStyle = 'rgba(56, 189, 248, 0.45)';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.ellipse(0, 12, 13, 5, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 14, 12, 4.5, 0, 0, Math.PI * 2);
   ctx.stroke();
 
-  const walkOffset = player.isMoving ? Math.sin(player.animTimer * 4) * 2.5 : 0;
+  const facing = player.facing >= 0 ? 1 : -1;
+  ctx.scale(facing, 1);
 
-  // 身體裝甲
-  ctx.fillStyle = (player.equipment && player.equipment.armor) ? '#0ea5e9' : '#334155';
+  const eq = player.equipment || {};
+  const armorStyle = eq.armor || 'default';
+  const helmStyle = eq.helmet || 'default';
+  const wep = eq.weapon || { type: 'bow' };
+
+  // 依胸甲類型切換裝甲主色調
+  let bodyColor = '#334155';
+  let trimColor = '#38bdf8';
+  if (armorStyle === 'heavy') {
+    bodyColor = '#475569'; trimColor = '#f59e0b';
+  } else if (armorStyle === 'archmage') {
+    bodyColor = '#312e81'; trimColor = '#c084fc';
+  } else if (armorStyle === 'scout') {
+    bodyColor = '#0f766e'; trimColor = '#34d399';
+  }
+
+  const walkSwing = player.isMoving ? Math.sin(player.animTimer * 5) * 4.5 : 0;
+  const bobY = player.isMoving ? Math.abs(Math.sin(player.animTimer * 5)) * -1.8 : 0;
+
+  // 2. 雙腿與戰靴（跑步時前後交叉擺動）
+  ctx.lineWidth = 3.5;
+  ctx.lineCap = 'round';
+  // 後腿
+  ctx.strokeStyle = '#1e293b';
   ctx.beginPath();
-  ctx.arc(0, walkOffset, player.radius - 1, 0, Math.PI * 2);
+  ctx.moveTo(-2, 4 + bobY);
+  ctx.lineTo(-2 - walkSwing, 13);
+  ctx.stroke();
+  // 前腿
+  ctx.strokeStyle = '#64748b';
+  ctx.beginPath();
+  ctx.moveTo(2, 4 + bobY);
+  ctx.lineTo(2 + walkSwing, 13);
+  ctx.stroke();
+
+  // 3. 戰術披風 / 噴射背包
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(-8, -5 + bobY, 4, 10);
+
+  // 4. 人形軀幹胸甲
+  ctx.fillStyle = bodyColor;
+  ctx.strokeStyle = trimColor;
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(-6, -6 + bobY, 12, 12, 3);
+  } else {
+    ctx.rect(-6, -6 + bobY, 12, 12);
+  }
   ctx.fill();
-  ctx.strokeStyle = '#e2e8f0';
-  ctx.lineWidth = 1.5;
   ctx.stroke();
 
-  // 頭盔護目鏡
-  ctx.fillStyle = '#38bdf8';
-  ctx.fillRect(player.facing > 0 ? 2 : -10, -5 + walkOffset, 8, 4);
-
-  // 手持遠程武器示意
-  ctx.strokeStyle = '#facc15';
-  ctx.lineWidth = 2.5;
+  // 胸口反應爐核心光點
+  ctx.fillStyle = trimColor;
   ctx.beginPath();
-  ctx.moveTo(player.facing * 6, 2 + walkOffset);
-  ctx.lineTo(player.facing * 18, 2 + walkOffset);
+  ctx.arc(2, -1 + bobY, 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 5. 頭部與頭盔護目鏡
+  ctx.fillStyle = '#cbd5e1';
+  ctx.beginPath();
+  ctx.arc(0, -11 + bobY, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#0f172a';
+  ctx.lineWidth = 1.2;
   ctx.stroke();
+
+  // 頭盔裝飾（重裝角盔 / 奧術頭冠）
+  if (helmStyle === 'heavy') {
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath();
+    ctx.moveTo(-2, -16 + bobY); ctx.lineTo(-5, -21 + bobY); ctx.lineTo(1, -16 + bobY);
+    ctx.fill();
+  } else if (helmStyle === 'archmage') {
+    ctx.strokeStyle = '#c084fc';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(-4, -16 + bobY); ctx.lineTo(0, -21 + bobY); ctx.lineTo(4, -16 + bobY);
+    ctx.stroke();
+  }
+
+  // 發光戰術護目鏡
+  ctx.fillStyle = trimColor;
+  ctx.fillRect(1, -13 + bobY, 5.5, 3);
+
+  // 6. 手臂與實體遠程武器（電磁弓 / 魔導法杖）
+  const recoil = (player.attackTimer > 0) ? -2 : 0;
+  ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 2.8;
+  ctx.beginPath();
+  ctx.moveTo(0, -3 + bobY);
+  ctx.lineTo(8 + recoil, 0 + bobY);
+  ctx.stroke();
+
+  if (wep.type === 'staff') {
+    // 魔導法杖：長杖身 + 頂端發光星核
+    ctx.strokeStyle = '#a855f7';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(7 + recoil, 8 + bobY);
+    ctx.lineTo(13 + recoil, -12 + bobY);
+    ctx.stroke();
+
+    ctx.fillStyle = '#facc15';
+    ctx.beginPath();
+    ctx.arc(13 + recoil, -13 + bobY, 3.2, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    // 電磁獵弓 / 連發弩：弧形弓臂 + 能量弓弦
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.arc(8 + recoil, 0 + bobY, 9, -Math.PI * 0.42, Math.PI * 0.42);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(250, 204, 21, 0.8)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(10 + recoil, -8.5 + bobY);
+    ctx.lineTo(6 + recoil, 0 + bobY);
+    ctx.lineTo(10 + recoil, 8.5 + bobY);
+    ctx.stroke();
+  }
 
   ctx.restore();
 }
 
-/* ==================== 護符隨行寵物繪製 ==================== */
+/* ==================== 護符隨行動物靈獸繪製 (白:海鷗 / 藍:靈龜 / 黃:虎鯊 / 橘:應龍) ==================== */
 function drawPet(ctx, pet, player, globalTime) {
   if (!pet || !pet.active) return;
   ctx.save();
   ctx.translate(pet.x, pet.y);
-  ctx.fillStyle = pet.type === 'atk' ? '#f43f5e' : (pet.type === 'heal' ? '#34d399' : '#c084fc');
-  ctx.beginPath();
-  ctx.arc(0, 0, 6, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = '#ffffff';
-  ctx.lineWidth = 1.2;
-  ctx.stroke();
+  const flap = Math.sin(globalTime * 10);
+  const animal = pet.animal || 'seagull';
+
+  if (animal === 'turtle') {
+    // 藍裝：深海碧波靈龜
+    ctx.fillStyle = '#0284c7';
+    ctx.beginPath(); ctx.ellipse(0, 0, 8, 6, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#7dd3fc'; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.fillStyle = '#34d399';
+    ctx.beginPath(); ctx.arc(player.facing * 8, -1, 3, 0, Math.PI * 2); ctx.fill();
+  } else if (animal === 'shark') {
+    // 黃裝：雷霆虎鯊獵犬
+    ctx.fillStyle = '#eab308';
+    ctx.beginPath(); ctx.ellipse(0, 0, 10, 4.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(0, -4); ctx.lineTo(-3, -9); ctx.lineTo(3, -4); ctx.fill();
+    ctx.fillStyle = '#fef08a';
+    ctx.beginPath(); ctx.arc(player.facing * 5, -1, 1.8, 0, Math.PI * 2); ctx.fill();
+  } else if (animal === 'dragon') {
+    // 橘裝：太古蒼穹應龍
+    ctx.strokeStyle = '#fb923c';
+    ctx.lineWidth = 3.5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-10, flap * 3);
+    ctx.quadraticCurveTo(0, -flap * 5, 10, flap * 2);
+    ctx.stroke();
+    ctx.fillStyle = '#facc15';
+    ctx.beginPath(); ctx.arc(player.facing * 8, 0, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#fef08a'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(player.facing * 6, -3); ctx.lineTo(player.facing * 2, -9); ctx.stroke();
+  } else {
+    // 白裝：機械偵察海鷗
+    ctx.strokeStyle = '#f8fafc';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(-8, flap * 4);
+    ctx.quadraticCurveTo(-3, -4, 0, 0);
+    ctx.quadraticCurveTo(3, -4, 8, flap * 4);
+    ctx.stroke();
+  }
   ctx.restore();
 }
