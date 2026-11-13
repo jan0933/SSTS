@@ -1,5 +1,5 @@
 /**
- * SSTS - 戰場環境、22種世界各國特色建築地標、紙娃娃裝甲與技能特效繪圖引擎 (render_art.js)
+ * SSTS - 戰場環境、22種世界各國特色建築地標、12種生態海嗣與10大傳說巨獸BOSS繪圖引擎 (render_art.js)
  */
 
 /* ==================== 大洲戰場背景 ==================== */
@@ -233,7 +233,6 @@ function drawObstacles(ctx, obstacles, continent, globalTime) {
         ctx.beginPath();
         ctx.arc(0, -4, 8, 0, Math.PI * 2);
         ctx.fill();
-        // 兩側喚拜塔
         ctx.fillRect(-16, -12, 2.5, 22);
         ctx.fillRect(13.5, -12, 2.5, 22);
         ctx.fillStyle = '#38bdf8';
@@ -538,73 +537,287 @@ function drawBattlePickups(ctx, pickups, globalTime) {
   }
 }
 
-/* ==================== 敵軍海嗣與 Boss 繪製 ==================== */
+/* ==================== 12 種生態小怪與 10 大傳說海怪 BOSS 繪製引擎 ==================== */
 function drawEnemies(ctx, enemies, boss) {
   for (const e of enemies) {
     ctx.save();
     ctx.translate(e.x, e.y);
     const s = 1 + Math.sin(e.pulse) * 0.08;
     ctx.scale(s, s);
+    const r = e.radius || 10;
 
-    if (e.kind === 'shark') {
-      ctx.fillStyle = '#0284c7';
-      ctx.beginPath();
-      ctx.ellipse(0, 0, e.radius + 3, e.radius - 2, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#f43f5e';
-      ctx.beginPath(); ctx.arc(4, -2, 2, 0, Math.PI * 2); ctx.fill();
-    } else if (e.kind === 'crab') {
-      ctx.fillStyle = '#ea580c';
-      ctx.beginPath();
-      ctx.arc(0, 0, e.radius + 1, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#fde047';
-      ctx.beginPath(); ctx.arc(-3, -3, 2, 0, Math.PI * 2); ctx.arc(3, -3, 2, 0, Math.PI * 2); ctx.fill();
-    } else {
-      ctx.fillStyle = '#6366f1';
-      ctx.beginPath();
-      ctx.arc(0, 0, e.radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#a5b4fc';
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
+    switch (e.kind) {
+      case 'tiger_shark':
+      case 'great_white': // 掠食巨鯊（流線魚雷身 + 背鰭 + 血紅眼）
+        ctx.fillStyle = e.kind === 'great_white' ? '#64748b' : '#0284c7';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, r + 4, r - 3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(-2, -r + 3); ctx.lineTo(-6, -r - 4); ctx.lineTo(3, -r + 3);
+        ctx.moveTo(-r - 2, 0); ctx.lineTo(-r - 7, -5); ctx.lineTo(-r - 7, 5);
+        ctx.fill();
+        ctx.fillStyle = '#f43f5e';
+        ctx.beginPath(); ctx.arc(5, -2, 2, 0, Math.PI * 2); ctx.fill();
+        break;
+
+      case 'armored_crab':
+      case 'coral_golem': // 重甲巨鉗蟹（硬殼 + 雙大螯）
+        ctx.fillStyle = e.kind === 'coral_golem' ? '#b91c1c' : '#ea580c';
+        ctx.beginPath();
+        ctx.arc(0, 0, r + 1, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(-r - 2, -4, 4, 0, Math.PI * 2);
+        ctx.arc(r + 2, -4, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fde047';
+        ctx.beginPath(); ctx.arc(-3, -2, 2, 0, Math.PI * 2); ctx.arc(3, -2, 2, 0, Math.PI * 2); ctx.fill();
+        break;
+
+      case 'angler_fish': // 幽光燈籠魚（頭頂發光誘餌）
+        ctx.fillStyle = '#1e3a8a';
+        ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#93c5fd';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(0, -r); ctx.quadraticCurveTo(6, -r - 7, 9, -r - 2); ctx.stroke();
+        ctx.fillStyle = '#fef08a';
+        ctx.beginPath(); ctx.arc(9, -r - 2, 3, 0, Math.PI * 2); ctx.fill();
+        break;
+
+      case 'ink_octopus': // 墨淵毒章魚（圓頂頭 + 擺動觸手）
+        ctx.fillStyle = '#7e22ce';
+        ctx.beginPath(); ctx.arc(0, -2, r - 1, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#c084fc';
+        ctx.lineWidth = 2;
+        for (let t = -6; t <= 6; t += 4) {
+          ctx.beginPath();
+          ctx.moveTo(t, 4);
+          ctx.lineTo(t + Math.sin(e.pulse + t) * 3, r + 4);
+          ctx.stroke();
+        }
+        break;
+
+      case 'siren_eel':
+      case 'abyss_worm': // 電擊鰻 / 海溝蠕蟲（波浪長條身軀）
+        ctx.strokeStyle = e.kind === 'siren_eel' ? '#38bdf8' : '#e11d48';
+        ctx.lineWidth = 5;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(-r - 3, Math.sin(e.pulse) * 3);
+        ctx.quadraticCurveTo(0, -Math.sin(e.pulse) * 4, r + 3, Math.sin(e.pulse) * 3);
+        ctx.stroke();
+        break;
+
+      case 'sting_ray': // 幻影魔鬼魚（菱形寬翼）
+        ctx.fillStyle = '#0d9488';
+        ctx.beginPath();
+        ctx.moveTo(0, -r - 2);
+        ctx.lineTo(r + 4, 2);
+        ctx.lineTo(0, r);
+        ctx.lineTo(-r - 4, 2);
+        ctx.closePath();
+        ctx.fill();
+        break;
+
+      case 'frost_urchin': // 冰淵棘海膽（放射尖刺球體）
+        ctx.fillStyle = '#0369a1';
+        ctx.beginPath(); ctx.arc(0, 0, r - 2, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#bae6fd';
+        ctx.lineWidth = 1.5;
+        for (let a = 0; a < Math.PI * 2; a += Math.PI / 4) {
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(a) * (r - 3), Math.sin(a) * (r - 3));
+          ctx.lineTo(Math.cos(a) * (r + 4), Math.sin(a) * (r + 4));
+          ctx.stroke();
+        }
+        break;
+
+      case 'box_jelly':
+      case 'ice_jelly':
+      default: // 寒霜/箱型水母
+        ctx.fillStyle = e.kind === 'box_jelly' ? '#06b6d4' : '#6366f1';
+        ctx.beginPath();
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#a5b4fc';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        break;
     }
     ctx.restore();
   }
 
+  /* ==================== 傳說海怪 BOSS 專屬視覺繪製 ==================== */
   if (boss && boss.active) {
     ctx.save();
     ctx.translate(boss.x, boss.y);
-    const pulseR = boss.radius + Math.sin(boss.pulse * 2) * 3;
+    const r = boss.radius;
+    const visual = boss.visual || 'leviathan';
+    const pulse = Math.sin(boss.pulse * 2);
 
-    const aura = ctx.createRadialGradient(0, 0, boss.radius * 0.3, 0, 0, pulseR + 14);
-    aura.addColorStop(0, boss.isApex ? 'rgba(244, 63, 94, 0.7)' : 'rgba(245, 158, 11, 0.6)');
+    // 1. 深淵霸主氣場光暈
+    const aura = ctx.createRadialGradient(0, 0, r * 0.25, 0, 0, r + 18 + pulse * 3);
+    aura.addColorStop(0, 'rgba(244, 63, 94, 0.55)');
     aura.addColorStop(1, 'rgba(2, 6, 23, 0)');
     ctx.fillStyle = aura;
-    ctx.beginPath(); ctx.arc(0, 0, pulseR + 14, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, r + 18 + pulse * 3, 0, Math.PI * 2); ctx.fill();
 
-    ctx.fillStyle = boss.isApex ? '#9f1239' : '#b45309';
-    ctx.beginPath(); ctx.arc(0, 0, boss.radius, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = boss.isApex ? '#fb7185' : '#fcd34d';
-    ctx.lineWidth = 3;
-    ctx.stroke();
+    // 2. 依據傳說海怪種類繪製專屬霸主外型
+    switch (visual) {
+      case 'umibozu': // 【海坊主】：漆黑幽冥僧巨影 + 冥火雙瞳 + 念珠光環
+        ctx.fillStyle = '#090d16';
+        ctx.beginPath();
+        ctx.arc(0, -4, r * 0.85, Math.PI, 0);
+        ctx.lineTo(r * 0.95, r * 0.85);
+        ctx.lineTo(-r * 0.95, r * 0.85);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#a855f7';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+        for (let a = 0; a < Math.PI * 2; a += Math.PI / 5) {
+          ctx.fillStyle = '#d8b4fe';
+          ctx.beginPath();
+          ctx.arc(Math.cos(a + boss.pulse * 0.3) * (r + 5), Math.sin(a + boss.pulse * 0.3) * (r + 5), 2.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.fillStyle = '#facc15';
+        ctx.beginPath();
+        ctx.ellipse(-11, -6, 6, 3.5, -0.2, 0, Math.PI * 2);
+        ctx.ellipse(11, -6, 6, 3.5, 0.2, 0, Math.PI * 2);
+        ctx.fill();
+        break;
 
-    // Boss 雙眼
-    ctx.fillStyle = '#fef08a';
-    ctx.beginPath();
-    ctx.arc(-10, -5, 4.5, 0, Math.PI * 2);
-    ctx.arc(10, -5, 4.5, 0, Math.PI * 2);
-    ctx.fill();
+      case 'bloop': // 【THE BLOOP】：深海超巨型聲納鯨怪 + 聲波同心圓
+        ctx.fillStyle = '#0c4a6e';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, r + 6, r * 0.82, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        ctx.strokeStyle = '#0284c7';
+        ctx.lineWidth = 1.5;
+        for (let ly = 4; ly <= 16; ly += 5) {
+          ctx.beginPath(); ctx.moveTo(-r * 0.6, ly); ctx.lineTo(r * 0.6, ly); ctx.stroke();
+        }
+        const sonarR = ((boss.pulse * 25) % 24);
+        ctx.strokeStyle = `rgba(56, 189, 248, ${1 - sonarR / 24})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(0, 0, r + sonarR, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = '#bae6fd';
+        ctx.beginPath(); ctx.arc(-14, -6, 4.5, 0, Math.PI * 2); ctx.arc(14, -6, 4.5, 0, Math.PI * 2); ctx.fill();
+        break;
+
+      case 'el_gran_maja': // 【EL GRAN MAJA】：裂口深淵海蛇皇 + 生物螢光斑紋 + 鋸齒巨顎
+        ctx.fillStyle = '#1e1b4b';
+        ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#f43f5e';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        ctx.fillStyle = '#22d3ee';
+        for (let sx = -18; sx <= 18; sx += 9) {
+          ctx.beginPath(); ctx.arc(sx, -14, 2.5, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.fillStyle = '#881337';
+        ctx.beginPath(); ctx.ellipse(0, 6, r * 0.68, r * 0.42 + pulse * 2, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        for (let tx = -14; tx <= 14; tx += 7) {
+          ctx.beginPath(); ctx.moveTo(tx - 2, -2); ctx.lineTo(tx, 5); ctx.lineTo(tx + 2, -2); ctx.fill();
+          ctx.beginPath(); ctx.moveTo(tx - 2, 14); ctx.lineTo(tx, 8); ctx.lineTo(tx + 2, 14); ctx.fill();
+        }
+        ctx.fillStyle = '#fde047';
+        ctx.beginPath();
+        ctx.arc(-12, -9, 3.5, 0, Math.PI * 2); ctx.arc(12, -9, 3.5, 0, Math.PI * 2);
+        ctx.arc(-18, -3, 2.5, 0, Math.PI * 2); ctx.arc(18, -3, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+
+      case 'leviathan': // 【利維坦】：滅世海龍王 + 金色逆鱗皇冠 + 龍角
+        ctx.fillStyle = '#7f1d1d';
+        ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#fbbf24';
+        ctx.lineWidth = 3.5;
+        ctx.stroke();
+        ctx.fillStyle = '#f59e0b';
+        ctx.beginPath();
+        ctx.moveTo(-14, -r + 4); ctx.lineTo(-24, -r - 14); ctx.lineTo(-4, -r + 2);
+        ctx.moveTo(14, -r + 4);  ctx.lineTo(24, -r - 14);  ctx.lineTo(4, -r + 2);
+        ctx.moveTo(-4, -r);      ctx.lineTo(0, -r - 12);   ctx.lineTo(4, -r);
+        ctx.fill();
+        ctx.fillStyle = '#fef08a';
+        ctx.beginPath(); ctx.arc(-11, -4, 5, 0, Math.PI * 2); ctx.arc(11, -4, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(-12, -8, 2, 8); ctx.fillRect(10, -8, 2, 8);
+        break;
+
+      case 'kraken': // 【克拉肯】：千腕巨妖 + 8 條揮舞巨觸手
+        ctx.strokeStyle = '#e11d48';
+        ctx.lineWidth = 5;
+        ctx.lineCap = 'round';
+        for (let k = 0; k < 8; k++) {
+          const ang = (Math.PI * 2 / 8) * k + Math.sin(boss.pulse + k) * 0.25;
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(ang) * (r * 0.6), Math.sin(ang) * (r * 0.6));
+          ctx.quadraticCurveTo(
+            Math.cos(ang + 0.4) * (r + 12), Math.sin(ang + 0.4) * (r + 12),
+            Math.cos(ang) * (r + 20), Math.sin(ang) * (r + 20)
+          );
+          ctx.stroke();
+        }
+        ctx.fillStyle = '#9f1239';
+        ctx.beginPath(); ctx.arc(0, 0, r * 0.85, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fde047';
+        ctx.beginPath(); ctx.arc(-9, -4, 4.5, 0, Math.PI * 2); ctx.arc(9, -4, 4.5, 0, Math.PI * 2); ctx.fill();
+        break;
+
+      case 'jormungandr':
+      case 'shenlong': // 【耶夢加得 / 蜃龍】：盤踞巨蟒 / 古神龍首
+        ctx.strokeStyle = visual === 'jormungandr' ? '#10b981' : '#eab308';
+        ctx.lineWidth = 7;
+        ctx.beginPath();
+        ctx.arc(0, 0, r + 4, 0.2, Math.PI * 1.8);
+        ctx.stroke();
+        ctx.fillStyle = visual === 'jormungandr' ? '#065f46' : '#854d0e';
+        ctx.beginPath(); ctx.arc(0, 0, r * 0.82, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#fef08a';
+        ctx.beginPath(); ctx.arc(-10, -5, 4.5, 0, Math.PI * 2); ctx.arc(10, -5, 4.5, 0, Math.PI * 2); ctx.fill();
+        break;
+
+      case 'charybdis': // 【卡律布狄斯】：深海漩渦齒輪巨口
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 3;
+        for (let ring = 0; ring < 3; ring++) {
+          ctx.beginPath();
+          ctx.arc(0, 0, r - ring * 9, boss.pulse * (ring % 2 === 0 ? 1 : -1), boss.pulse + Math.PI * 1.6);
+          ctx.stroke();
+        }
+        ctx.fillStyle = '#020617';
+        ctx.beginPath(); ctx.arc(0, 0, r * 0.45, 0, Math.PI * 2); ctx.fill();
+        break;
+
+      default: // 【刻托 / 盧斯卡】：遠古深海巨獸
+        ctx.fillStyle = boss.isApex ? '#9f1239' : '#b45309';
+        ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = boss.isApex ? '#fb7185' : '#fcd34d';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        ctx.fillStyle = '#fef08a';
+        ctx.beginPath(); ctx.arc(-10, -5, 4.5, 0, Math.PI * 2); ctx.arc(10, -5, 4.5, 0, Math.PI * 2); ctx.fill();
+        break;
+    }
+
     ctx.restore();
   }
 }
 
-/* ==================== Boss 彈幕繪製 ==================== */
+/* ==================== Boss 彈幕繪製 (支援專屬海怪彈幕色彩) ==================== */
 function drawBossBullets(ctx, bossBullets) {
   if (!bossBullets) return;
   for (const bb of bossBullets) {
     ctx.save();
-    ctx.fillStyle = bb.isApex ? '#f43f5e' : '#fb923c';
+    ctx.fillStyle = bb.color || (bb.isApex ? '#f43f5e' : '#fb923c');
     ctx.beginPath();
     ctx.arc(bb.x, bb.y, bb.radius, 0, Math.PI * 2);
     ctx.fill();
