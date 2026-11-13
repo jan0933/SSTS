@@ -1,563 +1,573 @@
 /**
- * SSTS - 美術渲染、紙娃娃、5大品階光環、1~5星粒子反饋與戰鬥特效模組 (render_art.js)
+ * SSTS - 戰場環境、22種世界各國特色建築地標、紙娃娃裝甲與技能特效繪圖引擎 (render_art.js)
  */
 
-const TIER_VISUALS = {
-  common: { glow: "rgba(241, 245, 249, 0.4)", text: "#f1f5f9", shadow: "#94a3b8", blur: 4 },
-  rare: { glow: "rgba(56, 189, 248, 0.65)", text: "#38bdf8", shadow: "#0284c7", blur: 10 },
-  elite: { glow: "rgba(250, 204, 21, 0.75)", text: "#facc15", shadow: "#ca8a04", blur: 14 },
-  epic: { glow: "rgba(192, 132, 252, 0.85)", text: "#c084fc", shadow: "#9333ea", blur: 18 },
-  legendary: { glow: "rgba(251, 146, 60, 0.95)", text: "#fb923c", shadow: "#ea580c", blur: 24 }
-};
+/* ==================== 大洲戰場背景 ==================== */
+function drawContinentBackground(ctx, continent, width, height) {
+  let bgTop = '#071326';
+  let bgBot = '#030814';
+  let gridColor = 'rgba(56, 189, 248, 0.06)';
 
-const EQUIPMENT_REGISTRY = {
-  helmets: {
-    scout: { color: "#38bdf8", visor: "#0284c7", horn: false },
-    heavy: { color: "#475569", visor: "#ef4444", horn: true },
-    archmage: { color: "#8b5cf6", visor: "#ec4899", horn: false }
-  },
-  armors: {
-    scout: { base: "#0f766e", plate: "#14b8a6" },
-    heavy: { base: "#334155", plate: "#64748b" },
-    archmage: { base: "#4c1d95", plate: "#7c3aed" }
-  },
-  gloves: { scout: "#2dd4bf", heavy: "#94a3b8", archmage: "#a78bfa" },
-  boots: { scout: "#0d9488", heavy: "#1e293b", archmage: "#5b21b6" },
-  accessories: {
-    mantle: { color: "rgba(56, 189, 248, 0.45)" },
-    relic: { color: "#f59e0b" }
-  },
-  talismans: {
-    atk_pet: { glow: "#38bdf8", name: "電漿浮游蟲" },
-    heal_pet: { glow: "#34d399", name: "醫療水母" },
-    pull_pet: { glow: "#c084fc", name: "磁暴黑洞核" }
+  if (continent === 'EU' || continent === 'GL') {
+    bgTop = '#081b33'; bgBot = '#030b1a'; gridColor = 'rgba(125, 211, 252, 0.07)';
+  } else if (continent === 'AS') {
+    bgTop = '#071f24'; bgBot = '#020d12'; gridColor = 'rgba(45, 212, 191, 0.07)';
+  } else if (continent === 'AF') {
+    bgTop = '#1f1408'; bgBot = '#0d0702'; gridColor = 'rgba(251, 191, 36, 0.06)';
+  } else if (continent === 'AM') {
+    bgTop = '#0d1a14'; bgBot = '#040a07'; gridColor = 'rgba(52, 211, 153, 0.07)';
+  } else if (continent === 'OC') {
+    bgTop = '#051e2e'; bgBot = '#020c14'; gridColor = 'rgba(6, 182, 212, 0.08)';
   }
-};
 
-function parseGearMeta(gearSlot, defaultTier = "common") {
-  if (!gearSlot) return { val: null, tier: defaultTier, stars: 1 };
-  if (typeof gearSlot === "string") return { val: gearSlot, tier: defaultTier, stars: 1 };
-  return {
-    val: gearSlot.val || gearSlot.id || null,
-    tier: gearSlot.tier || defaultTier,
-    stars: gearSlot.stars || 1,
-    affix: gearSlot.affix || null,
-    raw: gearSlot
-  };
+  const grad = ctx.createLinearGradient(0, 0, 0, height);
+  grad.addColorStop(0, bgTop);
+  grad.addColorStop(1, bgBot);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, width, height);
+
+  // 戰術格線
+  ctx.strokeStyle = gridColor;
+  ctx.lineWidth = 1;
+  const step = 45;
+  ctx.beginPath();
+  for (let x = 0; x <= width; x += step) {
+    ctx.moveTo(x, 0); ctx.lineTo(x, height);
+  }
+  for (let y = 0; y <= height; y += step) {
+    ctx.moveTo(0, y); ctx.lineTo(width, y);
+  }
+  ctx.stroke();
 }
 
-function drawPlayerPaperdoll(ctx, p) {
-  ctx.save();
-  ctx.translate(p.x, p.y);
+/* ==================== 世界百國特色建築障礙物繪製引擎 ==================== */
+function drawObstacles(ctx, obstacles, continent, globalTime) {
+  if (!obstacles || obstacles.length === 0) return;
 
-  if (p.facing < 0) ctx.scale(-1, 1);
+  for (const obs of obstacles) {
+    const x = obs.x;
+    const y = obs.y;
+    const w = obs.width || 48;
+    const h = obs.height || 48;
+    const halfW = w / 2;
+    const halfH = h / 2;
+    const type = obs.landmark || 'eu_castle';
 
-  let walkCycle = 0;
-  let bobbing = 0;
-  if (p.isMoving) {
-    walkCycle = Math.sin(p.animTimer * 12);
-    bobbing = Math.abs(Math.cos(p.animTimer * 12)) * 2;
-  }
-
-  const eq = p.equipment || {};
-  const helm = parseGearMeta(eq.helmet);
-  const armor = parseGearMeta(eq.armor);
-  const gloves = parseGearMeta(eq.gloves);
-  const boots = parseGearMeta(eq.boots);
-  const talisman = parseGearMeta(eq.talisman);
-  const accessory = parseGearMeta(eq.accessory);
-  const wepObj = eq.weapon || p.weapon || { type: 'bow', tier: 'common', stars: 1, damage: 30 };
-
-  const helmConfig = helm.val ? EQUIPMENT_REGISTRY.helmets[helm.val] : null;
-  const armorConfig = armor.val ? EQUIPMENT_REGISTRY.armors[armor.val] : null;
-  const gloveColor = gloves.val ? (EQUIPMENT_REGISTRY.gloves[gloves.val] || "#475569") : "#475569";
-  const bootColor = boots.val ? (EQUIPMENT_REGISTRY.boots[boots.val] || "#334155") : "#334155";
-
-  // 滿星覺醒或傳說裝備散發神話氣場
-  if (wepObj.tier === 'legendary' || armor.tier === 'legendary' || wepObj.stars === 5) {
     ctx.save();
-    const auraPulse = Math.sin(p.animTimer * 6) * 3;
-    const tierMeta = TIER_VISUALS[wepObj.tier] || TIER_VISUALS.legendary;
-    ctx.strokeStyle = tierMeta.glow;
-    ctx.shadowColor = tierMeta.shadow;
-    ctx.shadowBlur = tierMeta.blur + (wepObj.stars * 2.5);
-    ctx.lineWidth = 1.8;
+
+    // 1. 戰術防護底座（標示精準物理碰撞箱範圍）
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.72)';
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.45)';
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.ellipse(0, -2 - bobbing, 16 + auraPulse, 22 + auraPulse, 0, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  if (p.isDashing) {
-    ctx.save();
-    ctx.strokeStyle = "rgba(103, 232, 249, 0.9)";
-    ctx.lineWidth = 2.5;
-    ctx.shadowColor = "#38bdf8";
-    ctx.shadowBlur = 16;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 18, 22, 0, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  // 1. 披風配件
-  if (accessory.val && EQUIPMENT_REGISTRY.accessories[accessory.val]) {
-    const capeSway = (walkCycle * 6) + (p.vx * -2);
-    ctx.fillStyle = EQUIPMENT_REGISTRY.accessories[accessory.val].color;
-    ctx.beginPath();
-    ctx.moveTo(-6, -4 - bobbing);
-    ctx.lineTo(-14 + capeSway, 14);
-    ctx.lineTo(-4 + capeSway, 16);
-    ctx.lineTo(2, -4 - bobbing);
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  // 2. 雙腿與鞋子
-  const leftLegAngle = walkCycle * 0.45;
-  const rightLegAngle = -walkCycle * 0.45;
-
-  ctx.save();
-  ctx.translate(-4, 6 - bobbing); ctx.rotate(leftLegAngle);
-  ctx.fillStyle = bootColor; ctx.fillRect(-2, 0, 4, 8);
-  ctx.restore();
-
-  ctx.save();
-  ctx.translate(4, 6 - bobbing); ctx.rotate(rightLegAngle);
-  ctx.fillStyle = bootColor; ctx.fillRect(-2, 0, 4, 8);
-  ctx.restore();
-
-  // 3. 軀幹與胸甲
-  ctx.save();
-  ctx.translate(0, -bobbing);
-  ctx.fillStyle = armorConfig ? armorConfig.base : "#1e293b";
-  ctx.fillRect(-6, -8, 12, 14);
-
-  if (armorConfig) {
-    const armorTierMeta = TIER_VISUALS[armor.tier] || TIER_VISUALS.common;
-    ctx.fillStyle = armorConfig.plate;
-    ctx.shadowColor = armorTierMeta.shadow;
-    ctx.shadowBlur = armor.stars >= 3 ? armorTierMeta.blur : 0;
-    ctx.beginPath();
-    ctx.moveTo(-5, -6); ctx.lineTo(5, -6); ctx.lineTo(3, 4); ctx.lineTo(-3, 4);
-    ctx.closePath(); ctx.fill();
-    ctx.shadowBlur = 0;
-  }
-  ctx.restore();
-
-  // 4. 頭部與頭盔
-  ctx.save();
-  ctx.translate(0, -12 - bobbing);
-  ctx.fillStyle = helmConfig ? helmConfig.color : "#334155";
-  ctx.beginPath(); ctx.arc(0, 0, 7.5, 0, Math.PI * 2); ctx.fill();
-
-  const helmTierMeta = TIER_VISUALS[helm.tier] || TIER_VISUALS.common;
-  ctx.fillStyle = helmConfig ? helmConfig.visor : "#38bdf8";
-  ctx.shadowColor = helmTierMeta.shadow;
-  ctx.shadowBlur = helm.stars >= 3 ? helmTierMeta.blur : 0;
-  ctx.fillRect(1, -2, 6, 3);
-  ctx.shadowBlur = 0;
-
-  if (helmConfig && helmConfig.horn) {
-    ctx.fillStyle = "#94a3b8";
-    ctx.beginPath(); ctx.moveTo(-4, -6); ctx.lineTo(-10, -12); ctx.lineTo(-2, -8); ctx.fill();
-  }
-  ctx.restore();
-
-  // 5. 單一遠程武器
-  drawSingleRangedWeapon(ctx, p, wepObj, gloveColor, bobbing);
-
-  ctx.restore();
-}
-
-function drawSingleRangedWeapon(ctx, p, wep, gloveColor, bobbing) {
-  const isAttacking = p.attackTimer > 0;
-  const attackProgress = 1 - (p.attackTimer / p.attackDuration);
-  const tierMeta = TIER_VISUALS[wep.tier || 'common'] || TIER_VISUALS.common;
-  const stars = Math.min(5, Math.max(1, wep.stars || 1));
-
-  ctx.save();
-  ctx.translate(3, -2 - bobbing);
-
-  ctx.fillStyle = gloveColor;
-  ctx.fillRect(0, -2, 7, 4);
-
-  ctx.shadowColor = tierMeta.shadow;
-  ctx.shadowBlur = tierMeta.blur + (stars * 2);
-
-  if (wep.type === 'staff') {
-    let staffTilt = 0.2;
-    if (isAttacking) {
-      staffTilt = -0.5 + Math.sin(attackProgress * Math.PI) * 0.4;
-      ctx.save();
-      ctx.translate(20, -14);
-      ctx.strokeStyle = tierMeta.glow;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(0, 0, 7 + stars, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
+    if (ctx.roundRect) {
+      ctx.roundRect(x - halfW, y - halfH, w, h, 6);
+    } else {
+      ctx.rect(x - halfW, y - halfH, w, h);
     }
-    ctx.rotate(staffTilt);
-
-    ctx.fillStyle = "#475569";
-    ctx.fillRect(4, -1.5, 20, 3);
-
-    ctx.fillStyle = tierMeta.text;
-    ctx.beginPath();
-    ctx.arc(24, 0, 4 + (stars * 0.7), 0, Math.PI * 2);
     ctx.fill();
-
-  } else {
-    let drawPull = 0;
-    if (isAttacking) drawPull = Math.sin(attackProgress * Math.PI) * 5;
-
-    ctx.save();
-    ctx.translate(8, 0);
-
-    ctx.strokeStyle = tierMeta.text;
-    ctx.lineWidth = 2 + (stars * 0.4);
-    ctx.beginPath();
-    ctx.arc(0, 0, 11 + stars, -Math.PI / 2.3, Math.PI / 2.3);
     ctx.stroke();
 
-    ctx.strokeStyle = "#cbd5e1";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(4, -10 - stars);
-    ctx.lineTo(-drawPull, 0);
-    ctx.lineTo(4, 10 + stars);
-    ctx.stroke();
+    // 底座四角定位光點
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillRect(x - halfW + 2, y - halfH + 2, 3, 3);
+    ctx.fillRect(x + halfW - 5, y - halfH + 2, 3, 3);
+    ctx.fillRect(x - halfW + 2, y + halfH - 5, 3, 3);
+    ctx.fillRect(x + halfW - 5, y + halfH - 5, 3, 3);
 
-    if (isAttacking) {
-      ctx.fillStyle = tierMeta.text;
-      ctx.fillRect(-drawPull, -1.5, 16 + (stars * 2), 3);
-    }
-    ctx.restore();
-  }
+    // 2. 繪製對應國家特色建築地標
+    ctx.translate(x, y + 6);
 
-  if (stars >= 4) {
-    const starAngle = (p.animTimer * 5);
-    ctx.fillStyle = "#facc15";
-    ctx.beginPath();
-    ctx.arc(12 + Math.cos(starAngle) * 8, Math.sin(starAngle) * 8, 2, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  ctx.restore();
-}
-
-function drawArtifactSkillEffects(ctx, fxList, time) {
-  for (let i = fxList.length - 1; i >= 0; i--) {
-    const fx = fxList[i];
-    fx.timer--;
-    const progress = 1 - (fx.timer / fx.maxDuration);
-
-    ctx.save();
-
-    if (fx.type === 'freeze') {
-      const ringRadius = progress * (ctx.canvas.width * 0.7);
-      ctx.strokeStyle = `rgba(186, 230, 253, ${1 - progress})`;
-      ctx.shadowColor = "#38bdf8";
-      ctx.shadowBlur = 18;
-      ctx.lineWidth = 3.5 * (1 - progress);
-      ctx.beginPath();
-      ctx.arc(fx.x, fx.y, ringRadius, 0, Math.PI * 2);
-      ctx.stroke();
-
-      for (const p of fx.particles) {
-        p.x += Math.cos(p.angle) * p.speed;
-        p.y += Math.sin(p.angle) * p.speed;
-        ctx.fillStyle = `rgba(224, 242, 254, ${1 - progress})`;
+    switch (type) {
+      case 'vatican_dome': // 梵蒂岡：聖彼得大教堂圓頂
+        ctx.fillStyle = '#e2e8f0';
+        ctx.fillRect(-16, -2, 32, 12);
+        ctx.fillStyle = '#94a3b8';
         ctx.beginPath();
-        ctx.moveTo(p.x, p.y - 4);
-        ctx.lineTo(p.x + 4, p.y);
-        ctx.lineTo(p.x, p.y + 4);
-        ctx.lineTo(p.x - 4, p.y);
+        ctx.arc(0, -2, 13, Math.PI, 0);
+        ctx.fill();
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        ctx.strokeStyle = '#facc15';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, -15); ctx.lineTo(0, -24);
+        ctx.moveTo(-4, -20); ctx.lineTo(4, -20);
+        ctx.stroke();
+        break;
+
+      case 'casino_palace': // 摩納哥：蒙地卡羅皇宮雙塔
+        ctx.fillStyle = '#fef3c7';
+        ctx.fillRect(-15, -4, 30, 14);
+        ctx.fillStyle = '#f59e0b';
+        ctx.beginPath();
+        ctx.arc(-9, -4, 5, Math.PI, 0);
+        ctx.arc(9, -4, 5, Math.PI, 0);
+        ctx.fill();
+        ctx.fillStyle = '#0284c7';
+        ctx.fillRect(-4, 2, 8, 8);
+        break;
+
+      case 'singapore_mbs': // 新加坡：濱海灣金沙酒店空中船型花園
+        ctx.fillStyle = '#38bdf8';
+        ctx.fillRect(-11, -10, 5, 20);
+        ctx.fillRect(-2.5, -10, 5, 20);
+        ctx.fillRect(6, -10, 5, 20);
+        ctx.fillStyle = '#facc15';
+        ctx.beginPath();
+        ctx.moveTo(-16, -13);
+        ctx.quadraticCurveTo(0, -9, 17, -15);
+        ctx.lineTo(15, -10);
+        ctx.lineTo(-15, -10);
         ctx.closePath();
         ctx.fill();
-      }
+        break;
 
-    } else if (fx.type === 'thunder') {
-      for (const strike of fx.strikes) {
-        ctx.strokeStyle = "#ffffff";
-        ctx.shadowColor = "#c084fc";
-        ctx.shadowBlur = 16;
-        ctx.lineWidth = 3.5 * (1 - progress);
-
+      case 'merlion_statue': // 新加坡：魚尾獅噴泉像
+        ctx.fillStyle = '#e2e8f0';
         ctx.beginPath();
-        ctx.moveTo(strike.x, 0);
-        for (const pt of strike.points) {
-          ctx.lineTo(pt.x, pt.y);
-        }
-        ctx.lineTo(strike.targetX, strike.targetY);
+        ctx.moveTo(-6, 10);
+        ctx.quadraticCurveTo(-8, -4, -1, -14);
+        ctx.quadraticCurveTo(6, -8, 4, 10);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(3, -10);
+        ctx.quadraticCurveTo(12, -8, 15, 6);
         ctx.stroke();
+        break;
 
-        ctx.fillStyle = `rgba(192, 132, 252, ${0.8 * (1 - progress)})`;
+      case 'taipei_101': // 台灣：台北 101 竹節摩天大樓
+        ctx.fillStyle = '#0ea5e9';
+        ctx.fillRect(-10, 4, 20, 8);
+        for (let tier = 0; tier < 4; tier++) {
+          const ty = -2 - tier * 5;
+          const tw = 14 - tier * 1.2;
+          ctx.fillStyle = tier % 2 === 0 ? '#38bdf8' : '#0284c7';
+          ctx.beginPath();
+          ctx.moveTo(-tw / 2, ty + 5);
+          ctx.lineTo(-tw / 2 - 2, ty);
+          ctx.lineTo(tw / 2 + 2, ty);
+          ctx.lineTo(tw / 2, ty + 5);
+          ctx.closePath();
+          ctx.fill();
+        }
+        ctx.strokeStyle = '#fde047';
+        ctx.lineWidth = 1.8;
         ctx.beginPath();
-        ctx.arc(strike.targetX, strike.targetY, (progress * 25), 0, Math.PI * 2);
-        ctx.fill();
-      }
+        ctx.moveTo(0, -22); ctx.lineTo(0, -30);
+        ctx.stroke();
+        break;
 
-    } else if (fx.type === 'nova') {
-      const r = progress * 190;
-      ctx.strokeStyle = `rgba(244, 63, 94, ${1 - progress})`;
-      ctx.shadowColor = "#ef4444";
-      ctx.shadowBlur = 20;
-      ctx.lineWidth = 5 * (1 - progress);
-      ctx.beginPath();
-      ctx.arc(fx.x, fx.y, r, 0, Math.PI * 2);
-      ctx.stroke();
-
-      for (const p of fx.particles) {
-        p.x += Math.cos(p.angle) * p.speed;
-        p.y += Math.sin(p.angle) * p.speed;
-        ctx.fillStyle = `rgba(253, 224, 71, ${1 - progress})`;
+      case 'kor_palace': // 韓國：景福宮雙層歇山殿樓
+        ctx.fillStyle = '#cbd5e1';
+        ctx.fillRect(-14, 3, 28, 7);
+        ctx.fillStyle = '#ef4444';
+        ctx.fillRect(-10, -4, 20, 7);
+        ctx.fillStyle = '#1e293b';
         ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size * (1 - progress), 0, Math.PI * 2);
+        ctx.moveTo(-17, -4); ctx.lineTo(0, -14); ctx.lineTo(17, -4);
+        ctx.closePath();
         ctx.fill();
-      }
+        ctx.strokeStyle = '#34d399';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        break;
 
-    } else if (fx.type === 'blackhole') {
-      const cx = fx.x;
-      const cy = fx.y;
-
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.rotate(time * 6);
-      ctx.strokeStyle = `rgba(168, 85, 247, ${1 - progress * 0.4})`;
-      ctx.shadowColor = "#a855f7";
-      ctx.shadowBlur = 24;
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(0, 0, 32 + Math.sin(time * 10) * 4, 0, Math.PI * 2);
-      ctx.stroke();
-
-      ctx.fillStyle = "#090514";
-      ctx.beginPath();
-      ctx.arc(0, 0, 24, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-
-      for (const p of fx.particles) {
-        const ang = Math.atan2(cy - p.y, cx - p.x);
-        p.x += Math.cos(ang) * 5;
-        p.y += Math.sin(ang) * 5;
-        ctx.fillStyle = `rgba(216, 180, 254, ${1 - progress})`;
+      case 'jp_torii': // 日本：嚴島海上鳥居
+        ctx.fillStyle = '#ef4444';
+        ctx.fillRect(-11, -14, 3.5, 25);
+        ctx.fillRect(7.5, -14, 3.5, 25);
+        ctx.fillRect(-14, -8, 28, 3);
+        ctx.fillStyle = '#dc2626';
         ctx.beginPath();
-        ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+        ctx.moveTo(-17, -16);
+        ctx.quadraticCurveTo(0, -13, 17, -16);
+        ctx.lineTo(15, -12);
+        ctx.lineTo(-15, -12);
+        ctx.closePath();
         ctx.fill();
-      }
+        ctx.fillStyle = '#1e293b';
+        ctx.fillRect(-2, -13, 4, 5);
+        break;
+
+      case 'jp_pagoda':
+      case 'pagoda_temple': // 亞洲：飛簷五重塔 / 東方廟宇
+        ctx.fillStyle = '#cbd5e1';
+        ctx.fillRect(-12, 2, 24, 9);
+        for (let floor = 0; floor < 3; floor++) {
+          const fy = -2 - floor * 7;
+          const fw = 28 - floor * 5;
+          ctx.fillStyle = '#f59e0b';
+          ctx.beginPath();
+          ctx.moveTo(-fw / 2, fy + 3);
+          ctx.quadraticCurveTo(0, fy + 1, fw / 2, fy + 3);
+          ctx.lineTo(fw / 2 - 4, fy - 2);
+          ctx.lineTo(-fw / 2 + 4, fy - 2);
+          ctx.closePath();
+          ctx.fill();
+        }
+        ctx.strokeStyle = '#fde047';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(0, -18); ctx.lineTo(0, -25); ctx.stroke();
+        break;
+
+      case 'th_stupa': // 東南亞：金頂佛塔
+        ctx.fillStyle = '#facc15';
+        ctx.fillRect(-13, 4, 26, 6);
+        ctx.beginPath();
+        ctx.arc(0, 4, 10, Math.PI, 0);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(-5, -4); ctx.lineTo(0, -24); ctx.lineTo(5, -4);
+        ctx.closePath();
+        ctx.fill();
+        break;
+
+      case 'in_tajmahal': // 印度：泰姬瑪哈陵
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(-12, -2, 24, 12);
+        ctx.beginPath();
+        ctx.arc(0, -4, 8, 0, Math.PI * 2);
+        ctx.fill();
+        // 兩側喚拜塔
+        ctx.fillRect(-16, -12, 2.5, 22);
+        ctx.fillRect(13.5, -12, 2.5, 22);
+        ctx.fillStyle = '#38bdf8';
+        ctx.fillRect(-3, 2, 6, 8);
+        break;
+
+      case 'fr_eiffel': // 法國：艾菲爾鐵塔
+        ctx.strokeStyle = '#fbbf24';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-14, 11); ctx.quadraticCurveTo(-4, -4, 0, -24);
+        ctx.moveTo(14, 11);  ctx.quadraticCurveTo(4, -4, 0, -24);
+        ctx.moveTo(-9, 2);   ctx.lineTo(9, 2);
+        ctx.moveTo(-5, -8);  ctx.lineTo(5, -8);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(0, 11, 6, Math.PI, 0);
+        ctx.stroke();
+        break;
+
+      case 'eg_pyramid': // 埃及：吉薩金字塔
+        ctx.fillStyle = '#eab308';
+        ctx.beginPath();
+        ctx.moveTo(-17, 11);
+        ctx.lineTo(0, -18);
+        ctx.lineTo(5, 11);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#a16207';
+        ctx.beginPath();
+        ctx.moveTo(0, -18);
+        ctx.lineTo(17, 11);
+        ctx.lineTo(5, 11);
+        ctx.closePath();
+        ctx.fill();
+        break;
+
+      case 'obelisk_monument': // 非洲/古文明：方尖碑紀念柱
+        ctx.fillStyle = '#d97706';
+        ctx.fillRect(-8, 5, 16, 6);
+        ctx.fillStyle = '#f59e0b';
+        ctx.beginPath();
+        ctx.moveTo(-5, 5);
+        ctx.lineTo(-3, -18);
+        ctx.lineTo(0, -24);
+        ctx.lineTo(3, -18);
+        ctx.lineTo(5, 5);
+        ctx.closePath();
+        ctx.fill();
+        break;
+
+      case 'islamic_mosque': // 中東/伊斯蘭世界：圓頂清真寺與宣禮塔
+        ctx.fillStyle = '#e2e8f0';
+        ctx.fillRect(-11, -1, 22, 11);
+        ctx.fillStyle = '#34d399';
+        ctx.beginPath();
+        ctx.arc(0, -2, 8, Math.PI, 0);
+        ctx.fill();
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(-15, -14, 3, 24);
+        ctx.fillRect(12, -14, 3, 24);
+        break;
+
+      case 'ziggurat_step': // 美索不達米亞/中亞：巴比倫階梯神廟
+        ctx.fillStyle = '#b45309';
+        ctx.fillRect(-16, 3, 32, 7);
+        ctx.fillStyle = '#d97706';
+        ctx.fillRect(-12, -4, 24, 7);
+        ctx.fillStyle = '#f59e0b';
+        ctx.fillRect(-7, -11, 14, 7);
+        break;
+
+      case 'au_opera': // 澳洲：雪梨歌劇院風帆
+        ctx.fillStyle = '#f8fafc';
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 1;
+        for (let s = 0; s < 3; s++) {
+          const sx = -12 + s * 8;
+          const sh = 18 - s * 3;
+          ctx.beginPath();
+          ctx.moveTo(sx, 10);
+          ctx.quadraticCurveTo(sx + 2, 10 - sh, sx + 12, 10 - sh + 4);
+          ctx.lineTo(sx + 9, 10);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+        }
+        break;
+
+      case 'it_colosseum': // 義大利：羅馬競技場
+        ctx.fillStyle = '#d6d3d1';
+        ctx.fillRect(-16, -6, 32, 17);
+        ctx.fillStyle = '#a8a29e';
+        ctx.fillRect(-16, -6, 18, 8);
+        ctx.fillStyle = '#0f172a';
+        for (let ax = -12; ax <= 9; ax += 7) {
+          ctx.beginPath();
+          ctx.arc(ax + 1.5, 4, 2, Math.PI, 0);
+          ctx.fillRect(ax - 0.5, 4, 4, 6);
+          ctx.fill();
+        }
+        break;
+
+      case 'roman_pillar': // 古希臘/羅馬：帕德嫩神殿多立克石柱群
+        ctx.fillStyle = '#e2e8f0';
+        ctx.fillRect(-15, 6, 30, 4);
+        ctx.fillRect(-12, -10, 4, 16);
+        ctx.fillRect(-2, -10, 4, 16);
+        ctx.fillRect(8, -10, 4, 16);
+        ctx.fillStyle = '#cbd5e1';
+        ctx.beginPath();
+        ctx.moveTo(-16, -10); ctx.lineTo(0, -19); ctx.lineTo(16, -10);
+        ctx.closePath();
+        ctx.fill();
+        break;
+
+      case 'cn_greatwall': // 中國：萬里長城烽火台
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillRect(-14, -6, 28, 17);
+        for (let bx = -14; bx <= 10; bx += 6) {
+          ctx.fillRect(bx, -10, 4, 4);
+        }
+        const flicker = Math.sin(globalTime * 8) * 2;
+        ctx.fillStyle = '#f97316';
+        ctx.beginPath();
+        ctx.arc(0, -13, 4 + flicker * 0.3, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+
+      case 'us_liberty': // 美國：自由女神火炬台
+        ctx.fillStyle = '#64748b';
+        ctx.fillRect(-10, 2, 20, 9);
+        ctx.fillStyle = '#2dd4bf';
+        ctx.fillRect(-6, -12, 12, 14);
+        ctx.strokeStyle = '#5eead4';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(-6, -12); ctx.lineTo(-10, -17);
+        ctx.moveTo(0, -12);  ctx.lineTo(0, -19);
+        ctx.moveTo(6, -12);  ctx.lineTo(10, -17);
+        ctx.stroke();
+        ctx.fillStyle = '#facc15';
+        ctx.beginPath();
+        ctx.arc(10, -18, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+        break;
+
+      case 'br_christ': // 巴西/南美：救世基督像聖壇
+        ctx.fillStyle = '#64748b';
+        ctx.fillRect(-7, 3, 14, 7);
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(-3, -15, 6, 18);
+        ctx.fillRect(-14, -12, 28, 3.5);
+        break;
+
+      case 'mayan_temple': // 拉丁美洲：瑪雅庫庫爾坎階梯神殿
+        ctx.fillStyle = '#10b981';
+        ctx.fillRect(-16, 4, 32, 6);
+        ctx.fillStyle = '#059669';
+        ctx.fillRect(-12, -2, 24, 6);
+        ctx.fillStyle = '#047857';
+        ctx.fillRect(-8, -8, 16, 6);
+        ctx.fillStyle = '#a7f3d0';
+        ctx.fillRect(-4, -14, 8, 6);
+        break;
+
+      case 'ca_cntower': // 加拿大：多倫多 CN 電視塔
+        ctx.fillStyle = '#cbd5e1';
+        ctx.beginPath();
+        ctx.moveTo(-6, 10); ctx.lineTo(-1.5, -24); ctx.lineTo(1.5, -24); ctx.lineTo(6, 10);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = '#f43f5e';
+        ctx.fillRect(-7, -14, 14, 4);
+        break;
+
+      case 'uk_bigben': // 英國：倫敦大笨鐘鐘樓
+        ctx.fillStyle = '#d97706';
+        ctx.fillRect(-8, -14, 16, 25);
+        ctx.fillStyle = '#fef3c7';
+        ctx.beginPath(); ctx.arc(0, -7, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#334155';
+        ctx.beginPath();
+        ctx.moveTo(-9, -14); ctx.lineTo(0, -26); ctx.lineTo(9, -14);
+        ctx.closePath();
+        ctx.fill();
+        break;
+
+      case 'ru_kremlin': // 俄羅斯：聖瓦西里洋蔥頭教堂
+        ctx.fillStyle = '#f43f5e';
+        ctx.fillRect(-13, -2, 26, 13);
+        const domes = [{ dx: -9, h: 12, c: '#38bdf8' }, { dx: 0, h: 18, c: '#facc15' }, { dx: 9, h: 12, c: '#34d399' }];
+        domes.forEach(dm => {
+          ctx.fillStyle = dm.c;
+          ctx.beginPath();
+          ctx.arc(dm.dx, -4, 4.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.moveTo(dm.dx - 3, -6); ctx.lineTo(dm.dx, -4 - dm.h * 0.6); ctx.lineTo(dm.dx + 3, -6);
+          ctx.fill();
+        });
+        break;
+
+      case 'skyscraper_twin': // 美洲/現代都市：摩天雙子星大樓
+        ctx.fillStyle = '#0284c7';
+        ctx.fillRect(-13, -18, 11, 29);
+        ctx.fillStyle = '#38bdf8';
+        ctx.fillRect(2, -13, 11, 24);
+        ctx.fillStyle = '#bae6fd';
+        for (let wy = -14; wy <= 6; wy += 5) {
+          ctx.fillRect(-10, wy, 5, 2);
+          if (wy >= -10) ctx.fillRect(5, wy, 5, 2);
+        }
+        break;
+
+      case 'viking_hall': // 北歐：維京木板尖頂教堂
+        ctx.fillStyle = '#78350f';
+        ctx.fillRect(-11, -3, 22, 13);
+        ctx.fillStyle = '#92400e';
+        ctx.beginPath();
+        ctx.moveTo(-14, -3); ctx.lineTo(0, -16); ctx.lineTo(14, -3);
+        ctx.closePath();
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(-6, -13); ctx.lineTo(0, -24); ctx.lineTo(6, -13);
+        ctx.closePath();
+        ctx.fill();
+        break;
+
+      case 'coral_totem':
+      case 'maldives_bungalow': // 大洋洲：珊瑚巨石柱 / 海島水上屋
+        ctx.fillStyle = '#14b8a6';
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(-10, -14, 20, 25, 4);
+        else ctx.rect(-10, -14, 20, 25);
+        ctx.fill();
+        ctx.strokeStyle = '#5eead4';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(-6, -9, 12, 5);
+        ctx.strokeRect(-5, 0, 10, 4);
+        break;
+
+      case 'polar_beacon': // 極地/寒冷帶：科學雷達觀測塔
+        ctx.fillStyle = '#64748b';
+        ctx.fillRect(-9, -4, 18, 15);
+        ctx.fillStyle = '#e2e8f0';
+        ctx.beginPath();
+        ctx.arc(0, -6, 8, Math.PI, 0);
+        ctx.fill();
+        const wave = (globalTime * 15) % 10;
+        ctx.strokeStyle = `rgba(56, 189, 248, ${1 - wave / 10})`;
+        ctx.beginPath();
+        ctx.arc(0, -14, 3 + wave, Math.PI * 1.15, Math.PI * 1.85);
+        ctx.stroke();
+        break;
+
+      case 'eu_castle':
+      default: // 歐陸：中世紀堡壘雙塔
+        ctx.fillStyle = '#64748b';
+        ctx.fillRect(-14, -8, 9, 19);
+        ctx.fillRect(5, -8, 9, 19);
+        ctx.fillRect(-5, -2, 10, 13);
+        ctx.fillStyle = '#38bdf8';
+        ctx.beginPath();
+        ctx.moveTo(-15, -8); ctx.lineTo(-9.5, -18); ctx.lineTo(-4, -8);
+        ctx.moveTo(4, -8);   ctx.lineTo(9.5, -18);  ctx.lineTo(15, -8);
+        ctx.fill();
+        break;
     }
 
     ctx.restore();
-
-    if (fx.timer <= 0) {
-      fxList.splice(i, 1);
-    }
   }
 }
 
-function drawObstacles(ctx, obstacles, continent, time) {
-  for (const obs of obstacles) {
+/* ==================== 戰場磁鐵與 EMP 炸彈掉落物 ==================== */
+function drawBattlePickups(ctx, pickups, globalTime) {
+  if (!pickups) return;
+  for (const bp of pickups) {
+    const bob = Math.sin(globalTime * 5) * 3;
     ctx.save();
-    ctx.translate(obs.x, obs.y);
-
-    if (continent === 'EU') {
-      ctx.fillStyle = '#1e293b';
-      ctx.fillRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height);
-      ctx.strokeStyle = '#38bdf8';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height);
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+    ctx.translate(bp.x, bp.y + bob);
+    if (bp.type === 'magnet') {
+      ctx.fillStyle = '#ef4444';
       ctx.beginPath();
-      ctx.moveTo(-obs.width / 4, -obs.height / 2); ctx.lineTo(-obs.width / 4, obs.height / 2);
-      ctx.moveTo(obs.width / 4, -obs.height / 2); ctx.lineTo(obs.width / 4, obs.height / 2);
-      ctx.stroke();
-    } else if (continent === 'AM') {
-      ctx.fillStyle = '#261118';
-      ctx.fillRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height);
+      ctx.arc(0, 0, 9, Math.PI, 0);
+      ctx.lineWidth = 4;
       ctx.strokeStyle = '#ef4444';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height);
-      ctx.fillStyle = '#b91c1c';
-      ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
-    } else if (continent === 'AS') {
-      ctx.fillStyle = '#06261c';
-      ctx.fillRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height);
-      ctx.strokeStyle = '#10b981';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height);
-      ctx.fillStyle = '#34d399';
-      ctx.shadowColor = '#10b981'; ctx.shadowBlur = 8;
-      ctx.fillRect(-6, -6, 12, 12);
-    } else if (continent === 'OC') {
-      ctx.fillStyle = '#083344';
-      ctx.beginPath();
-      ctx.roundRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height, 8);
-      ctx.fill();
-      ctx.strokeStyle = '#06b6d4';
-      ctx.lineWidth = 2;
       ctx.stroke();
-    } else if (continent === 'AF') {
-      ctx.fillStyle = '#27170a';
-      ctx.fillRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height);
-      ctx.strokeStyle = '#f59e0b';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height);
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fillRect(-10, 0, 4, 5);
+      ctx.fillRect(6, 0, 4, 5);
     } else {
-      ctx.fillStyle = '#1e1b4b';
-      ctx.fillRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height);
-      ctx.strokeStyle = '#c084fc';
+      ctx.fillStyle = '#f59e0b';
+      ctx.beginPath();
+      ctx.arc(0, 0, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#fef08a';
       ctx.lineWidth = 2;
-      ctx.strokeRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height);
+      ctx.stroke();
     }
     ctx.restore();
   }
 }
 
-function drawBattlePickups(ctx, pickups, time) {
-  for (const p of pickups) {
-    ctx.save();
-    ctx.translate(p.x, p.y + Math.sin(time * 5) * 3);
-
-    if (p.type === 'magnet') {
-      ctx.shadowColor = "#38bdf8"; ctx.shadowBlur = 12;
-      ctx.strokeStyle = "#38bdf8"; ctx.lineWidth = 3.5;
-      ctx.beginPath();
-      ctx.arc(0, -2, 7, Math.PI, 0, true);
-      ctx.lineTo(7, 6);
-      ctx.moveTo(-7, -2);
-      ctx.lineTo(-7, 6);
-      ctx.stroke();
-      ctx.fillStyle = "#ef4444";
-      ctx.fillRect(-9, 4, 4, 4);
-      ctx.fillRect(5, 4, 4, 4);
-    } else if (p.type === 'bomb') {
-      ctx.shadowColor = "#ef4444"; ctx.shadowBlur = 14;
-      ctx.fillStyle = "#b91c1c";
-      ctx.beginPath(); ctx.arc(0, 2, 8, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = "#fde047"; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(3, -11); ctx.stroke();
-      ctx.fillStyle = "#fde047";
-      ctx.beginPath(); ctx.arc(3, -11, 2.5, 0, Math.PI * 2); ctx.fill();
-    }
-    ctx.restore();
-  }
-}
-
-function drawContinentBackground(ctx, continent, width, height) {
-  const continentColors = {
-    EU: "rgba(2, 132, 199, 0.08)",
-    OC: "rgba(6, 182, 212, 0.09)",
-    AM: "rgba(220, 38, 38, 0.07)",
-    AS: "rgba(16, 185, 129, 0.08)",
-    AF: "rgba(217, 119, 6, 0.08)",
-    GL: "rgba(124, 58, 237, 0.08)"
-  };
-
-  ctx.strokeStyle = continentColors[continent] || "rgba(14, 165, 233, 0.06)";
-  ctx.lineWidth = 1;
-  for (let x = 0; x < width; x += 40) {
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
-  }
-  for (let y = 0; y < height; y += 40) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
-  }
-}
-
-function drawChestItem(ctx, chest, time) {
-  if (!chest.active) return;
-  ctx.save();
-  ctx.translate(chest.x, chest.y);
-  ctx.translate(0, Math.sin(time * 3) * 3);
-
-  ctx.fillStyle = "rgba(234, 179, 8, 0.15)";
-  ctx.beginPath();
-  ctx.moveTo(-16, 12); ctx.lineTo(16, 12); ctx.lineTo(24, -30); ctx.lineTo(-24, -30);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.shadowColor = "#eab308"; ctx.shadowBlur = 14;
-  ctx.fillStyle = "#854d0e";
-  ctx.fillRect(-12, -8, 24, 16);
-  ctx.strokeStyle = "#fde047"; ctx.lineWidth = 1.5;
-  ctx.strokeRect(-12, -8, 24, 16);
-  ctx.fillStyle = "#facc15";
-  ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI * 2); ctx.fill();
-
-  ctx.font = "800 10px monospace";
-  ctx.fillStyle = "#fde047";
-  ctx.textAlign = "center";
-  ctx.fillText("〔 碰觸開箱 〕", 0, -14);
-  ctx.restore();
-}
-
-function drawPet(ctx, pet, p, time) {
-  if (!pet || !pet.active) return;
-  ctx.save();
-  ctx.translate(pet.x, pet.y);
-
-  if (pet.type === 'atk') {
-    ctx.fillStyle = "#38bdf8";
-    ctx.shadowColor = "#0284c7"; ctx.shadowBlur = 10;
-    ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = "#7dd3fc"; ctx.lineWidth = 1.5;
-    for (let i = 0; i < 3; i++) {
-      const a = time * 4 + i * (Math.PI * 2 / 3);
-      ctx.beginPath();
-      ctx.moveTo(Math.cos(a) * 4, Math.sin(a) * 4);
-      ctx.lineTo(Math.cos(a) * 10, Math.sin(a) * 10);
-      ctx.stroke();
-    }
-  } else if (pet.type === 'heal') {
-    ctx.fillStyle = "rgba(52, 211, 153, 0.85)";
-    ctx.shadowColor = "#10b981"; ctx.shadowBlur = 12;
-    ctx.beginPath(); ctx.arc(0, -2, 7, Math.PI, 0); ctx.fill();
-    ctx.strokeStyle = "#a7f3d0"; ctx.lineWidth = 1;
-    for (let t = -2; t <= 2; t += 2) {
-      ctx.beginPath();
-      ctx.moveTo(t * 2, -2); ctx.lineTo(t * 2 + Math.sin(time * 3 + t) * 3, 8);
-      ctx.stroke();
-    }
-  } else if (pet.type === 'pull') {
-    ctx.fillStyle = "#1e1b4b";
-    ctx.beginPath(); ctx.arc(0, 0, 6, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = "#c084fc"; ctx.shadowColor = "#a855f7"; ctx.shadowBlur = 10; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(0, 0, 9 + Math.sin(time * 6) * 2, 0, Math.PI * 2); ctx.stroke();
-  }
-  ctx.restore();
-}
-
+/* ==================== 敵軍海嗣與 Boss 繪製 ==================== */
 function drawEnemies(ctx, enemies, boss) {
   for (const e of enemies) {
     ctx.save();
     ctx.translate(e.x, e.y);
+    const s = 1 + Math.sin(e.pulse) * 0.08;
+    ctx.scale(s, s);
 
     if (e.kind === 'shark') {
-      ctx.fillStyle = '#0f766e';
+      ctx.fillStyle = '#0284c7';
       ctx.beginPath();
-      ctx.ellipse(0, 0, e.radius * 1.3, e.radius * 0.6, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, e.radius + 3, e.radius - 2, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = '#14b8a6';
-      ctx.beginPath();
-      ctx.moveTo(-2, -e.radius * 0.6);
-      ctx.lineTo(2, -e.radius * 1.2);
-      ctx.lineTo(6, -e.radius * 0.4);
-      ctx.fill();
+      ctx.fillStyle = '#f43f5e';
+      ctx.beginPath(); ctx.arc(4, -2, 2, 0, Math.PI * 2); ctx.fill();
     } else if (e.kind === 'crab') {
-      ctx.fillStyle = '#b45309';
-      ctx.beginPath(); ctx.arc(0, 0, e.radius, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2; ctx.stroke();
-    } else if (e.kind === 'ice_jelly') {
-      ctx.fillStyle = 'rgba(56, 189, 248, 0.85)';
-      ctx.shadowColor = '#38bdf8'; ctx.shadowBlur = 8;
-      ctx.beginPath(); ctx.arc(0, -2, e.radius, Math.PI, 0); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#ea580c';
+      ctx.beginPath();
+      ctx.arc(0, 0, e.radius + 1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fde047';
+      ctx.beginPath(); ctx.arc(-3, -3, 2, 0, Math.PI * 2); ctx.arc(3, -3, 2, 0, Math.PI * 2); ctx.fill();
     } else {
-      ctx.fillStyle = '#ef4444';
-      ctx.beginPath(); ctx.ellipse(0, 0, e.radius * 1.2, e.radius * 0.7, 0, 0, Math.PI * 2); ctx.fill();
-      const tailWiggle = Math.sin(e.pulse * 2) * 5;
-      ctx.beginPath(); ctx.moveTo(-e.radius * 0.8, 0); ctx.lineTo(-e.radius * 1.5, -5 + tailWiggle); ctx.lineTo(-e.radius * 1.5, 5 + tailWiggle); ctx.fill();
+      ctx.fillStyle = '#6366f1';
+      ctx.beginPath();
+      ctx.arc(0, 0, e.radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#a5b4fc';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
     }
     ctx.restore();
   }
@@ -565,59 +575,177 @@ function drawEnemies(ctx, enemies, boss) {
   if (boss && boss.active) {
     ctx.save();
     ctx.translate(boss.x, boss.y);
-    const isApex = boss.isApex;
-    ctx.shadowColor = isApex ? '#ef4444' : '#f59e0b';
-    ctx.shadowBlur = isApex ? 28 : 16;
-    ctx.fillStyle = isApex ? '#7f1d1d' : '#854d0e';
+    const pulseR = boss.radius + Math.sin(boss.pulse * 2) * 3;
+
+    const aura = ctx.createRadialGradient(0, 0, boss.radius * 0.3, 0, 0, pulseR + 14);
+    aura.addColorStop(0, boss.isApex ? 'rgba(244, 63, 94, 0.7)' : 'rgba(245, 158, 11, 0.6)');
+    aura.addColorStop(1, 'rgba(2, 6, 23, 0)');
+    ctx.fillStyle = aura;
+    ctx.beginPath(); ctx.arc(0, 0, pulseR + 14, 0, Math.PI * 2); ctx.fill();
+
+    ctx.fillStyle = boss.isApex ? '#9f1239' : '#b45309';
     ctx.beginPath(); ctx.arc(0, 0, boss.radius, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = boss.isApex ? '#fb7185' : '#fcd34d';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // Boss 雙眼
+    ctx.fillStyle = '#fef08a';
+    ctx.beginPath();
+    ctx.arc(-10, -5, 4.5, 0, Math.PI * 2);
+    ctx.arc(10, -5, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+/* ==================== Boss 彈幕繪製 ==================== */
+function drawBossBullets(ctx, bossBullets) {
+  if (!bossBullets) return;
+  for (const bb of bossBullets) {
+    ctx.save();
+    ctx.fillStyle = bb.isApex ? '#f43f5e' : '#fb923c';
+    ctx.beginPath();
+    ctx.arc(bb.x, bb.y, bb.radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(bb.x, bb.y, bb.radius * 0.45, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+/* ==================== 法器技能特效 ==================== */
+function drawArtifactSkillEffects(ctx, effects, globalTime) {
+  if (!effects) return;
+  for (let i = effects.length - 1; i >= 0; i--) {
+    const ef = effects[i];
+    ef.timer--;
+    const progress = 1 - (ef.timer / ef.maxDuration);
 
     ctx.save();
-    ctx.rotate(boss.pulse * 0.5);
-    ctx.strokeStyle = isApex ? '#f87171' : '#fde047';
-    ctx.lineWidth = isApex ? 4 : 2.5;
-    const spokes = isApex ? 6 : 4;
-    for (let a = 0; a < Math.PI * 2; a += Math.PI * 2 / spokes) {
-      ctx.beginPath(); ctx.arc(Math.cos(a) * 20, Math.sin(a) * 20, 9, 0, Math.PI * 2); ctx.stroke();
+    if (ef.type === 'nova') {
+      const r = 30 + progress * 155;
+      ctx.strokeStyle = `rgba(249, 115, 22, ${1 - progress})`;
+      ctx.lineWidth = 5 * (1 - progress);
+      ctx.beginPath(); ctx.arc(ef.x, ef.y, r, 0, Math.PI * 2); ctx.stroke();
+      for (const p of ef.particles) {
+        p.x += Math.cos(p.angle) * p.speed;
+        p.y += Math.sin(p.angle) * p.speed;
+        ctx.fillStyle = `rgba(250, 204, 21, ${1 - progress})`;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+      }
+    } else if (ef.type === 'freeze') {
+      const r = 40 + progress * 220;
+      ctx.fillStyle = `rgba(56, 189, 248, ${0.22 * (1 - progress)})`;
+      ctx.beginPath(); ctx.arc(ef.x, ef.y, r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = `rgba(186, 230, 253, ${1 - progress})`;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    } else if (ef.type === 'thunder') {
+      ctx.strokeStyle = `rgba(250, 204, 21, ${1 - progress})`;
+      ctx.lineWidth = 3;
+      for (const st of ef.strikes) {
+        ctx.beginPath();
+        ctx.moveTo(st.x, 0);
+        for (const pt of st.points) ctx.lineTo(pt.x, pt.y);
+        ctx.stroke();
+      }
+    } else if (ef.type === 'blackhole') {
+      const r = 90 * (1 - progress * 0.5);
+      ctx.fillStyle = `rgba(88, 28, 135, ${0.5 * (1 - progress)})`;
+      ctx.beginPath(); ctx.arc(ef.x, ef.y, r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = `rgba(192, 132, 252, ${1 - progress})`;
+      ctx.lineWidth = 3;
+      ctx.stroke();
     }
     ctx.restore();
 
-    ctx.fillStyle = isApex ? '#ef4444' : '#eab308';
-    ctx.beginPath(); ctx.arc(0, 0, 14 + Math.sin(boss.pulse * 3) * 3, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
+    if (ef.timer <= 0) effects.splice(i, 1);
   }
 }
 
-function drawBossBullets(ctx, bossBullets) {
-  for (const b of bossBullets) {
-    ctx.save();
-    ctx.fillStyle = b.isApex ? '#f87171' : '#fde047';
-    ctx.shadowColor = b.isApex ? '#ef4444' : '#eab308';
-    ctx.shadowBlur = 10;
-    ctx.beginPath(); ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2); ctx.fill();
-    ctx.restore();
-  }
+/* ==================== 寶箱掉落物繪製 ==================== */
+function drawChestItem(ctx, chest, globalTime) {
+  if (!chest || !chest.active) return;
+  const bob = Math.sin(globalTime * 4) * 4;
+  ctx.save();
+  ctx.translate(chest.x, chest.y + bob);
+
+  ctx.fillStyle = chest.isApex ? '#eab308' : '#0284c7';
+  ctx.strokeStyle = '#fef08a';
+  ctx.lineWidth = 2;
+  ctx.fillRect(-14, -10, 28, 20);
+  ctx.strokeRect(-14, -10, 28, 20);
+  ctx.fillStyle = '#fef08a';
+  ctx.fillRect(-3, -3, 6, 6);
+  ctx.restore();
 }
 
+/* ==================== 衝刺殘影繪製 ==================== */
 function drawDashGhosts(ctx, ghosts) {
-  for (let i = 0; i < ghosts.length; i++) {
-    const g = ghosts[i];
+  if (!ghosts) return;
+  for (const g of ghosts) {
     ctx.save();
     ctx.translate(g.x, g.y);
-    if (g.facing < 0) ctx.scale(-1, 1);
     ctx.fillStyle = `rgba(56, 189, 248, ${g.alpha * 0.45})`;
-    ctx.shadowColor = "#38bdf8"; ctx.shadowBlur = 10 * g.alpha;
-    ctx.beginPath(); ctx.arc(0, -10, 7, 0, Math.PI * 2); ctx.fill();
-    ctx.fillRect(-6, -6, 12, 16);
+    ctx.beginPath();
+    ctx.arc(0, 0, 13, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
   }
 }
 
-function drawInventoryPreview(ctx, p, animTime) {
-  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-  const mockPlayer = { ...p, x: 0, y: 0, vx: 0, vy: 0, isMoving: false, attackTimer: 0, isDashing: false, facing: 1, animTimer: animTime };
+/* ==================== 玩家機甲紙娃娃繪製 ==================== */
+function drawPlayerPaperdoll(ctx, player) {
   ctx.save();
-  ctx.translate(ctx.canvas.width / 2, ctx.canvas.height / 2 + 10);
-  ctx.scale(2.2, 2.2);
-  drawPlayerPaperdoll(pctx, mockPlayer);
+  ctx.translate(player.x, player.y);
+
+  // 腳下光環
+  ctx.strokeStyle = 'rgba(56, 189, 248, 0.5)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.ellipse(0, 12, 13, 5, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  const walkOffset = player.isMoving ? Math.sin(player.animTimer * 4) * 2.5 : 0;
+
+  // 身體裝甲
+  ctx.fillStyle = (player.equipment && player.equipment.armor) ? '#0ea5e9' : '#334155';
+  ctx.beginPath();
+  ctx.arc(0, walkOffset, player.radius - 1, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // 頭盔護目鏡
+  ctx.fillStyle = '#38bdf8';
+  ctx.fillRect(player.facing > 0 ? 2 : -10, -5 + walkOffset, 8, 4);
+
+  // 手持遠程武器示意
+  ctx.strokeStyle = '#facc15';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(player.facing * 6, 2 + walkOffset);
+  ctx.lineTo(player.facing * 18, 2 + walkOffset);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/* ==================== 護符隨行寵物繪製 ==================== */
+function drawPet(ctx, pet, player, globalTime) {
+  if (!pet || !pet.active) return;
+  ctx.save();
+  ctx.translate(pet.x, pet.y);
+  ctx.fillStyle = pet.type === 'atk' ? '#f43f5e' : (pet.type === 'heal' ? '#34d399' : '#c084fc');
+  ctx.beginPath();
+  ctx.arc(0, 0, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
   ctx.restore();
 }
