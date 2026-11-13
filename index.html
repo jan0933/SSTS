@@ -100,7 +100,7 @@
     </div>
   </div>
 
-  <!-- 人體工學紙娃娃裝備面板 -->
+  <!-- 人體工學紙娃娃裝備面板 (含角色總戰力面板) -->
   <div id="inventory-modal" class="modal-backdrop">
     <div class="paperdoll-inv-container">
       <div class="inv-header">
@@ -125,13 +125,13 @@
           <div class="doll-row mid-row">
             <div class="gear-slot weapon-slot" id="slot-weapon" onclick="selectSlotForEquip('weapon')">
               <span class="slot-label">遠程武器</span>
-              <span class="slot-val" id="val-weapon">斥候脈衝弓</span>
+              <span class="slot-val" id="val-weapon">新兵製式獵弓</span>
               <span class="slot-stars" id="star-weapon"></span>
               <span class="slot-affix" id="affix-weapon"></span>
             </div>
 
             <div class="doll-center-core">
-              <canvas id="preview-canvas" width="160" height="170"></canvas>
+              <canvas id="preview-canvas" width="140" height="135"></canvas>
               <div class="gear-slot armor-slot" id="slot-armor" onclick="selectSlotForEquip('armor')">
                 <span class="slot-label">胸部盔甲</span>
                 <span class="slot-val" id="val-armor">未裝備</span>
@@ -142,7 +142,7 @@
 
             <div class="gear-slot weapon-slot" id="slot-artifact" onclick="selectSlotForEquip('artifact')">
               <span class="slot-label">戰術法器</span>
-              <span class="slot-val" id="val-artifact">等離子爆裂核</span>
+              <span class="slot-val" id="val-artifact">基礎爆裂手雷核</span>
               <span class="slot-stars" id="star-artifact"></span>
               <span class="slot-affix" id="affix-artifact"></span>
             </div>
@@ -166,6 +166,23 @@
               <span class="slot-val" id="val-talisman">未裝備</span>
               <span class="slot-stars" id="star-talisman"></span>
               <span class="slot-affix" id="affix-talisman"></span>
+            </div>
+          </div>
+
+          <!-- 角色總屬性即時計算面板 -->
+          <div class="doll-total-stats-box" id="doll-total-stats-box">
+            <div class="stats-grid-row">
+              <span>⚔️ 總攻擊: <b id="stat-total-atk" style="color:#f87171;">30</b></span>
+              <span>❤️ 最大生命: <b id="stat-total-hp" style="color:#34d399;">100</b></span>
+              <span>👟 移速: <b id="stat-total-spd" style="color:#38bdf8;">2.80</b></span>
+            </div>
+            <div class="stats-grid-row">
+              <span>🛡️ 減傷: <b id="stat-total-def" style="color:#facc15;">0%</b></span>
+              <span>🏹 射速: <b id="stat-total-rate" style="color:#c084fc;">+0%</b></span>
+              <span>⚡ 衝刺CD: <b id="stat-total-dash" style="color:#fb923c;">-0%</b></span>
+            </div>
+            <div class="stats-affix-row" id="stat-active-affixes">
+              <span style="color:#64748b;">尚未覺醒 5★ 專屬詞條</span>
             </div>
           </div>
         </div>
