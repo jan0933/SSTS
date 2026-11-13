@@ -199,7 +199,7 @@ html, body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding-left: 76px; /* 避開左上角全螢幕按鈕 */
+  padding-left: 76px;
   border-bottom: 1px solid rgba(56, 189, 248, 0.2);
   padding-bottom: 6px;
 }
@@ -831,7 +831,7 @@ html, body {
 .exp-fill { background: linear-gradient(90deg, #0284c7, #38bdf8); width: 0%; }
 .hp-fill { background: linear-gradient(90deg, #059669, #34d399); width: 100%; }
 
-/* 虛擬搖桿與右側技能群 */
+/* 全螢幕浮動虛擬搖桿與右側技能群 */
 #joystick-base {
   display: none;
   position: fixed;
@@ -892,19 +892,66 @@ html, body {
   pointer-events: none;
 }
 
-/* ==================== 8. 升級、寶箱與勝負結算彈窗 ==================== */
+/* ==================== 8. 升級懸浮視窗、寶箱與勝負結算彈窗 ==================== */
+.upgrade-box-container {
+  width: min(92vw, 680px);
+  background: rgba(15, 23, 42, 0.96);
+  border: 1.5px solid #38bdf8;
+  border-radius: 14px;
+  padding: 14px 16px;
+  text-align: center;
+  box-shadow: 0 0 28px rgba(56, 189, 248, 0.35);
+}
+.upgrade-header-title {
+  font-size: 16px;
+  font-weight: 900;
+  color: #38bdf8;
+  letter-spacing: 2px;
+}
+.upgrade-header-sub {
+  font-size: 11px;
+  color: #94a3b8;
+  margin: 4px 0 12px;
+}
+.upgrade-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
 .upgrade-card {
-  width: min(88vw, 380px);
   background: #1e293b;
   border: 1.5px solid #38bdf8;
   border-radius: 10px;
-  padding: 10px 14px;
-  margin-bottom: 8px;
+  padding: 12px 10px;
   cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  transition: transform 0.12s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
-.upgrade-card:hover { background: #0f294a; }
-.up-title { font-size: 13px; font-weight: 900; color: #f8fafc; }
-.up-stat { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+.upgrade-card:hover {
+  background: #0f294a;
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.45);
+}
+.upgrade-card:active {
+  transform: scale(0.96);
+}
+.up-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+.up-title {
+  font-size: 12.5px;
+  font-weight: 900;
+  color: #f8fafc;
+}
+.up-stat {
+  font-size: 10.5px;
+  color: #94a3b8;
+  line-height: 1.35;
+}
 
 .chest-box-container {
   width: min(94vw, 680px);
