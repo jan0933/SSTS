@@ -1,5 +1,5 @@
 /**
- * SSTS - 戰鬥引擎、70件全裝備屬性實裝、四品階(白/藍/黃/橘)多詞條與雙手多點觸控 (game.js)
+ * SSTS - 戰鬥引擎、70件全裝備屬性實裝、四品階(白/藍/黃/橘)多詞條、雙手多點觸控與 iOS 全螢幕引導 (game.js)
  */
 
 let audioCtx = null;
@@ -22,9 +22,36 @@ function playTone(freq, type, duration, gainLevel = 0.08) {
   } catch(e){}
 }
 
-/* ==================== 手動全螢幕切換 ==================== */
+/* ==================== 裝置偵測與全螢幕切換 (含 iOS 引導與 PWA 自動隱藏) ==================== */
+function isIOSDevice() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+function isStandaloneMode() {
+  return window.navigator.standalone === true ||
+    window.matchMedia('(display-mode: standalone)').matches ||
+    window.matchMedia('(display-mode: fullscreen)').matches;
+}
+
 function toggleGlobalFullscreen() {
   const btn = document.getElementById('btn-global-fullscreen');
+
+  // iPhone / iPad Safari 系統限制不支援網頁 API 全螢幕，改為顯示操作引導
+  if (isIOSDevice()) {
+    if (isStandaloneMode()) {
+      alert("目前已處於 iOS 無邊框全螢幕應用程式模式！");
+    } else {
+      alert(
+        "📱 iPhone / iPad 全螢幕遊玩方式：\n\n" +
+        "1. 【最佳體驗】點擊下方「分享按鈕 (方框向上箭頭)」→ 選擇「加入主畫面」，再從桌面圖示開啟即可獲得 100% 無網址列全螢幕！\n\n" +
+        "2. 【快速隱藏】點擊網址列左側的「大小 / 閱讀器圖示」→ 選擇「隱藏工具列」。"
+      );
+    }
+    return;
+  }
+
+  // Android 與桌面瀏覽器執行標準全螢幕 API
   if (!document.fullscreenElement && !document.webkitFullscreenElement) {
     const elem = document.documentElement;
     if (elem.requestFullscreen) {
@@ -35,14 +62,14 @@ function toggleGlobalFullscreen() {
     if (screen.orientation && screen.orientation.lock) {
       screen.orientation.lock('landscape').catch(() => {});
     }
-    btn.innerText = "✖ 退出全螢幕";
+    if (btn) btn.innerText = "✖ 退出全螢幕";
   } else {
     if (document.exitFullscreen) {
       document.exitFullscreen().catch(() => {});
     } else if (document.webkitExitFullscreen) {
       document.webkitExitFullscreen();
     }
-    btn.innerText = "⛶ 全螢幕";
+    if (btn) btn.innerText = "⛶ 全螢幕";
   }
 }
 
@@ -574,8 +601,15 @@ function triggerArtifactSkill() {
   }
 }
 
-/* ==================== 多點觸控：右側動作按鈕即時綁定 ==================== */
-function bindActionButtons() {
+/* ==================== 頁面初始化：多點觸控按鈕綁定與 PWA 全螢幕按鈕隱藏 ==================== */
+function initUIControlsAndPWA() {
+  // 1. 若已從主畫面 (PWA Standalone) 啟動，自動隱藏右上角「全螢幕」按鈕
+  const fsBtn = document.getElementById('btn-global-fullscreen');
+  if (isStandaloneMode() && fsBtn) {
+    fsBtn.style.display = 'none';
+  }
+
+  // 2. 綁定右側動作按鈕多點觸控（touchstart 零延遲觸發，不干擾左手搖桿）
   const btnArtifact = document.getElementById('btn-act-artifact');
   const btnDash = document.getElementById('btn-act-dash');
 
@@ -606,7 +640,7 @@ function bindActionButtons() {
   }
 }
 
-window.addEventListener('DOMContentLoaded', bindActionButtons);
+window.addEventListener('DOMContentLoaded', initUIControlsAndPWA);
 
 /* ==================== 浮動搖桿 (支援雙手多點觸控隔離) ==================== */
 const joyBase = document.getElementById('joystick-base');
