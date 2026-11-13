@@ -1,5 +1,5 @@
 /**
- * SSTS - 戰鬥引擎、70件全裝備屬性實裝、四品階(白/藍/黃/橘)多詞條與等比座標映射 (game.js)
+ * SSTS - 戰鬥引擎、70件全裝備屬性實裝、四品階(白/藍/黃/橘)多詞條與極簡HUD (game.js)
  */
 
 let audioCtx = null;
@@ -220,9 +220,8 @@ const expBar = document.getElementById('exp-bar');
 const hpBar = document.getElementById('hp-bar');
 const txtExpVal = document.getElementById('txt-exp-val');
 const txtHpVal = document.getElementById('txt-hp-val');
-const txtLevel = document.getElementById('txt-level');
+const txtLevelPrefix = document.getElementById('txt-level-prefix');
 const txtCurrentCountry = document.getElementById('txt-current-country');
-const txtWeaponInfo = document.getElementById('txt-weapon-info');
 const txtKills = document.getElementById('txt-kills');
 
 const upgradeModal = document.getElementById('upgrade-modal');
@@ -262,12 +261,12 @@ const player = {
   vx: 0,
   vy: 0,
   radius: 14,
-  baseSpeed: 2.8, // 玩家基礎移速（不含裝備加成）
+  baseSpeed: 2.8,
   speed: 2.8,
   hp: 100,
   maxHp: 100,
   baseBonusDamage: 0,
-  gearDmgReduce: 0, // 裝備物理減傷比例 (0 ~ 0.75)
+  gearDmgReduce: 0,
   exp: 0,
   level: 1,
   nextExp: 5,
@@ -312,6 +311,20 @@ let battlePickups = [];
 let stageObstacles = [];
 let artifactEffects = [];
 
+function getKillThreshold() {
+  return (activeCountryStageId === 1 && activeSubstage < 5) ? 25 : 50;
+}
+
+function updateKillsDisplay() {
+  if (!txtKills) return;
+  const target = getKillThreshold();
+  if ((activeSubstage === 5 || activeSubstage === 10) && boss.active) {
+    txtKills.innerText = `⚔️ 首領戰`;
+  } else {
+    txtKills.innerText = `擊退: ${Math.min(kills, target)} / ${target}`;
+  }
+}
+
 function generateStageObstacles(continent) {
   stageObstacles = [];
   const count = 3 + Math.floor(Math.random() * 2);
@@ -323,7 +336,6 @@ function generateStageObstacles(continent) {
   }
 }
 
-// 彙整全身所有裝備的詞條陣列 (藍裝1條、黃裝2條、橘裝3條)
 function compileActiveAffixes() {
   activeAffixes = {};
   for (const key in userSave.equipped) {
@@ -351,7 +363,6 @@ function startCountryBattle(countryId, substageIndex) {
   activeSubstage = substageIndex;
   activeCountryData = COUNTRIES_STAGE_DATA.find(s => s.id === countryId) || COUNTRIES_STAGE_DATA[0];
 
-  // 彙整全身 7 部位裝備的數值加成
   let totalGearHp = 0;
   let totalGearDmg = 0;
   let totalGearSpeed = 0;
@@ -369,7 +380,6 @@ function startCountryBattle(countryId, substageIndex) {
     if (eqItem.dashCdMult) dashCdMult *= eqItem.dashCdMult;
     if (eqItem.dmgReduce) player.gearDmgReduce += eqItem.dmgReduce;
   }
-  // 減傷上限封頂 75% 避免無敵
   player.gearDmgReduce = Math.min(0.75, player.gearDmgReduce);
 
   player.level = userSave.playerLevel;
@@ -411,27 +421,23 @@ function startCountryBattle(countryId, substageIndex) {
   artifactEffects = [];
   kills = 0;
   boss.active = false;
+  bossBarContainer.style.display = 'none';
   chest.active = false;
   isPaused = false;
 
   defeatModal.style.display = 'none';
   victoryModal.style.display = 'none';
 
-  txtCurrentCountry.innerText = `${activeCountryData.flag} ${activeCountryData.name.split(' ')[0]} - 哨站 ${substageIndex}/10`;
-  txtWeaponInfo.innerText = `武器: ${player.weapon.name} ${renderStarsStr(player.weapon.stars || 1)}`;
-  txtLevel.innerText = `階級: Lv.${player.level}`;
+  if (txtCurrentCountry) txtCurrentCountry.innerText = `${activeCountryData.flag} ${activeCountryData.name.split(' ')[0]} · 哨站 ${substageIndex}/10`;
+  if (txtLevelPrefix) txtLevelPrefix.innerText = `Lv.${player.level} EXP`;
+  updateKillsDisplay();
   updateHUD();
 
   generateStageObstacles(activeCountryData.continent);
   initGame();
 }
 
-/* ==================== 手動操作 (射擊 / 法器 / 衝刺) ==================== */
-function triggerManualShoot() {
-  if (isPaused || !gameRunning) return;
-  executeAttack();
-}
-
+/* ==================== 主動操作 (法器 / 衝刺；射擊全自動) ==================== */
 function triggerArtifactSkill() {
   if (isPaused || !gameRunning || player.artifactCooldownTimer > 0) return;
 
@@ -678,7 +684,6 @@ const keys = {};
 window.addEventListener('keydown', e => {
   keys[e.key.toLowerCase()] = true;
   if (e.code === 'Space') { e.preventDefault(); triggerDash(); }
-  if (e.key === 'j' || e.key === 'J') triggerManualShoot();
   if (e.key === 'l' || e.key === 'L') triggerArtifactSkill();
 });
 window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
@@ -723,6 +728,7 @@ function checkAndSpawnStageBoss() {
 
   bossAlarmOverlay.style.display = 'flex';
   bossBarContainer.style.display = 'block';
+  updateKillsDisplay();
   playTone(isApex ? 140 : 190, 'sawtooth', 0.6, 0.2);
 
   setTimeout(() => { bossAlarmOverlay.style.display = 'none'; }, 2200);
@@ -775,7 +781,6 @@ function openChestSelection(isApex) {
   chestStageInfo.innerText = `藍裝附帶 1 詞條 · 黃裝附帶 2 詞條 · 橘裝附帶 3 詞條`;
 
   options.forEach(item => {
-    // 預先為每張寶箱卡片抽取對應品階的隨機詞條
     const rolledAffixes = (typeof generateAffixesForTier === 'function') ? generateAffixesForTier(item.tier) : [];
     const affixPreviewHtml = rolledAffixes.length > 0
       ? rolledAffixes.map(a => `<div style="font-size:9.5px; color:#fde047; margin-top:2px;">${a.name} (${a.tag})</div>`).join('')
@@ -843,7 +848,6 @@ function syncPlayerSaveState() {
   userSave.playerLevel = player.level;
   userSave.playerExp = player.exp;
   userSave.playerNextExp = player.nextExp;
-  // 只保存基礎最大生命，避免裝備加成重複累加
   let totalGearHp = 0;
   for (const key in userSave.equipped) {
     if (userSave.equipped[key] && userSave.equipped[key].bonusHp) {
@@ -909,7 +913,7 @@ function activateEmpBomb() {
     kills++;
   }
   enemies = [];
-  txtKills.innerText = `擊退海嗣: ${kills}`;
+  updateKillsDisplay();
 }
 
 /* ==================== 怪物生成與戰鬥物理循環 ==================== */
@@ -1029,7 +1033,6 @@ function executeAttack() {
   else playTone(850, 'triangle', 0.08);
 }
 
-// 統一處理受到物理或法術傷害（套用裝備減傷與深淵磐石詞條）
 function applyDamageToPlayer(rawDmg) {
   let finalDmg = rawDmg * (1 - (player.gearDmgReduce || 0));
   if (activeAffixes.armor) finalDmg *= 0.75;
@@ -1111,6 +1114,7 @@ function updateGame() {
     if (dashGhosts[i].alpha <= 0) dashGhosts.splice(i, 1);
   }
 
+  // 全自動遠程射擊循環
   if (player.attackTimer > 0) player.attackTimer--;
   player.fireTimer++;
   if (player.fireTimer >= player.fireInterval) {
@@ -1118,7 +1122,7 @@ function updateGame() {
     player.fireTimer = 0;
   }
 
-  // 護符寵物邏輯 (套用 petPower 倍率)
+  // 護符寵物邏輯
   if (player.equipment && player.equipment.talisman) {
     pet.active = true;
     pet.type = player.equipment.talisman === 'atk_pet' ? 'atk' : (player.equipment.talisman === 'heal_pet' ? 'heal' : 'pull');
@@ -1216,7 +1220,7 @@ function updateGame() {
         boss.active = false;
         bossBarContainer.style.display = 'none';
         kills += 15;
-        txtKills.innerText = `擊退海嗣: ${kills}`;
+        updateKillsDisplay();
         chest.active = true;
         chest.isApex = boss.isApex;
         chest.x = boss.x;
@@ -1258,9 +1262,9 @@ function updateGame() {
 
           enemies.splice(j, 1);
           kills++;
-          txtKills.innerText = `擊退海嗣: ${kills}`;
+          updateKillsDisplay();
 
-          const killThreshold = (activeCountryStageId === 1 && activeSubstage < 5) ? 25 : 50;
+          const killThreshold = getKillThreshold();
           if (activeSubstage !== 5 && activeSubstage !== 10) {
             if (kills >= killThreshold) completeSubstage();
           } else {
@@ -1274,7 +1278,7 @@ function updateGame() {
     }
   }
 
-  // Boss 行為與血條同步 (支援法器直接擊殺 Boss)
+  // Boss 行為與血條同步
   if (boss.active) {
     const bossHpPct = Math.max(0, (boss.hp / boss.maxHp) * 100);
     bossBarFill.style.width = `${bossHpPct}%`;
@@ -1284,7 +1288,7 @@ function updateGame() {
       boss.active = false;
       bossBarContainer.style.display = 'none';
       kills += 15;
-      txtKills.innerText = `擊退海嗣: ${kills}`;
+      updateKillsDisplay();
       chest.active = true;
       chest.isApex = boss.isApex;
       chest.x = boss.x;
@@ -1345,12 +1349,11 @@ function updateGame() {
 
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
-    // 若小怪被法器 AoE 直接炸死，補上結算
     if (e.hp <= 0) {
       gems.push({ x: e.x, y: e.y, radius: 4 });
       enemies.splice(i, 1);
       kills++;
-      txtKills.innerText = `擊退海嗣: ${kills}`;
+      updateKillsDisplay();
       continue;
     }
 
@@ -1425,7 +1428,7 @@ function triggerLevelUp() {
   document.getElementById('up-stat-speed').innerText = 
     `目前: ${player.speed.toFixed(2)} ➜ 升級後: ${nextSpeed}`;
 
-  txtLevel.innerText = `階級: Lv.${player.level}`;
+  if (txtLevelPrefix) txtLevelPrefix.innerText = `Lv.${player.level} EXP`;
   upgradeModal.style.display = 'flex';
   playTone(700, 'sine', 0.25);
   updateHUD();
