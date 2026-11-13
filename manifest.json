@@ -1,0 +1,18 @@
+{
+  "name": "地表倖存者：深海逆鱗 (SSTS)",
+  "short_name": "SSTS深海逆鱗",
+  "description": "全球防衛陣線 · 百國領土收復射擊生存遊戲",
+  "start_url": "./index.html",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%23020617'/%3E%3Ccircle cx='256' cy='256' r='190' fill='none' stroke='%2338bdf8' stroke-width='20'/%3E%3Cpolygon points='256,110 380,340 256,290 132,340' fill='%2338bdf8'/%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
