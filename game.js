@@ -1,245 +1,7 @@
 /**
- * SSTS - 戰鬥引擎、70件全裝備屬性實裝、四品階(白/藍/黃/橘)多詞條、雙手多點觸控與百國地標 (game.js)
+ * SSTS - 核心戰鬥物理引擎、主動法器技能、Boss 系統與 60fps 主迴圈 (game.js)
  */
 
-let audioCtx = null;
-function initAudio() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-}
-function playTone(freq, type, duration, gainLevel = 0.08) {
-  if (!audioCtx) return;
-  try {
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = type;
-    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-    gain.gain.setValueAtTime(gainLevel, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    osc.start();
-    osc.stop(audioCtx.currentTime + duration);
-  } catch(e){}
-}
-
-/* ==================== 裝置偵測與全螢幕切換 (含 iOS 引導與 PWA 自動隱藏) ==================== */
-function isIOSDevice() {
-  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-}
-
-function isStandaloneMode() {
-  return window.navigator.standalone === true ||
-    window.matchMedia('(display-mode: standalone)').matches ||
-    window.matchMedia('(display-mode: fullscreen)').matches;
-}
-
-function toggleGlobalFullscreen() {
-  const btn = document.getElementById('btn-global-fullscreen');
-
-  if (isIOSDevice()) {
-    if (isStandaloneMode()) {
-      alert("目前已處於 iOS 無邊框全螢幕應用程式模式！");
-    } else {
-      alert(
-        "📱 iPhone / iPad 全螢幕遊玩方式：\n\n" +
-        "1. 【最佳體驗】點擊下方「分享按鈕 (方框向上箭頭)」→ 選擇「加入主畫面」，再從桌面圖示開啟即可獲得 100% 無網址列全螢幕！\n\n" +
-        "2. 【快速隱藏】點擊網址列左側的「大小 / 閱讀器圖示」→ 選擇「隱藏工具列」。"
-      );
-    }
-    return;
-  }
-
-  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-    const elem = document.documentElement;
-    if (elem.requestFullscreen) {
-      elem.requestFullscreen().catch(() => {});
-    } else if (elem.webkitRequestFullscreen) {
-      elem.webkitRequestFullscreen();
-    }
-    if (screen.orientation && screen.orientation.lock) {
-      screen.orientation.lock('landscape').catch(() => {});
-    }
-    if (btn) btn.innerText = "✖ 退出全螢幕";
-  } else {
-    if (document.exitFullscreen) {
-      document.exitFullscreen().catch(() => {});
-    } else if (document.webkitExitFullscreen) {
-      document.webkitExitFullscreen();
-    }
-    if (btn) btn.innerText = "⛶ 全螢幕";
-  }
-}
-
-document.addEventListener('fullscreenchange', () => {
-  const btn = document.getElementById('btn-global-fullscreen');
-  if (btn) btn.innerText = document.fullscreenElement ? "✖ 退出全螢幕" : "⛶ 全螢幕";
-  resizeBattleCanvas();
-});
-
-/* ==================== 首頁動態發光 LOGO ==================== */
-const logoCanvas = document.getElementById('logo-canvas');
-const lctx = logoCanvas.getContext('2d');
-let logoTime = 0;
-let logoAnimId = null;
-
-const bubbles = Array.from({ length: 35 }, () => ({
-  x: Math.random() * logoCanvas.width,
-  y: Math.random() * logoCanvas.height,
-  r: 1 + Math.random() * 2.5,
-  speed: 0.3 + Math.random() * 0.7,
-  alpha: 0.15 + Math.random() * 0.4
-}));
-
-function drawLogo() {
-  logoTime += 0.035;
-  lctx.clearRect(0, 0, logoCanvas.width, logoCanvas.height);
-
-  for (const b of bubbles) {
-    b.y -= b.speed;
-    if (b.y < -10) { b.y = logoCanvas.height + 10; b.x = Math.random() * logoCanvas.width; }
-    lctx.fillStyle = `rgba(56, 189, 248, ${b.alpha})`;
-    lctx.beginPath();
-    lctx.arc(b.x + Math.sin(logoTime + b.y * 0.05) * 5, b.y, b.r, 0, Math.PI * 2);
-    lctx.fill();
-  }
-
-  const cx = logoCanvas.width / 2;
-  const pulse = Math.sin(logoTime);
-
-  lctx.save();
-  lctx.font = "900 15px 'Courier New', monospace";
-  lctx.textAlign = "center";
-  lctx.fillStyle = "rgba(56, 189, 248, 0.9)";
-  lctx.shadowColor = "#0284c7";
-  lctx.shadowBlur = 8 + pulse * 4;
-  lctx.fillText("— SSTS · TACTICAL SURVIVAL —", cx, 35);
-  lctx.restore();
-
-  lctx.save();
-  lctx.font = "900 39px -apple-system, BlinkMacSystemFont, 'Microsoft JhengHei', sans-serif";
-  lctx.textAlign = "center";
-  lctx.shadowColor = "rgba(14, 165, 233, 0.85)";
-  lctx.shadowBlur = 22 + pulse * 10;
-
-  const textGrad = lctx.createLinearGradient(cx - 200, 0, cx + 200, 0);
-  textGrad.addColorStop(0, "#34d399");
-  textGrad.addColorStop(0.45, "#38bdf8");
-  textGrad.addColorStop(1, "#06b6d4");
-  lctx.fillStyle = textGrad;
-  lctx.fillText("地表倖存者：深海逆鱗", cx, 102 + Math.sin(logoTime * 0.8) * 2);
-  lctx.restore();
-
-  lctx.save();
-  lctx.font = "800 15px 'Segoe UI', sans-serif";
-  lctx.textAlign = "center";
-  lctx.fillStyle = "#94a3b8";
-  lctx.shadowColor = "rgba(56, 189, 248, 0.4)";
-  lctx.shadowBlur = 6;
-  lctx.fillText("SURFACE SURVIVORS: TIDAL SIEGE", cx, 140);
-  lctx.restore();
-
-  logoAnimId = requestAnimationFrame(drawLogo);
-}
-
-drawLogo();
-
-/* ==================== 故事模式 ==================== */
-const storyCanvas = document.getElementById('story-canvas');
-const sctx = storyCanvas.getContext('2d');
-let storyTime = 0;
-let storyAnimId = null;
-
-const storyData = [
-  { chapter: "SSTS // ARCHIVE 01", title: "海淵巨響 · 沉眠者復甦", desc: "萬米海溝深處的海洋霸主睜開眼瞳。遠古逆鱗引發深海沸騰狂潮，全球海岸線全面告急！" },
-  { chapter: "SSTS // ARCHIVE 02", title: "逆鱗狂潮 · 百國淪陷", desc: "自最小的梵蒂岡到遼闊大陸，各國海岸皆被變異海嗣突破，地表文明退守各大洲的核心掩體。" },
-  { chapter: "SSTS // ARCHIVE 03", title: "地表同盟 · 哨站奪還戰", desc: "藍裝 1 詞條、黃裝 2 詞條、橘裝 3 詞條！升星強化核心數值，擊潰海嗣收復全球 100 國！" },
-  { chapter: "SSTS // MISSION START", title: "全球反擊 · 征途展開", desc: "出擊吧！擊敗 Boss 獲取自選裝備，閒置裝備可拆解為金幣，強化戰甲迎戰深淵！" }
-];
-
-let storyIndex = 0;
-
-function drawStoryScene() {
-  storyTime += 0.04;
-  sctx.clearRect(0, 0, storyCanvas.width, storyCanvas.height);
-  const w = storyCanvas.width;
-  const h = storyCanvas.height;
-  const cx = w / 2;
-  const cy = h / 2;
-
-  if (storyIndex === 0) {
-    const grad = sctx.createRadialGradient(cx, cy, 20, cx, cy, 140);
-    grad.addColorStop(0, '#0c4a6e'); grad.addColorStop(1, '#020617');
-    sctx.fillStyle = grad; sctx.fillRect(0, 0, w, h);
-    sctx.save();
-    sctx.translate(cx, cy);
-    sctx.scale(1, 0.65 + Math.sin(storyTime * 0.8) * 0.08);
-    sctx.strokeStyle = '#0284c7'; sctx.lineWidth = 3;
-    sctx.beginPath(); sctx.ellipse(0, 0, 100, 55, 0, 0, Math.PI * 2); sctx.stroke();
-
-    const iris = sctx.createRadialGradient(0, 0, 5, 0, 0, 50);
-    iris.addColorStop(0, '#f59e0b'); iris.addColorStop(1, '#082f49');
-    sctx.fillStyle = iris; sctx.beginPath(); sctx.arc(0, 0, 46, 0, Math.PI * 2); sctx.fill();
-    sctx.fillStyle = '#020617'; sctx.beginPath(); sctx.ellipse(0, 0, 7 + Math.sin(storyTime * 2) * 2, 40, 0, 0, Math.PI * 2); sctx.fill();
-    sctx.restore();
-  } else {
-    sctx.fillStyle = '#050c1a'; sctx.fillRect(0, 0, w, h);
-    sctx.fillStyle = 'rgba(56, 189, 248, 0.6)';
-    sctx.beginPath(); sctx.moveTo(0, h);
-    for (let x = 0; x <= w; x += 10) sctx.lineTo(x, 120 + Math.sin(x * 0.02 + storyTime * 2) * 25);
-    sctx.lineTo(w, h); sctx.closePath(); sctx.fill();
-  }
-  storyAnimId = requestAnimationFrame(drawStoryScene);
-}
-
-function startStory() {
-  initAudio();
-  loadGameSave();
-  playTone(440, 'triangle', 0.2);
-  if (logoAnimId) cancelAnimationFrame(logoAnimId);
-  document.getElementById('title-screen').style.display = 'none';
-  document.getElementById('story-screen').style.display = 'flex';
-  renderStory();
-  if (!storyAnimId) drawStoryScene();
-}
-
-function renderStory() {
-  const current = storyData[storyIndex];
-  document.getElementById('story-chapter').innerText = current.chapter;
-  document.getElementById('story-title').innerText = current.title;
-  document.getElementById('story-desc').innerText = current.desc;
-  const dotsContainer = document.getElementById('dots-container');
-  dotsContainer.innerHTML = '';
-  storyData.forEach((_, idx) => {
-    const dot = document.createElement('div');
-    dot.className = `dot ${idx === storyIndex ? 'active' : ''}`;
-    dotsContainer.appendChild(dot);
-  });
-}
-
-function handleStoryScreenClick(e) {
-  if (e.target.classList.contains('story-skip-btn')) return;
-  nextStory();
-}
-
-function nextStory() {
-  playTone(550, 'sine', 0.15);
-  storyIndex++;
-  if (storyIndex >= storyData.length) {
-    if (storyAnimId) { cancelAnimationFrame(storyAnimId); storyAnimId = null; }
-    openWorldMapScreen();
-  } else {
-    renderStory();
-  }
-}
-
-function skipStory(e) {
-  e.stopPropagation();
-  if (storyAnimId) { cancelAnimationFrame(storyAnimId); storyAnimId = null; }
-  openWorldMapScreen();
-}
-
-/* ==================== 戰鬥引擎與狀態 ==================== */
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
 const expBar = document.getElementById('exp-bar');
@@ -271,6 +33,11 @@ const bossBarContainer = document.getElementById('boss-bar-container');
 const bossBarFill = document.getElementById('boss-bar-fill');
 const bossHpText = document.getElementById('boss-hp-text');
 
+// 綁定畫布多點觸控搖桿
+if (typeof initJoystickEvents === 'function') {
+  initJoystickEvents(canvas);
+}
+
 let isPaused = false;
 let kills = 0;
 let activeCountryStageId = 1;
@@ -278,7 +45,6 @@ let activeSubstage = 1;
 let activeCountryData = null;
 let gameRunning = false;
 let globalTime = 0;
-
 let activeAffixes = {};
 
 const player = {
@@ -337,7 +103,12 @@ let battlePickups = [];
 let stageObstacles = [];
 let artifactEffects = [];
 
-/* ==================== 動態匹配螢幕長寬比（全螢幕無黑邊、角色不變形、不超框） ==================== */
+let enemies = [];
+let bullets = [];
+let gems = [];
+let spawnTimer = 0;
+
+/* ==================== 動態匹配螢幕長寬比（無黑邊、不變形） ==================== */
 function resizeBattleCanvas() {
   const wrapper = document.querySelector('.canvas-aspect-wrapper');
   const w = wrapper && wrapper.clientWidth > 0 ? wrapper.clientWidth : window.innerWidth;
@@ -354,186 +125,35 @@ function resizeBattleCanvas() {
   }
 }
 
-/* ==================== 100 國專屬特色建築地標對應表 (按國土面積由小到大 1~100 完整覆蓋) ==================== */
-const COUNTRY_LANDMARK_MAP = {
-  // 1~10：微型聖城、城邦與珊瑚礁島國
-  1:  ['vatican_dome', 'roman_pillar'],          // 梵蒂岡：聖彼得大教堂圓頂
-  2:  ['casino_palace', 'roman_pillar'],         // 摩納哥：蒙地卡羅皇宮
-  3:  ['coral_totem', 'maldives_bungalow'],      // 諾魯：磷礦巨岩與海島柱
-  4:  ['maldives_bungalow', 'coral_totem'],      // 吐瓦魯：環礁高腳茅屋
-  5:  ['eu_castle', 'roman_pillar'],             // 聖馬利諾：瓜伊塔三塔堡壘
-  6:  ['eu_castle', 'viking_hall'],              // 列支敦斯登：瓦杜茲阿爾卑斯古堡
-  7:  ['coral_totem', 'maldives_bungalow'],      // 馬紹爾群島：比基尼環礁圖騰
-  8:  ['us_liberty', 'coral_totem'],             // 聖克里斯多福及尼維斯：硫磺山要塞
-  9:  ['maldives_bungalow', 'islamic_mosque'],   // 馬爾地夫：水上茅屋與珊瑚清真寺
-  10: ['eu_castle', 'roman_pillar'],             // 馬爾他：騎士團海岸要塞
-
-  // 11~20：加勒比海島嶼、太平洋群島與東南亞都市國家
-  11: ['coral_totem', 'maldives_bungalow'],      // 格瑞那達：香料海岸燈塔
-  12: ['coral_totem', 'mayan_temple'],           // 聖文森及格瑞那丁：火山岩圖騰
-  13: ['roman_pillar', 'coral_totem'],           // 巴貝多：布里奇敦議會柱廊
-  14: ['coral_totem', 'maldives_bungalow'],      // 安地卡及巴布達：英國港船塢
-  15: ['maldives_bungalow', 'coral_totem'],      // 塞席爾：花崗岩海灘涼亭
-  16: ['coral_totem', 'jp_torii'],               // 帛琉：洛克群島石柱與鳥居
-  17: ['eu_castle', 'roman_pillar'],             // 安道爾：庇里牛斯山石砌教堂
-  18: ['coral_totem', 'maldives_bungalow'],      // 聖露西亞：雙子皮通火山峰
-  19: ['coral_totem', 'maldives_bungalow'],      // 密克羅尼西亞：南馬都爾玄武岩遺蹟
-  20: ['singapore_mbs', 'merlion_statue'],       // 新加坡：濱海灣金沙空中花園、魚尾獅
-
-  // 21~30：太平洋王國、波斯灣珍珠與台灣
-  21: ['coral_totem', 'maldives_bungalow'],      // 東加：哈阿蒙加巨石三石塔
-  22: ['coral_totem', 'mayan_temple'],           // 多米尼克：熱帶雨林石祭壇
-  23: ['islamic_mosque', 'skyscraper_twin'],     // 巴林：世界貿易中心雙帆塔
-  24: ['coral_totem', 'maldives_bungalow'],      // 吉里巴斯：赤道環礁觀測站
-  25: ['obelisk_monument', 'coral_totem'],       // 聖多美普林西比：大犬座火山尖峰
-  26: ['coral_totem', 'maldives_bungalow'],      // 薩摩亞：法萊傳統圓頂屋
-  27: ['eu_castle', 'viking_hall'],              // 盧森堡：博克砲台古堡
-  28: ['islamic_mosque', 'coral_totem'],         // 模里西斯：路易港海濱砲台
-  29: ['islamic_mosque', 'obelisk_monument'],    // 葛摩：莫洛尼火山清真寺
-  30: ['taipei_101', 'pagoda_temple'],           // 台灣：台北101大樓、飛簷廟宇
-
-  // 31~40：高加索古國、海灣富國與低地國
-  31: ['islamic_mosque', 'pagoda_temple'],       // 汶萊：奧馬爾阿里賽義夫丁金頂清真寺
-  32: ['us_liberty', 'skyscraper_twin'],         // 千里達及托巴哥：西班牙港雙塔
-  33: ['coral_totem', 'obelisk_monument'],       // 維德角：福戈火山燈塔
-  34: ['coral_totem', 'maldives_bungalow'],      // 萬那杜：納戈爾木雕圖騰柱
-  35: ['islamic_mosque', 'skyscraper_twin'],     // 卡達：杜哈伊斯蘭藝術博物館與帆塔
-  36: ['mayan_temple', 'obelisk_monument'],      // 牙買加：藍山石砌莊園
-  37: ['obelisk_monument', 'islamic_mosque'],    // 甘比亞：班竹凱旋門
-  38: ['roman_pillar', 'islamic_mosque'],        // 黎巴嫩：巴勒貝克太陽神殿巨柱
-  39: ['roman_pillar', 'eu_castle'],             // 賽普勒斯：帕福斯古希臘柱廊
-  40: ['eu_castle', 'viking_hall'],              // 荷蘭：風車磨坊與運河山牆屋
-
-  // 41~50：歐陸精華、東北亞與聖地
-  41: ['eu_castle', 'roman_pillar'],             // 瑞士：西庸城堡與阿爾卑斯鐘樓
-  42: ['viking_hall', 'eu_castle'],              // 丹麥：新港彩色山牆與維京長屋
-  43: ['pagoda_temple', 'th_stupa'],             // 不丹：虎穴寺懸崖佛塔
-  44: ['roman_pillar', 'islamic_mosque'],        // 以色列：耶路撒冷圓頂聖殿與古城牆
-  45: ['mayan_temple', 'skyscraper_twin'],       // 薩爾瓦多：聖安娜火山神殿
-  46: ['islamic_mosque', 'skyscraper_twin'],     // 科威特：科威特球形水塔
-  47: ['coral_totem', 'maldives_bungalow'],      // 斐濟：蘇瓦傳統草頂議事廳
-  48: ['eu_castle', 'roman_pillar'],             // 斯洛維尼亞：布萊德湖心教堂
-  49: ['eu_castle', 'viking_hall'],              // 比利時：布魯塞爾大廣場市政廳尖塔
-  50: ['kor_palace', 'pagoda_temple'],           // 韓國：景福宮殿樓、南山首爾塔
-
-  // 51~60：中歐、波羅的海與中美洲
-  51: ['islamic_mosque', 'skyscraper_twin'],     // 阿拉伯聯合大公國：哈里發塔與謝赫扎耶德清真寺
-  52: ['eu_castle', 'roman_pillar'],             // 奧地利：美泉宮與聖史蒂芬尖塔
-  53: ['eu_castle', 'ru_kremlin'],               // 捷克：布拉格查理大橋塔樓
-  54: ['mayan_temple', 'skyscraper_twin'],       // 巴拿馬：運河船閘控制塔
-  55: ['viking_hall', 'polar_beacon'],           // 冰島：哈爾格林姆教堂
-  56: ['eu_castle', 'roman_pillar'],             // 匈牙利：布達佩斯國會大廈圓頂
-  57: ['eu_castle', 'roman_pillar'],             // 葡萄牙：貝倫塔航海堡壘
-  58: ['roman_pillar', 'eu_castle'],             // 希臘：雅典帕德嫩神殿多立克柱
-  59: ['pagoda_temple', 'kor_palace'],           // 北韓：主體思想塔與凱旋門
-  60: ['mayan_temple', 'us_liberty'],            // 古巴：哈瓦那國會大廈圓頂
-
-  // 61~70：東南亞古文明與西歐列強
-  61: ['th_stupa', 'pagoda_temple'],             // 柬埔寨：吳哥窟蓮花五塔
-  62: ['th_stupa', 'pagoda_temple'],             // 寮國：永珍塔鑾金塔
-  63: ['uk_bigben', 'eu_castle'],                // 英國：倫敦大笨鐘鐘樓
-  64: ['eu_castle', 'roman_pillar'],             // 羅馬尼亞：布朗吸血鬼古堡
-  65: ['it_colosseum', 'vatican_dome'],          // 義大利：羅馬競技場、比薩斜塔
-  66: ['au_opera', 'coral_totem'],               // 紐西蘭：奧克蘭天空塔與毛利圖騰
-  67: ['eu_castle', 'viking_hall'],              // 波蘭：華沙文化科學宮
-  68: ['jp_torii', 'jp_pagoda'],                 // 日本：嚴島海上鳥居、五重塔
-  69: ['eu_castle', 'viking_hall'],              // 德國：新天鵝堡與布蘭登堡門
-  70: ['viking_hall', 'polar_beacon'],           // 芬蘭：赫爾辛基白教堂與極光觀測塔
-
-  // 71~80：東南亞群島、北歐與南亞
-  71: ['pagoda_temple', 'th_stupa'],             // 越南：下龍灣古帆與順化皇城門
-  72: ['skyscraper_twin', 'islamic_mosque'],     // 馬來西亞：吉隆坡雙子星塔
-  73: ['viking_hall', 'polar_beacon'],           // 挪威：峽灣維京木板教堂
-  74: ['viking_hall', 'eu_castle'],              // 瑞典：斯德哥爾摩市政廳紅磚塔
-  75: ['ziggurat_step', 'islamic_mosque'],       // 伊拉克：巴比倫空中花園階梯神廟
-  76: ['eu_castle', 'roman_pillar'],             // 西班牙：巴塞隆納聖家堂尖塔
-  77: ['th_stupa', 'pagoda_temple'],             // 泰國：曼谷鄭王廟金頂佛塔
-  78: ['fr_eiffel', 'eu_castle'],                // 法國：巴黎艾菲爾鐵塔、凱旋門
-  79: ['obelisk_monument', 'tribal_totem'],      // 肯亞：蒙巴薩耶穌堡與草原圖騰
-  80: ['ru_kremlin', 'eu_castle'],               // 烏克蘭：基輔聖索菲亞金頂教堂
-
-  // 81~90：中東古國、亞洲巨龍與非洲
-  81: ['th_stupa', 'pagoda_temple'],             // 緬甸：仰光瑞光大金塔
-  82: ['islamic_mosque', 'ziggurat_step'],       // 阿富汗：巴米揚石窟拱龕
-  83: ['eg_pyramid', 'obelisk_monument'],        // 埃及：吉薩金字塔、方尖碑
-  84: ['islamic_mosque', 'roman_pillar'],        // 土耳其：伊斯坦堡聖索菲亞清真寺尖塔
-  85: ['br_christ', 'mayan_temple'],             // 智利：復活節島摩艾巨石像
-  86: ['obelisk_monument', 'tribal_totem'],      // 尚比亞：維多利亞瀑布觀景石柱
-  87: ['ziggurat_step', 'islamic_mosque'],       // 伊朗：波斯波利斯萬國門與清真寺
-  88: ['pagoda_temple', 'ru_kremlin'],           // 蒙古：成吉思汗巨像與蒙古包
-  89: ['pagoda_temple', 'th_stupa'],             // 印尼：婆羅浮屠佛塔與峇里島善惡門
-  90: ['mayan_temple', 'skyscraper_twin'],       // 墨西哥：奇琴伊察瑪雅金字塔
-
-  // 91~100：領土面積前十強超級大國
-  91: ['islamic_mosque', 'skyscraper_twin'],     // 沙烏地阿拉伯：麥加皇家鐘塔與清真寺
-  92: ['mayan_temple', 'br_christ'],             // 秘魯：馬丘比丘印加石殿
-  93: ['obelisk_monument', 'tribal_totem'],      // 查德：提貝斯提沙漠石柱
-  94: ['islamic_mosque', 'eg_pyramid'],          // 阿爾及利亞：阿爾及爾白色清真寺
-  95: ['ziggurat_step', 'ru_kremlin'],           // 哈薩克：巴伊傑列克生命之樹塔
-  96: ['in_tajmahal', 'pagoda_temple'],          // 印度：泰姬瑪哈陵
-  97: ['au_opera', 'coral_totem'],               // 澳洲：雪梨歌劇院風帆
-  98: ['br_christ', 'mayan_temple'],             // 巴西：里約救世基督像聖壇
-  99: ['us_liberty', 'skyscraper_twin'],         // 美國：自由女神火炬台、雙子摩天樓
-  100:['cn_greatwall', 'ru_kremlin']             // 中國 / 俄羅斯壓軸防線：萬里長城烽火台與克里姆林洋蔥頭教堂
-};
-
-// 依大洲分配的備援建築群
-const CONTINENT_ARCH_POOL = {
-  EU: ['eu_castle', 'uk_bigben', 'roman_pillar'],
-  AS: ['pagoda_temple', 'jp_torii', 'th_stupa'],
-  AM: ['skyscraper_twin', 'mayan_temple', 'us_liberty'],
-  AF: ['eg_pyramid', 'obelisk_monument', 'islamic_mosque'],
-  OC: ['au_opera', 'coral_totem', 'maldives_bungalow'],
-  GL: ['polar_beacon', 'viking_hall', 'roman_pillar']
-};
-
-// 依據國家名稱關鍵字優先匹配地標（確保即使調整關卡順序也能對應正確國家建築）
-function resolveCountryLandmarks(countryData, countryId) {
-  const rawName = (countryData && countryData.name) ? countryData.name : '';
-  const keywordRules = [
-    { keys: ['梵蒂岡', 'Vatican'], arch: ['vatican_dome', 'roman_pillar'] },
-    { keys: ['摩納哥', 'Monaco'], arch: ['casino_palace', 'roman_pillar'] },
-    { keys: ['馬爾地夫', 'Maldives'], arch: ['maldives_bungalow', 'coral_totem'] },
-    { keys: ['新加坡', 'Singapore'], arch: ['singapore_mbs', 'merlion_statue'] },
-    { keys: ['台灣', 'Taiwan'], arch: ['taipei_101', 'pagoda_temple'] },
-    { keys: ['韓國', 'Korea'], arch: ['kor_palace', 'pagoda_temple'] },
-    { keys: ['英國', 'United Kingdom', 'UK'], arch: ['uk_bigben', 'eu_castle'] },
-    { keys: ['日本', 'Japan'], arch: ['jp_torii', 'jp_pagoda'] },
-    { keys: ['義大利', 'Italy'], arch: ['it_colosseum', 'vatican_dome'] },
-    { keys: ['法國', 'France'], arch: ['fr_eiffel', 'eu_castle'] },
-    { keys: ['泰國', 'Thailand', '柬埔寨', '緬甸'], arch: ['th_stupa', 'pagoda_temple'] },
-    { keys: ['埃及', 'Egypt'], arch: ['eg_pyramid', 'obelisk_monument'] },
-    { keys: ['印度', 'India'], arch: ['in_tajmahal', 'pagoda_temple'] },
-    { keys: ['澳洲', 'Australia'], arch: ['au_opera', 'coral_totem'] },
-    { keys: ['巴西', 'Brazil'], arch: ['br_christ', 'mayan_temple'] },
-    { keys: ['美國', 'United States', 'USA'], arch: ['us_liberty', 'skyscraper_twin'] },
-    { keys: ['中國', 'China'], arch: ['cn_greatwall', 'pagoda_temple'] },
-    { keys: ['加拿大', 'Canada'], arch: ['ca_cntower', 'polar_beacon'] },
-    { keys: ['俄羅斯', 'Russia'], arch: ['ru_kremlin', 'eu_castle'] },
-    { keys: ['墨西哥', 'Mexico', '秘魯', 'Peru'], arch: ['mayan_temple', 'br_christ'] },
-    { keys: ['沙烏地', 'Saudi', '阿聯', 'UAE', '土耳其', 'Turkey', '伊朗', 'Iran'], arch: ['islamic_mosque', 'ziggurat_step'] },
-    { keys: ['希臘', 'Greece'], arch: ['roman_pillar', 'eu_castle'] },
-    { keys: ['挪威', 'Norway', '瑞典', 'Sweden', '冰島', 'Iceland', '芬蘭', 'Finland'], arch: ['viking_hall', 'polar_beacon'] }
-  ];
-
-  for (const rule of keywordRules) {
-    if (rule.keys.some(k => rawName.includes(k))) {
-      return rule.arch;
-    }
+window.addEventListener('resize', () => {
+  if (typeof joystick !== 'undefined') {
+    joystick.active = false;
+    joystick.touchId = null;
+    if (joyBase) joyBase.style.display = 'none';
   }
+  resizeBattleCanvas();
+});
 
-  if (COUNTRY_LANDMARK_MAP[countryId]) {
-    return COUNTRY_LANDMARK_MAP[countryId];
+function getKillThreshold() {
+  return (activeCountryStageId === 1 && activeSubstage < 5) ? 25 : 50;
+}
+
+function updateKillsDisplay() {
+  if (!txtKills) return;
+  const target = getKillThreshold();
+  if ((activeSubstage === 5 || activeSubstage === 10) && boss.active) {
+    txtKills.innerText = `⚔️ 首領戰`;
+  } else {
+    txtKills.innerText = `擊退: ${Math.min(kills, target)} / ${target}`;
   }
-
-  const cont = (countryData && countryData.continent) ? countryData.continent : 'EU';
-  return CONTINENT_ARCH_POOL[cont] || CONTINENT_ARCH_POOL.EU;
 }
 
 function generateStageObstacles(continent, countryId = activeCountryStageId) {
   stageObstacles = [];
   const count = 3 + Math.floor(Math.random() * 2);
-  const archPool = resolveCountryLandmarks(activeCountryData, countryId);
+  const archPool = (typeof resolveCountryLandmarks === 'function')
+    ? resolveCountryLandmarks(activeCountryData, countryId)
+    : ['eu_castle'];
 
   for (let i = 0; i < count; i++) {
     let ox = 95 + Math.random() * (canvas.width - 190);
@@ -566,12 +186,7 @@ function compileActiveAffixes() {
       }
     });
   }
-
-  if (activeAffixes.rush) {
-    player.dashCooldown = 60;
-  } else {
-    player.dashCooldown = 90;
-  }
+  player.dashCooldown = activeAffixes.rush ? 60 : 90;
 }
 
 function startCountryBattle(countryId, substageIndex) {
@@ -655,7 +270,7 @@ function startCountryBattle(countryId, substageIndex) {
   initGame();
 }
 
-/* ==================== 主動操作 (法器 / 衝刺；射擊全自動) ==================== */
+/* ==================== 主動操作 (法器 / 衝刺) ==================== */
 function triggerArtifactSkill() {
   if (isPaused || !gameRunning || player.artifactCooldownTimer > 0) return;
 
@@ -668,58 +283,30 @@ function triggerArtifactSkill() {
     const particles = [];
     for (let i = 0; i < 28; i++) {
       particles.push({
-        x: player.x,
-        y: player.y,
+        x: player.x, y: player.y,
         angle: Math.random() * Math.PI * 2,
         speed: 3 + Math.random() * 5,
         size: 3 + Math.random() * 3
       });
     }
-    artifactEffects.push({
-      type: 'nova',
-      x: player.x,
-      y: player.y,
-      timer: 30,
-      maxDuration: 30,
-      particles
-    });
+    artifactEffects.push({ type: 'nova', x: player.x, y: player.y, timer: 30, maxDuration: 30, particles });
 
     const novaDmg = Math.floor((90 + player.baseBonusDamage) * skillMult);
     for (let i = enemies.length - 1; i >= 0; i--) {
-      const e = enemies[i];
-      if (Math.hypot(e.x - player.x, e.y - player.y) < 180) {
-        e.hp -= novaDmg;
-      }
+      if (Math.hypot(enemies[i].x - player.x, enemies[i].y - player.y) < 180) enemies[i].hp -= novaDmg;
     }
-    if (boss.active && Math.hypot(boss.x - player.x, boss.y - player.y) < 180 + boss.radius) {
-      boss.hp -= novaDmg;
-    }
+    if (boss.active && Math.hypot(boss.x - player.x, boss.y - player.y) < 180 + boss.radius) boss.hp -= novaDmg;
 
   } else if (skill === 'freeze') {
     playTone(850, 'sine', 0.3, 0.2);
     const particles = [];
     for (let i = 0; i < 35; i++) {
-      particles.push({
-        x: player.x,
-        y: player.y,
-        angle: Math.random() * Math.PI * 2,
-        speed: 2 + Math.random() * 6
-      });
+      particles.push({ x: player.x, y: player.y, angle: Math.random() * Math.PI * 2, speed: 2 + Math.random() * 6 });
     }
-    artifactEffects.push({
-      type: 'freeze',
-      x: player.x,
-      y: player.y,
-      timer: 35,
-      maxDuration: 35,
-      particles
-    });
+    artifactEffects.push({ type: 'freeze', x: player.x, y: player.y, timer: 35, maxDuration: 35, particles });
 
     const freezeDmg = Math.floor((35 + player.baseBonusDamage) * skillMult);
-    for (const e of enemies) {
-      e.speed *= 0.4;
-      e.hp -= freezeDmg;
-    }
+    for (const e of enemies) { e.speed *= 0.4; e.hp -= freezeDmg; }
     if (boss.active) {
       boss.speed *= 0.65;
       boss.hp -= freezeDmg;
@@ -745,20 +332,9 @@ function triggerArtifactSkill() {
         cx += (Math.random() - 0.5) * 35;
         points.push({ x: cx, y: Math.min(cy, target.y) });
       }
-      strikes.push({
-        x: target.x + (Math.random() - 0.5) * 40,
-        targetX: target.x,
-        targetY: target.y,
-        points
-      });
+      strikes.push({ x: target.x + (Math.random() - 0.5) * 40, targetX: target.x, targetY: target.y, points });
     }
-
-    artifactEffects.push({
-      type: 'thunder',
-      timer: 24,
-      maxDuration: 24,
-      strikes
-    });
+    artifactEffects.push({ type: 'thunder', timer: 24, maxDuration: 24, strikes });
 
   } else if (skill === 'blackhole') {
     playTone(120, 'sawtooth', 0.6, 0.25);
@@ -766,19 +342,9 @@ function triggerArtifactSkill() {
     for (let i = 0; i < 40; i++) {
       const a = Math.random() * Math.PI * 2;
       const dist = 70 + Math.random() * 120;
-      particles.push({
-        x: canvas.width / 2 + Math.cos(a) * dist,
-        y: canvas.height / 2 + Math.sin(a) * dist
-      });
+      particles.push({ x: canvas.width / 2 + Math.cos(a) * dist, y: canvas.height / 2 + Math.sin(a) * dist });
     }
-    artifactEffects.push({
-      type: 'blackhole',
-      x: canvas.width / 2,
-      y: canvas.height / 2,
-      timer: 50,
-      maxDuration: 50,
-      particles
-    });
+    artifactEffects.push({ type: 'blackhole', x: canvas.width / 2, y: canvas.height / 2, timer: 50, maxDuration: 50, particles });
 
     const bhDmg = Math.floor((55 + player.baseBonusDamage * 0.6) * skillMult);
     for (const e of enemies) {
@@ -786,146 +352,9 @@ function triggerArtifactSkill() {
       e.y = canvas.height / 2 + (Math.random() - 0.5) * 40;
       e.hp -= bhDmg;
     }
-    if (boss.active) {
-      boss.hp -= bhDmg;
-    }
+    if (boss.active) boss.hp -= bhDmg;
   }
 }
-
-/* ==================== 頁面初始化：多點觸控按鈕綁定與 PWA 全螢幕按鈕隱藏 ==================== */
-function initUIControlsAndPWA() {
-  const fsBtn = document.getElementById('btn-global-fullscreen');
-  if (isStandaloneMode() && fsBtn) {
-    fsBtn.style.display = 'none';
-  }
-
-  const btnArtifact = document.getElementById('btn-act-artifact');
-  const btnDash = document.getElementById('btn-act-dash');
-
-  if (btnArtifact) {
-    btnArtifact.addEventListener('touchstart', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      triggerArtifactSkill();
-    }, { passive: false });
-
-    btnArtifact.addEventListener('mousedown', (e) => {
-      e.stopPropagation();
-      triggerArtifactSkill();
-    });
-  }
-
-  if (btnDash) {
-    btnDash.addEventListener('touchstart', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      triggerDash();
-    }, { passive: false });
-
-    btnDash.addEventListener('mousedown', (e) => {
-      e.stopPropagation();
-      triggerDash();
-    });
-  }
-}
-
-window.addEventListener('DOMContentLoaded', initUIControlsAndPWA);
-
-/* ==================== 浮動搖桿 (支援雙手多點觸控隔離) ==================== */
-const joyBase = document.getElementById('joystick-base');
-const joyThumb = document.getElementById('joystick-thumb');
-const joystick = { active: false, touchId: null, startX: 0, startY: 0, vectorX: 0, vectorY: 0, maxRadius: 50 };
-
-function getTouchPosInCanvas(touch, canvasElem) {
-  const rect = canvasElem.getBoundingClientRect();
-  const scale = canvasElem.width / rect.width;
-  return {
-    x: (touch.clientX - rect.left) * scale,
-    y: (touch.clientY - rect.top) * scale,
-    uiX: touch.clientX - rect.left,
-    uiY: touch.clientY - rect.top
-  };
-}
-
-canvas.addEventListener('touchstart', (e) => {
-  if (isPaused || !gameRunning) return;
-  if (e.cancelable) e.preventDefault();
-
-  if (joystick.active) return;
-
-  for (let i = 0; i < e.changedTouches.length; i++) {
-    const touch = e.changedTouches[i];
-    const pos = getTouchPosInCanvas(touch, canvas);
-
-    if (pos.x < canvas.width * 0.55) {
-      joystick.active = true;
-      joystick.touchId = touch.identifier;
-      joystick.startX = pos.uiX;
-      joystick.startY = pos.uiY;
-      joystick.vectorX = 0;
-      joystick.vectorY = 0;
-
-      joyBase.style.left = `${pos.uiX}px`;
-      joyBase.style.top = `${pos.uiY}px`;
-      joyBase.style.display = 'block';
-      joyThumb.style.transform = `translate(-50%, -50%)`;
-      break;
-    }
-  }
-}, { passive: false });
-
-window.addEventListener('touchmove', (e) => {
-  if (!joystick.active) return;
-  for (let i = 0; i < e.changedTouches.length; i++) {
-    const touch = e.changedTouches[i];
-    if (touch.identifier === joystick.touchId) {
-      if (e.cancelable) e.preventDefault();
-      const pos = getTouchPosInCanvas(touch, canvas);
-
-      const deltaX = pos.uiX - joystick.startX;
-      const deltaY = pos.uiY - joystick.startY;
-      const dist = Math.hypot(deltaX, deltaY);
-
-      if (dist === 0) {
-        joystick.vectorX = 0; joystick.vectorY = 0;
-        joyThumb.style.transform = `translate(-50%, -50%)`;
-      } else {
-        const angle = Math.atan2(deltaY, deltaX);
-        const clampedDist = Math.min(dist, joystick.maxRadius);
-        const thumbX = Math.cos(angle) * clampedDist;
-        const thumbY = Math.sin(angle) * clampedDist;
-        joystick.vectorX = thumbX / joystick.maxRadius;
-        joystick.vectorY = thumbY / joystick.maxRadius;
-        joyThumb.style.transform = `translate(calc(-50% + ${thumbX}px), calc(-50% + ${thumbY}px))`;
-      }
-      break;
-    }
-  }
-}, { passive: false });
-
-function resetJoystick(e) {
-  if (!joystick.active) return;
-  for (let i = 0; i < e.changedTouches.length; i++) {
-    if (e.changedTouches[i].identifier === joystick.touchId) {
-      joystick.active = false;
-      joystick.touchId = null;
-      joystick.vectorX = 0;
-      joystick.vectorY = 0;
-      joyBase.style.display = 'none';
-      joyThumb.style.transform = `translate(-50%, -50%)`;
-      break;
-    }
-  }
-}
-window.addEventListener('touchend', resetJoystick, { passive: false });
-window.addEventListener('touchcancel', resetJoystick, { passive: false });
-
-window.addEventListener('resize', () => {
-  joystick.active = false;
-  joystick.touchId = null;
-  joyBase.style.display = 'none';
-  resizeBattleCanvas();
-});
 
 function triggerDash() {
   if (isPaused || !gameRunning || player.dashCooldownTimer > 0 || player.isDashing) return;
@@ -942,27 +371,11 @@ function triggerDash() {
   playTone(920, 'sawtooth', 0.12, 0.08);
 }
 
-const keys = {};
-window.addEventListener('keydown', e => {
-  keys[e.key.toLowerCase()] = true;
-  if (e.code === 'Space') { e.preventDefault(); triggerDash(); }
-  if (e.key === 'l' || e.key === 'L') triggerArtifactSkill();
-});
-window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
-
 /* ==================== Boss 系統 ==================== */
 const boss = {
-  active: false,
-  isApex: false,
-  x: 0,
-  y: 0,
-  radius: 36,
-  hp: 500,
-  maxHp: 500,
-  speed: 0.9,
-  pulse: 0,
-  ringAttackTimer: 0,
-  ringAttackInterval: 120
+  active: false, isApex: false, x: 0, y: 0, radius: 36,
+  hp: 500, maxHp: 500, speed: 0.9, pulse: 0,
+  ringAttackTimer: 0, ringAttackInterval: 120
 };
 let bossBullets = [];
 
@@ -1002,10 +415,8 @@ function fireBossRingBarrage() {
   for (let i = 0; i < bulletCount; i++) {
     const angle = (Math.PI * 2 / bulletCount) * i + (boss.pulse * 0.5);
     bossBullets.push({
-      x: boss.x,
-      y: boss.y,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed,
+      x: boss.x, y: boss.y,
+      vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
       radius: boss.isApex ? 6 : 4.5,
       damage: boss.isApex ? 14 : 8,
       isApex: boss.isApex
@@ -1014,75 +425,7 @@ function fireBossRingBarrage() {
   playTone(boss.isApex ? 180 : 240, 'square', 0.2, 0.1);
 }
 
-/* ==================== 70 件全裝備庫寶箱三選一 (四品階：白/藍/黃/橘) ==================== */
-function openChestSelection(isApex) {
-  isPaused = true;
-  chestModal.style.display = 'flex';
-  chestOptionsContainer.innerHTML = '';
-
-  let allowedTiers = ["common", "rare"];
-  if (activeCountryStageId > 60) {
-    allowedTiers = isApex ? ["elite", "legendary"] : ["rare", "elite", "legendary"];
-  } else if (activeCountryStageId > 20) {
-    allowedTiers = isApex ? ["rare", "elite"] : ["common", "rare", "elite"];
-  } else {
-    allowedTiers = isApex ? ["rare", "elite"] : ["common", "rare"];
-  }
-
-  const db = (typeof MASTER_EQUIPMENT_DB !== 'undefined') ? MASTER_EQUIPMENT_DB : [];
-  const pool = db.filter(item => allowedTiers.includes(item.tier));
-  const shuffled = [...pool].sort(() => 0.5 - Math.random());
-  const options = shuffled.slice(0, 3);
-
-  const slotNames = {
-    weapon: "遠程武器", helmet: "頭盔", armor: "胸部盔甲",
-    gloves: "手套", boots: "鞋子", talisman: "護符", artifact: "戰術法器"
-  };
-
-  chestTitle.innerText = isApex ? "👑 擊破領土霸主 · 頂級戰利品自選" : "⚔️ 擊破先鋒 Boss · 戰術裝備自選";
-  chestStageInfo.innerText = `藍裝附帶 1 詞條 · 黃裝附帶 2 詞條 · 橘裝附帶 3 詞條`;
-
-  options.forEach(item => {
-    const rolledAffixes = (typeof generateAffixesForTier === 'function') ? generateAffixesForTier(item.tier) : [];
-    const affixPreviewHtml = rolledAffixes.length > 0
-      ? rolledAffixes.map(a => `<div style="font-size:9.5px; color:#fde047; margin-top:2px;">${a.name} (${a.tag})</div>`).join('')
-      : `<div style="font-size:9.5px; color:#64748b; margin-top:2px;">無附魔詞條</div>`;
-
-    const card = document.createElement('div');
-    card.className = 'chest-card';
-    const tierMeta = TIER_META[item.tier || 'common'] || TIER_META.common;
-    card.innerHTML = `
-      <div class="chest-card-type" style="color: ${tierMeta.color}">
-        [ ${tierMeta.name} · ${slotNames[item.slot] || '裝備'} ]
-      </div>
-      <div class="chest-card-name">${item.name}</div>
-      <div class="chest-card-desc">${item.desc}</div>
-      ${affixPreviewHtml}
-      <div style="font-size: 10px; color: #eab308; margin-top: 6px;">★ 點擊獲取 ★</div>
-    `;
-    card.onclick = () => {
-      const instanceItem = {
-        ...item,
-        id: `${item.id}_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-        affixes: rolledAffixes
-      };
-      claimChestItem(instanceItem);
-    };
-    chestOptionsContainer.appendChild(card);
-  });
-
-  playTone(650, 'triangle', 0.3, 0.15);
-}
-
-function claimChestItem(item) {
-  userSave.myInventory.push({ ...item });
-  chest.active = false;
-  chestModal.style.display = 'none';
-  playTone(850, 'sine', 0.3, 0.1);
-
-  completeSubstage();
-}
-
+/* ==================== 哨站結算與道具效果 ==================== */
 function completeSubstage() {
   const cId = activeCountryStageId;
   const currentProgress = userSave.stageProgress[cId] || 0;
@@ -1123,11 +466,9 @@ function syncPlayerSaveState() {
 function showVictoryModal() {
   isPaused = true;
   victoryCountryName.innerText = `${activeCountryData.flag} ${activeCountryData.name} - 哨站 ${activeSubstage} 肅清！`;
-  if (activeSubstage === 10) {
-    victoryDescText.innerText = "【全國全面收復】深淵海潮退卻，下一個國家防線已成功解鎖！";
-  } else {
-    victoryDescText.innerText = `哨站防禦網絡已建立，第 ${activeSubstage + 1} 哨站已開放作戰！`;
-  }
+  victoryDescText.innerText = activeSubstage === 10
+    ? "【全國全面收復】深淵海潮退卻，下一個國家防線已成功解鎖！"
+    : `哨站防禦網絡已建立，第 ${activeSubstage + 1} 哨站已開放作戰！`;
   victoryModal.style.display = 'flex';
   playTone(880, 'triangle', 0.5, 0.2);
 }
@@ -1154,7 +495,6 @@ function returnToWorldMap() {
   openWorldMapScreen();
 }
 
-/* ==================== 磁鐵與炸彈道具 ==================== */
 function activateSuperMagnet() {
   playTone(950, 'sine', 0.35, 0.15);
   for (const g of gems) g.magnetPull = true;
@@ -1178,13 +518,7 @@ function activateEmpBomb() {
   updateKillsDisplay();
 }
 
-/* ==================== 怪物生成與戰鬥物理循環 ==================== */
-let enemies = [];
-let bullets = [];
-let gems = [];
-let spawnInterval = 60;
-let spawnTimer = 0;
-
+/* ==================== 戰鬥物理主迴圈 ==================== */
 function initGame() {
   if (gameRunning) return;
   gameRunning = true;
@@ -1202,7 +536,6 @@ function updateHUD() {
 function spawnContinentEnemy() {
   const normSubstage = (activeSubstage > 5) ? (activeSubstage - 5) : activeSubstage;
   const isHpDoubled = (activeSubstage > 5);
-
   const isEarlyCountry = (activeCountryStageId === 1);
   const maxCap = isEarlyCountry ? (4 + normSubstage * 2) : (7 + normSubstage * 3);
   if (enemies.length >= maxCap) return;
@@ -1230,9 +563,7 @@ function spawnContinentEnemy() {
   let radius = 10;
   let baseHp = isEarlyCountry ? (12 + normSubstage * 2) : (25 + activeCountryStageId * 3);
 
-  if (isHpDoubled) {
-    baseHp *= 2;
-  }
+  if (isHpDoubled) baseHp *= 2;
 
   if (cont === 'OC' || cont === 'AM') {
     kind = 'shark';
@@ -1376,7 +707,6 @@ function updateGame() {
     if (dashGhosts[i].alpha <= 0) dashGhosts.splice(i, 1);
   }
 
-  // 全自動遠程射擊循環
   if (player.attackTimer > 0) player.attackTimer--;
   player.fireTimer++;
   if (player.fireTimer >= player.fireInterval) {
@@ -1384,7 +714,6 @@ function updateGame() {
     player.fireTimer = 0;
   }
 
-  // 護符寵物邏輯
   if (player.equipment && player.equipment.talisman) {
     pet.active = true;
     pet.type = player.equipment.talisman === 'atk_pet' ? 'atk' : (player.equipment.talisman === 'heal_pet' ? 'heal' : 'pull');
@@ -1410,8 +739,7 @@ function updateGame() {
     } else if (pet.type === 'heal' && pet.timer >= 180) {
       pet.timer = 0;
       if (player.hp < player.maxHp) {
-        const healAmount = Math.floor(20 * pet.power);
-        player.hp = Math.min(player.maxHp, player.hp + healAmount);
+        player.hp = Math.min(player.maxHp, player.hp + Math.floor(20 * pet.power));
         updateHUD();
         playTone(600, 'sine', 0.25, 0.08);
       }
@@ -1419,8 +747,7 @@ function updateGame() {
       pet.timer = 0;
       const pullRange = 150 * Math.min(1.6, pet.power);
       for (const e of enemies) {
-        const dist = Math.hypot(e.x - pet.x, e.y - pet.y);
-        if (dist < pullRange) {
+        if (Math.hypot(e.x - pet.x, e.y - pet.y) < pullRange) {
           const angle = Math.atan2(pet.y - e.y, pet.x - e.x);
           e.x += Math.cos(angle) * 45; e.y += Math.sin(angle) * 45;
         }
@@ -1431,10 +758,8 @@ function updateGame() {
     pet.active = false;
   }
 
-  if (chest.active) {
-    if (Math.hypot(player.x - chest.x, player.y - chest.y) < player.radius + chest.radius) {
-      openChestSelection(chest.isApex);
-    }
+  if (chest.active && Math.hypot(player.x - chest.x, player.y - chest.y) < player.radius + chest.radius) {
+    openChestSelection(chest.isApex);
   }
 
   for (let i = battlePickups.length - 1; i >= 0; i--) {
@@ -1446,7 +771,6 @@ function updateGame() {
     }
   }
 
-  // 子彈碰撞
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i];
     b.x += b.vx; b.y += b.vy;
@@ -1503,9 +827,7 @@ function updateGame() {
 
         if (activeAffixes.chain && Math.random() < 0.25) {
           for (const other of enemies) {
-            if (other !== e && Math.hypot(other.x - e.x, other.y - e.y) < 95) {
-              other.hp -= 20;
-            }
+            if (other !== e && Math.hypot(other.x - e.x, other.y - e.y) < 95) other.hp -= 20;
           }
           playTone(900, 'sine', 0.05, 0.03);
         }
@@ -1530,9 +852,7 @@ function updateGame() {
           if (activeSubstage !== 5 && activeSubstage !== 10) {
             if (kills >= killThreshold) completeSubstage();
           } else {
-            if (kills >= killThreshold && !boss.active && !chest.active) {
-              checkAndSpawnStageBoss();
-            }
+            if (kills >= killThreshold && !boss.active && !chest.active) checkAndSpawnStageBoss();
           }
         }
         break;
@@ -1540,7 +860,6 @@ function updateGame() {
     }
   }
 
-  // Boss 行為與血條同步
   if (boss.active) {
     const bossHpPct = Math.max(0, (boss.hp / boss.maxHp) * 100);
     bossBarFill.style.width = `${bossHpPct}%`;
@@ -1569,13 +888,11 @@ function updateGame() {
       }
 
       if (!player.isDashing && Math.hypot(player.x - boss.x, player.y - boss.y) < player.radius + boss.radius) {
-        const rawDmg = boss.isApex ? 0.6 : 0.35;
-        if (applyDamageToPlayer(rawDmg)) return;
+        if (applyDamageToPlayer(boss.isApex ? 0.6 : 0.35)) return;
       }
     }
   }
 
-  // Boss 彈幕
   for (let i = bossBullets.length - 1; i >= 0; i--) {
     const bb = bossBullets[i];
     bb.x += bb.vx; bb.y += bb.vy;
@@ -1646,8 +963,7 @@ function updateGame() {
     }
 
     if (!player.isDashing && Math.hypot(player.x - e.x, player.y - e.y) < player.radius + e.radius) {
-      const rawDmg = (activeCountryStageId === 1) ? 0.12 : 0.35;
-      if (applyDamageToPlayer(rawDmg)) return;
+      if (applyDamageToPlayer((activeCountryStageId === 1) ? 0.12 : 0.35)) return;
     }
   }
 
@@ -1680,15 +996,10 @@ function triggerLevelUp() {
 
   const curWep = player.weapon ? player.weapon.damage : 30;
   const curAtk = curWep + player.baseBonusDamage;
-  document.getElementById('up-stat-damage').innerText = 
-    `目前: ${curAtk} ➜ 升級後: ${curAtk + 15}`;
-
-  document.getElementById('up-stat-hp').innerText = 
-    `目前: ${Math.floor(player.hp)} / ${player.maxHp} ➜ 上限: ${player.maxHp + 25} (並補滿)`;
-
+  document.getElementById('up-stat-damage').innerText = `目前: ${curAtk} ➜ 升級後: ${curAtk + 15}`;
+  document.getElementById('up-stat-hp').innerText = `目前: ${Math.floor(player.hp)} / ${player.maxHp} ➜ 上限: ${player.maxHp + 25} (並補滿)`;
   const nextSpeed = (player.speed * 1.12).toFixed(2);
-  document.getElementById('up-stat-speed').innerText = 
-    `目前: ${player.speed.toFixed(2)} ➜ 升級後: ${nextSpeed}`;
+  document.getElementById('up-stat-speed').innerText = `目前: ${player.speed.toFixed(2)} ➜ 升級後: ${nextSpeed}`;
 
   if (txtLevelPrefix) txtLevelPrefix.innerText = `Lv.${player.level} EXP`;
   upgradeModal.style.display = 'flex';
