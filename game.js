@@ -1,5 +1,5 @@
 /**
- * SSTS - 戰鬥引擎、70件全裝備屬性實裝、5★附魔詞條與等比座標映射 (game.js)
+ * SSTS - 戰鬥引擎、70件全裝備屬性實裝、四品階(白/藍/黃/橘)多詞條與等比座標映射 (game.js)
  */
 
 let audioCtx = null;
@@ -127,7 +127,7 @@ let storyAnimId = null;
 const storyData = [
   { chapter: "SSTS // ARCHIVE 01", title: "海淵巨響 · 沉眠者復甦", desc: "萬米海溝深處的海洋霸主睜開眼瞳。遠古逆鱗引發深海沸騰狂潮，全球海岸線全面告急！" },
   { chapter: "SSTS // ARCHIVE 02", title: "逆鱗狂潮 · 百國淪陷", desc: "自最小的梵蒂岡到遼闊大陸，各國海岸皆被變異海嗣突破，地表文明退守各大洲的核心掩體。" },
-  { chapter: "SSTS // ARCHIVE 03", title: "地表同盟 · 哨站奪還戰", desc: "裝備皆為全遠距攻擊。升滿 5★ 覺醒專屬附魔詞條，擊潰海嗣收復全球 100 國！" },
+  { chapter: "SSTS // ARCHIVE 03", title: "地表同盟 · 哨站奪還戰", desc: "藍裝 1 詞條、黃裝 2 詞條、橘裝 3 詞條！升星強化核心數值，擊潰海嗣收復全球 100 國！" },
   { chapter: "SSTS // MISSION START", title: "全球反擊 · 征途展開", desc: "出擊吧！擊敗 Boss 獲取自選裝備，閒置裝備可拆解為金幣，強化戰甲迎戰深淵！" }
 ];
 
@@ -267,7 +267,7 @@ const player = {
   hp: 100,
   maxHp: 100,
   baseBonusDamage: 0,
-  gearDmgReduce: 0, // 裝備物理減傷比例 (0 ~ 0.8)
+  gearDmgReduce: 0, // 裝備物理減傷比例 (0 ~ 0.75)
   exp: 0,
   level: 1,
   nextExp: 5,
@@ -323,13 +323,20 @@ function generateStageObstacles(continent) {
   }
 }
 
+// 彙整全身所有裝備的詞條陣列 (藍裝1條、黃裝2條、橘裝3條)
 function compileActiveAffixes() {
   activeAffixes = {};
   for (const key in userSave.equipped) {
     const item = userSave.equipped[key];
-    if (item && item.stars === 5 && item.affix) {
-      activeAffixes[item.affix.id] = true;
-    }
+    if (!item) continue;
+    const list = (typeof getItemAffixList === 'function')
+      ? getItemAffixList(item)
+      : (item.affixes || (item.affix ? [item.affix] : []));
+    list.forEach(aff => {
+      if (aff && aff.id) {
+        activeAffixes[aff.id] = true;
+      }
+    });
   }
 
   if (activeAffixes.rush) {
@@ -739,7 +746,7 @@ function fireBossRingBarrage() {
   playTone(boss.isApex ? 180 : 240, 'square', 0.2, 0.1);
 }
 
-/* ==================== 70 件全裝備庫寶箱三選一 ==================== */
+/* ==================== 70 件全裝備庫寶箱三選一 (四品階：白/藍/黃/橘) ==================== */
 function openChestSelection(isApex) {
   isPaused = true;
   chestModal.style.display = 'flex';
@@ -747,9 +754,9 @@ function openChestSelection(isApex) {
 
   let allowedTiers = ["common", "rare"];
   if (activeCountryStageId > 60) {
-    allowedTiers = isApex ? ["epic", "legendary"] : ["elite", "epic", "legendary"];
+    allowedTiers = isApex ? ["elite", "legendary"] : ["rare", "elite", "legendary"];
   } else if (activeCountryStageId > 20) {
-    allowedTiers = isApex ? ["elite", "epic"] : ["rare", "elite", "epic"];
+    allowedTiers = isApex ? ["rare", "elite"] : ["common", "rare", "elite"];
   } else {
     allowedTiers = isApex ? ["rare", "elite"] : ["common", "rare"];
   }
@@ -765,9 +772,15 @@ function openChestSelection(isApex) {
   };
 
   chestTitle.innerText = isApex ? "👑 擊破領土霸主 · 頂級戰利品自選" : "⚔️ 擊破先鋒 Boss · 戰術裝備自選";
-  chestStageInfo.innerText = `從 70 種全球軍械庫中隨機截獲 3 件裝備`;
+  chestStageInfo.innerText = `藍裝附帶 1 詞條 · 黃裝附帶 2 詞條 · 橘裝附帶 3 詞條`;
 
   options.forEach(item => {
+    // 預先為每張寶箱卡片抽取對應品階的隨機詞條
+    const rolledAffixes = (typeof generateAffixesForTier === 'function') ? generateAffixesForTier(item.tier) : [];
+    const affixPreviewHtml = rolledAffixes.length > 0
+      ? rolledAffixes.map(a => `<div style="font-size:9.5px; color:#fde047; margin-top:2px;">${a.name} (${a.tag})</div>`).join('')
+      : `<div style="font-size:9.5px; color:#64748b; margin-top:2px;">無附魔詞條</div>`;
+
     const card = document.createElement('div');
     card.className = 'chest-card';
     const tierMeta = TIER_META[item.tier || 'common'] || TIER_META.common;
@@ -777,13 +790,14 @@ function openChestSelection(isApex) {
       </div>
       <div class="chest-card-name">${item.name}</div>
       <div class="chest-card-desc">${item.desc}</div>
-      <div style="font-size: 10px; color: #eab308; margin-top: 8px;">★ 點擊獲取 ★</div>
+      ${affixPreviewHtml}
+      <div style="font-size: 10px; color: #eab308; margin-top: 6px;">★ 點擊獲取 ★</div>
     `;
     card.onclick = () => {
       const instanceItem = {
         ...item,
         id: `${item.id}_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-        affix: null
+        affixes: rolledAffixes
       };
       claimChestItem(instanceItem);
     };
